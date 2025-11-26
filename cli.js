@@ -205,6 +205,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>${title} | CSVコメントビューア</title>
   <style>
     :root {
@@ -674,6 +677,18 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   let filterTargetCol = null;
   let freezeCols = 0;
   let freezeRows = 0;
+  // 念のため初期化を明示してリロード時の残存状態を防ぐ
+  function resetState() {
+    filters = {};
+    filterTargetCol = null;
+    freezeCols = 0;
+    freezeRows = 0;
+    panelOpen = false;
+    commentPanel.classList.add('collapsed');
+    updateFilterIndicators();
+    updateStickyOffsets();
+    applyFilters();
+  }
 
     // --- ホットリロード (SSE) ----------------------------------------------
     (() => {
@@ -692,6 +707,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       };
       connect();
     })();
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) location.reload();
+    });
 
     const comments = {}; // key: "r-c" -> {row, col, text, value}
     let currentKey = null;
@@ -1142,6 +1160,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     updateStickyOffsets();
     updateFilterIndicators();
     refreshList();
+    resetState();
   </script>
 </body>
 </html>`;
@@ -1155,12 +1174,12 @@ function buildHtml() {
 // --- HTTPサーバー ---------------------------------------------------------
 const baseName = path.basename(resolvedPath);
 
-const sseClients = new Set();
-let watcher = null;
-let heartbeat = null;
-let reloadTimer = null;
-let server = null;
-let opened = false;
+  const sseClients = new Set();
+  let watcher = null;
+  let heartbeat = null;
+  let reloadTimer = null;
+  let server = null;
+  let opened = false;
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -1229,7 +1248,12 @@ server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
     try {
       const html = buildHtml();
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0'
+      });
       res.end(html);
     } catch (err) {
       console.error('CSV読み込みエラー', err);
