@@ -8,14 +8,13 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ARTIFACTS_DIR = path.join(__dirname, '..', '.artifacts');
-const CSV_FILE = path.join(__dirname, 'fixtures', 'sample.csv');
+const TSV_FILE = path.join(__dirname, 'fixtures', 'sample.tsv');
 
 function startServer(port) {
   return new Promise((resolve) => {
-    const serverProcess = spawn('node', ['cli.cjs', CSV_FILE, '--port', String(port), '--no-open'], {
+    const serverProcess = spawn('node', ['cli.cjs', TSV_FILE, '--port', String(port), '--no-open'], {
       cwd: path.join(__dirname, '..'),
       stdio: 'pipe',
-      detached: true,
     });
     const checkReady = setInterval(() => {
       http.get(`http://localhost:${port}/healthz`, (res) => {
@@ -28,10 +27,10 @@ function startServer(port) {
   });
 }
 
-describe('CSV E2E Tests', () => {
+describe('TSV E2E Tests', () => {
   let browser;
   let serverProcess;
-  const port = 3001;
+  const port = 3003;
 
   beforeAll(async () => {
     browser = await chromium.launch({ headless: true });
@@ -55,7 +54,7 @@ describe('CSV E2E Tests', () => {
     await page.goto(`http://localhost:${port}`);
 
     // 1. Check initial display
-    await expect(page.locator('header h1')).toContainText('sample.csv');
+    await expect(page.locator('header h1')).toContainText('sample.tsv');
     const table = page.locator('#csv-table');
     await expect(table).toBeVisible();
     const headerRow = page.locator('thead tr');
@@ -63,7 +62,7 @@ describe('CSV E2E Tests', () => {
     const tbody = page.locator('#tbody');
     expect(await tbody.locator('tr').count()).toBe(6);
 
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'csv-01-initial.png'), fullPage: true });
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'tsv-01-initial.png'), fullPage: true });
 
     // 2. Add comment to cell
     const cell = page.locator('td[data-row="2"][data-col="2"]');
@@ -71,14 +70,14 @@ describe('CSV E2E Tests', () => {
     const commentCard = page.locator('#comment-card');
     await expect(commentCard).toBeVisible();
 
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'csv-02-comment-card.png'), fullPage: true });
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'tsv-02-comment-card.png'), fullPage: true });
 
     const textarea = page.locator('#comment-input');
     await textarea.fill('This product is popular');
     await page.locator('#save-comment').click();
     await expect(cell).toHaveClass(/has-comment/);
 
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'csv-03-comment-saved.png'), fullPage: true });
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'tsv-03-comment-saved.png'), fullPage: true });
 
     // 3. Filter column
     const header = page.locator('thead th[data-col="5"] .th-inner');
@@ -86,7 +85,7 @@ describe('CSV E2E Tests', () => {
     const filterMenu = page.locator('#filter-menu');
     await expect(filterMenu).toBeVisible();
 
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'csv-04-filter-menu.png'), fullPage: true });
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'tsv-04-filter-menu.png'), fullPage: true });
 
     page.once('dialog', async dialog => {
       await dialog.accept('Fruit');
@@ -94,7 +93,7 @@ describe('CSV E2E Tests', () => {
     await page.locator('#filter-menu button[data-action="contains"]').click();
     await page.waitForTimeout(500);
 
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'csv-05-filtered.png'), fullPage: true });
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'tsv-05-filtered.png'), fullPage: true });
 
     await page.close();
   });

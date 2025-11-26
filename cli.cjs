@@ -3,7 +3,7 @@
  * Lightweight CSV/Text/Markdown viewer with comment collection server
  *
  * Usage:
- *   annotab <file> [--port 3000] [--encoding utf8|shift_jis|...]
+ *   annotab <file> [--port 3000] [--encoding utf8|shift_jis|...] [--no-open]
  *
  * Click cells in the browser to add comments.
  * Close the tab or click "Submit & Exit" to send comments to the server,
@@ -22,13 +22,14 @@ const yaml = require('js-yaml');
 // --- CLI arguments ---------------------------------------------------------
 const args = process.argv.slice(2);
 if (!args.length) {
-  console.error('Usage: annotab <file> [--port 3000] [--encoding utf8|shift_jis|...]');
+  console.error('Usage: annotab <file> [--port 3000] [--encoding utf8|shift_jis|...] [--no-open]');
   process.exit(1);
 }
 
 let csvPath = null;
 let port = 3000;
 let encodingOpt = null;
+let noOpen = false;
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i];
   if (arg === '--port' && args[i + 1]) {
@@ -37,6 +38,8 @@ for (let i = 0; i < args.length; i += 1) {
   } else if ((arg === '--encoding' || arg === '-e') && args[i + 1]) {
     encodingOpt = args[i + 1];
     i += 1;
+  } else if (arg === '--no-open') {
+    noOpen = true;
   } else if (!csvPath) {
     csvPath = arg;
   }
@@ -53,8 +56,8 @@ if (!fs.existsSync(resolvedPath)) {
   process.exit(1);
 }
 
-// --- Simple CSV parser (RFC4180-style, handles " escaping and newlines) ----
-function parseCsv(text) {
+// --- Simple CSV/TSV parser (RFC4180-style, handles " escaping and newlines) ----
+function parseCsv(text, separator = ',') {
   const rows = [];
   let row = [];
   let field = '';
@@ -76,7 +79,7 @@ function parseCsv(text) {
       }
     } else if (ch === '"') {
       inQuotes = true;
-    } else if (ch === ',') {
+    } else if (ch === separator) {
       row.push(field);
       field = '';
     } else if (ch === '\n') {
@@ -142,10 +145,12 @@ function decodeBuffer(buf) {
 function loadCsv() {
   const raw = fs.readFileSync(resolvedPath);
   const csvText = decodeBuffer(raw);
-  if (!csvText.includes('\n') && !csvText.includes(',')) {
-    // heuristic: if no newline/commas, still treat as single row
+  const ext = path.extname(resolvedPath).toLowerCase();
+  const separator = ext === '.tsv' ? '\t' : ',';
+  if (!csvText.includes('\n') && !csvText.includes(separator)) {
+    // heuristic: if no newline/separators, still treat as single row
   }
-  const rows = parseCsv(csvText);
+  const rows = parseCsv(csvText, separator);
   const maxCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
   return {
     rows,
@@ -1615,7 +1620,7 @@ server = http.createServer(async (req, res) => {
 server.listen(port, () => {
   console.log(`Viewer started: http://localhost:${port}  (file: ${baseName})`);
   console.log('Close the browser tab to stop the server.');
-  if (!opened) {
+  if (!opened && !noOpen) {
     const url = `http://localhost:${port}`;
     const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
     try {

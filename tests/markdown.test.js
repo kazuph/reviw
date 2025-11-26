@@ -12,9 +12,10 @@ const MD_FILE = path.join(__dirname, 'fixtures', 'sample.md');
 
 function startServer(port) {
   return new Promise((resolve) => {
-    const serverProcess = spawn('node', ['cli.cjs', MD_FILE, '--port', String(port)], {
+    const serverProcess = spawn('node', ['cli.cjs', MD_FILE, '--port', String(port), '--no-open'], {
       cwd: path.join(__dirname, '..'),
       stdio: 'pipe',
+      detached: true,
     });
     const checkReady = setInterval(() => {
       http.get(`http://localhost:${port}/healthz`, (res) => {
@@ -39,7 +40,13 @@ describe('Markdown E2E Tests', () => {
 
   afterAll(async () => {
     if (browser) await browser.close();
-    if (serverProcess) serverProcess.kill('SIGTERM');
+    if (serverProcess) {
+      try {
+        process.kill(-serverProcess.pid, 'SIGKILL');
+      } catch (e) {
+        // ignore if already dead
+      }
+    }
   });
 
   test('preview, comment, and code block', async () => {
