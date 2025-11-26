@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * 軽量CSVビューア＋コメント収集サーバー
+ * Lightweight CSV/Text/Markdown viewer with comment collection server
  *
- * 使い方:
- *   annotab <ファイルパス> [--port 3000] [--encoding utf8|shift_jis|...]
+ * Usage:
+ *   annotab <file> [--port 3000] [--encoding utf8|shift_jis|...]
  *
- * ブラウザでセルをクリックしてコメントを付ける。
- * タブを閉じる、または「コメント送信して終了」ボタンを押すと
- * navigator.sendBeacon でコメントがサーバーへ送られ、標準出力へ
- * 座標とコメントが出たあとプロセスが終了する（出力はYAML）。
+ * Click cells in the browser to add comments.
+ * Close the tab or click "Submit & Exit" to send comments to the server,
+ * which outputs them as YAML to stdout and then exits.
  */
 
 const fs = require('fs');
@@ -20,10 +19,10 @@ const iconv = require('iconv-lite');
 const marked = require('marked');
 const yaml = require('js-yaml');
 
-// --- CLI引数 ---------------------------------------------------------------
+// --- CLI arguments ---------------------------------------------------------
 const args = process.argv.slice(2);
 if (!args.length) {
-  console.error('使い方: annotab <ファイル> [--port 3000] [--encoding utf8|shift_jis|...]');
+  console.error('Usage: annotab <file> [--port 3000] [--encoding utf8|shift_jis|...]');
   process.exit(1);
 }
 
@@ -44,17 +43,17 @@ for (let i = 0; i < args.length; i += 1) {
 }
 
 if (!csvPath) {
-  console.error('CSVファイルを指定してください');
+  console.error('Please specify a file');
   process.exit(1);
 }
 
 const resolvedPath = path.resolve(csvPath);
 if (!fs.existsSync(resolvedPath)) {
-  console.error(`ファイルが見つかりません: ${resolvedPath}`);
+  console.error(`File not found: ${resolvedPath}`);
   process.exit(1);
 }
 
-// --- シンプルCSVパーサ（RFC4180風、"エスケープと改行対応） -----------------
+// --- Simple CSV parser (RFC4180-style, handles " escaping and newlines) ----
 function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -86,7 +85,7 @@ function parseCsv(text) {
       row = [];
       field = '';
     } else if (ch === '\r') {
-      // CRは無視（CRLF対策）
+      // Ignore CR (for CRLF handling)
     } else {
       field += ch;
     }
@@ -95,7 +94,7 @@ function parseCsv(text) {
   row.push(field);
   rows.push(row);
 
-  // 末尾が完全に空行なら削る
+  // Remove trailing empty row if present
   const last = rows[rows.length - 1];
   if (last && last.every((v) => v === '')) {
     rows.pop();
@@ -129,13 +128,13 @@ function decodeBuffer(buf) {
     const detected = chardet.detect(buf) || '';
     encoding = normalizeEncoding(detected) || 'utf8';
     if (encoding !== 'utf8') {
-      console.log(`推定エンコーディング: ${detected} -> ${encoding}`);
+      console.log(`Detected encoding: ${detected} -> ${encoding}`);
     }
   }
   try {
     return iconv.decode(buf, encoding);
   } catch (err) {
-    console.warn(`decode失敗 (${encoding}): ${err.message}, utf8にフォールバックします`);
+    console.warn(`Decode failed (${encoding}): ${err.message}, falling back to utf8`);
     return buf.toString('utf8');
   }
 }
@@ -195,7 +194,7 @@ function loadData() {
   return { ...data, mode: 'text' };
 }
 
-// --- HTMLテンプレート ------------------------------------------------------
+// --- HTML template ---------------------------------------------------------
 function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   const serialized = JSON.stringify(dataRows);
   const modeJson = JSON.stringify(mode);
@@ -208,7 +207,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>${title} | CSVコメントビューア</title>
+  <title>${title} | annotab</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -417,6 +416,10 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
     td:hover { background: rgba(96,165,250,0.08); box-shadow: inset 0 0 0 1px rgba(96,165,250,0.25); }
     td.has-comment { background: rgba(34,197,94,0.12); box-shadow: inset 0 0 0 1px rgba(34,197,94,0.35); }
+    td.selected, th.selected, thead th.selected { background: rgba(99,102,241,0.18); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.35); }
+    body.dragging { user-select: none; cursor: crosshair; }
+    body.dragging td, body.dragging tbody th { cursor: crosshair; }
+    tbody th { cursor: pointer; }
     td .dot {
       position: absolute;
       right: 6px;
@@ -533,26 +536,19 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       border-radius: 12px;
       padding: 14px;
       margin-bottom: 12px;
-      overflow: auto;
-      max-height: 280px;
     }
     .md-layout {
       display: flex;
       gap: 16px;
-      align-items: stretch;
+      align-items: flex-start;
       margin-top: 8px;
-      min-height: calc(100vh - 160px);
     }
     .md-left {
       flex: 1;
       min-width: 0;
-      display: flex;
-      flex-direction: column;
     }
     .md-left .md-preview {
-      flex: 1;
       max-height: none;
-      height: auto;
     }
     .md-right {
       flex: 1;
@@ -561,12 +557,14 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .md-right .table-box {
       max-width: none;
       min-width: 0;
-      height: calc(100vh - 160px);
+      max-height: none;
+      overflow: visible;
     }
     .md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4 {
       margin: 0.4em 0 0.2em;
     }
     .md-preview p { margin: 0.3em 0; line-height: 1.5; }
+    .md-preview img { max-width: 100%; height: auto; border-radius: 8px; }
     .md-preview code { background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px; }
     .md-preview pre {
       background: rgba(255,255,255,0.06);
@@ -613,11 +611,11 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   <header>
     <div class="meta">
       <h1>${title}</h1>
-      <span class="badge">クリックでコメント / ESCでキャンセル</span>
-      <span class="pill">コメント数 <strong id="comment-count">0</strong></span>
+      <span class="badge">Click to comment / ESC to cancel</span>
+      <span class="pill">Comments <strong id="comment-count">0</strong></span>
     </div>
     <div>
-      <button id="send-and-exit">コメント送信して終了</button>
+      <button id="send-and-exit">Submit & Exit</button>
     </div>
   </header>
 
@@ -645,8 +643,8 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       : `
         ${hasPreview ? `<div class="md-preview">${previewHtml}</div>` : ''}
         <div class="toolbar">
-          <button id="fit-width">横幅にフィット</button>
-          <span>ヘッダ右端をドラッグして列幅調整</span>
+          <button id="fit-width">Fit to width</button>
+          <span>Drag header edge to resize columns</span>
         </div>
         <div class="table-box">
           <table id="csv-table">
@@ -665,35 +663,35 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
   <div class="floating" id="comment-card">
     <header>
-      <h2 id="card-title">セルコメント</h2>
+      <h2 id="card-title">Cell Comment</h2>
       <div style="display:flex; gap:6px;">
-        <button id="close-card">閉じる</button>
-        <button id="clear-comment">削除</button>
+        <button id="close-card">Close</button>
+        <button id="clear-comment">Delete</button>
       </div>
     </header>
     <div id="cell-preview" style="font-size:12px; color: var(--muted); margin-bottom:8px;"></div>
-    <textarea id="comment-input" placeholder="このセルへのメモ・指摘を入力"></textarea>
+    <textarea id="comment-input" placeholder="Enter your comment or note"></textarea>
     <div class="actions">
-      <button class="primary" id="save-comment">保存</button>
+      <button class="primary" id="save-comment">Save</button>
     </div>
   </div>
 
   <aside class="comment-list">
-    <h3>コメント一覧</h3>
+    <h3>Comments</h3>
     <ol id="comment-list"></ol>
-    <p class="hint">タブを閉じるか「コメント送信して終了」で送信＆サーバー終了します。</p>
+    <p class="hint">Close the tab or click "Submit & Exit" to send comments and stop the server.</p>
   </aside>
-  <button class="comment-toggle" id="comment-toggle">コメント一覧 (0)</button>
+  <button class="comment-toggle" id="comment-toggle">Comments (0)</button>
   <div class="filter-menu" id="filter-menu">
-    <label class="menu-check"><input type="checkbox" id="freeze-col-check" /> この列まで固定</label>
-    <button data-action="not-empty">この列が空でない行</button>
-    <button data-action="empty">この列が空の行</button>
-    <button data-action="contains">値に含む…</button>
-    <button data-action="not-contains">値に含まない…</button>
-    <button data-action="reset">この列のフィルタ解除</button>
+    <label class="menu-check"><input type="checkbox" id="freeze-col-check" /> Freeze up to this column</label>
+    <button data-action="not-empty">Rows where not empty</button>
+    <button data-action="empty">Rows where empty</button>
+    <button data-action="contains">Contains...</button>
+    <button data-action="not-contains">Does not contain...</button>
+    <button data-action="reset">Clear filter</button>
   </div>
   <div class="filter-menu" id="row-menu">
-    <label class="menu-check"><input type="checkbox" id="freeze-row-check" /> この行まで固定</label>
+    <label class="menu-check"><input type="checkbox" id="freeze-row-check" /> Freeze up to this row</label>
   </div>
 
   <script>
@@ -730,7 +728,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   let filterTargetCol = null;
   let freezeCols = 0;
   let freezeRows = 0;
-  // 念のため初期化を明示してリロード時の残存状態を防ぐ
+  // Explicitly reset state to prevent stale data on reload
   function resetState() {
     filters = {};
     filterTargetCol = null;
@@ -743,7 +741,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     applyFilters();
   }
 
-    // --- ホットリロード (SSE) ----------------------------------------------
+    // --- Hot reload (SSE) ---------------------------------------------------
     (() => {
       let es = null;
       const connect = () => {
@@ -764,8 +762,13 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       if (e.persisted) location.reload();
     });
 
-    const comments = {}; // key: "r-c" -> {row, col, text, value}
+    const comments = {}; // key: "r-c" -> {row, col, text, value} or "r1-c1:r2-c2" for ranges
     let currentKey = null;
+    // Drag selection state
+    let isDragging = false;
+    let dragStart = null; // {row, col}
+    let dragEnd = null;   // {row, col}
+    let selection = null; // {startRow, endRow, startCol, endCol}
 
     function escapeHtml(str) {
       return str.replace(/[&<>"]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s] || s));
@@ -785,6 +788,40 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       });
     }
 
+    function clearSelection() {
+      tbody.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+      selection = null;
+    }
+
+    function updateSelectionVisual() {
+      document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+      if (!selection) return;
+      const { startRow, endRow, startCol, endCol } = selection;
+      for (let r = startRow; r <= endRow; r++) {
+        for (let c = startCol; c <= endCol; c++) {
+          const td = tbody.querySelector('td[data-row="' + r + '"][data-col="' + c + '"]');
+          if (td) td.classList.add('selected');
+        }
+        // Also highlight row header
+        const th = tbody.querySelector('tr:nth-child(' + r + ') th');
+        if (th) th.classList.add('selected');
+      }
+      // Also highlight column headers
+      for (let c = startCol; c <= endCol; c++) {
+        const colHeader = document.querySelector('thead th[data-col="' + c + '"]');
+        if (colHeader) colHeader.classList.add('selected');
+      }
+    }
+
+    function computeSelection(start, end) {
+      return {
+        startRow: Math.min(start.row, end.row),
+        endRow: Math.max(start.row, end.row),
+        startCol: Math.min(start.col, end.col),
+        endCol: Math.max(start.col, end.col)
+      };
+    }
+
     function renderTable() {
       const frag = document.createDocumentFragment();
       DATA.forEach((row, rIdx) => {
@@ -798,28 +835,122 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
           td.dataset.row = rIdx + 1;
           td.dataset.col = c + 1;
           td.textContent = val;
-          td.addEventListener('click', () => openCard(td, val));
           tr.appendChild(td);
         }
         frag.appendChild(tr);
       });
       tbody.appendChild(frag);
-      // テキスト/Markdownは単列なら幅を狭めておく
+      // Narrow column width for single-column text/Markdown
       if (MODE !== 'csv' && MAX_COLS === 1) {
         colWidths[0] = 240;
         syncColgroup();
       }
+      attachDragHandlers();
     }
 
-    function openCard(td, value) {
-      const row = Number(td.dataset.row);
-      const col = Number(td.dataset.col);
-      currentKey = row + '-' + col;
-      cardTitle.textContent = 'R' + row + ' C' + col + ' へのコメント';
-      cellPreview.textContent = value ? 'セル値: ' + value : 'セル値: (空)';
-      commentInput.value = comments[currentKey]?.text || '';
+    function attachDragHandlers() {
+      tbody.addEventListener('mousedown', (e) => {
+        const td = e.target.closest('td');
+        const th = e.target.closest('tbody th');
+
+        if (td) {
+          // Clicked on a cell
+          e.preventDefault();
+          isDragging = true;
+          document.body.classList.add('dragging');
+          dragStart = { row: Number(td.dataset.row), col: Number(td.dataset.col) };
+          dragEnd = { ...dragStart };
+          selection = computeSelection(dragStart, dragEnd);
+          updateSelectionVisual();
+        } else if (th) {
+          // Clicked on row header - select entire row
+          e.preventDefault();
+          isDragging = true;
+          document.body.classList.add('dragging');
+          const row = Number(th.textContent);
+          dragStart = { row, col: 1, isRowSelect: true };
+          dragEnd = { row, col: MAX_COLS };
+          selection = computeSelection(dragStart, dragEnd);
+          updateSelectionVisual();
+        }
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const td = el?.closest('td');
+        const th = el?.closest('tbody th');
+
+        if (td && td.dataset.row && td.dataset.col) {
+          if (dragStart.isRowSelect) {
+            // Started from row header, extend row selection
+            dragEnd = { row: Number(td.dataset.row), col: MAX_COLS };
+          } else {
+            dragEnd = { row: Number(td.dataset.row), col: Number(td.dataset.col) };
+          }
+          selection = computeSelection(dragStart, dragEnd);
+          updateSelectionVisual();
+        } else if (th) {
+          // Moving over row header
+          const row = Number(th.textContent);
+          if (dragStart.isRowSelect) {
+            dragEnd = { row, col: MAX_COLS };
+          } else {
+            dragEnd = { row, col: dragEnd.col };
+          }
+          selection = computeSelection(dragStart, dragEnd);
+          updateSelectionVisual();
+        }
+      });
+
+      document.addEventListener('mouseup', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.classList.remove('dragging');
+        if (selection) {
+          openCardForSelection();
+        }
+      });
+    }
+
+    function openCardForSelection() {
+      if (!selection) return;
+      const { startRow, endRow, startCol, endCol } = selection;
+      const isSingleCell = startRow === endRow && startCol === endCol;
+
+      if (isSingleCell) {
+        // Single cell - use simple key
+        currentKey = startRow + '-' + startCol;
+        cardTitle.textContent = 'Comment on R' + startRow + ' C' + startCol;
+        const td = tbody.querySelector('td[data-row="' + startRow + '"][data-col="' + startCol + '"]');
+        cellPreview.textContent = td ? 'Cell value: ' + (td.textContent || '(empty)') : '';
+      } else {
+        // Range selection
+        currentKey = startRow + '-' + startCol + ':' + endRow + '-' + endCol;
+        const rowCount = endRow - startRow + 1;
+        const colCount = endCol - startCol + 1;
+        if (startCol === endCol) {
+          cardTitle.textContent = 'Comment on R' + startRow + '-R' + endRow + ' C' + startCol;
+          cellPreview.textContent = 'Selected ' + rowCount + ' rows';
+        } else if (startRow === endRow) {
+          cardTitle.textContent = 'Comment on R' + startRow + ' C' + startCol + '-C' + endCol;
+          cellPreview.textContent = 'Selected ' + colCount + ' columns';
+        } else {
+          cardTitle.textContent = 'Comment on R' + startRow + '-R' + endRow + ' C' + startCol + '-C' + endCol;
+          cellPreview.textContent = 'Selected ' + rowCount + ' x ' + colCount + ' cells';
+        }
+      }
+
+      const existingComment = comments[currentKey];
+      commentInput.value = existingComment?.text || '';
 
       card.style.display = 'block';
+      const anchorTd = tbody.querySelector('td[data-row="' + startRow + '"][data-col="' + startCol + '"]');
+      if (anchorTd) positionCard(anchorTd);
+      commentInput.focus();
+    }
+
+    function positionCard(td) {
       const cardWidth = card.offsetWidth || 380;
       const cardHeight = card.offsetHeight || 220;
       const rect = td.getBoundingClientRect();
@@ -838,35 +969,30 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       let top = sy + rect.top;
 
       if (spaceBelow >= cardHeight) {
-        // 下に出す（優先）
         left = sx + clamp(rect.left, margin, vw - cardWidth - margin);
         top = sy + rect.bottom + margin;
       } else if (spaceAbove >= cardHeight) {
-        // 上に出す
         left = sx + clamp(rect.left, margin, vw - cardWidth - margin);
         top = sy + rect.top - cardHeight - margin;
       } else if (spaceRight >= cardWidth) {
-        // 右に出す
         left = sx + rect.right + margin;
         top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
       } else if (spaceLeft >= cardWidth) {
-        // 左に出す
         left = sx + rect.left - cardWidth - margin;
         top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
       } else {
-        // それでも無理ならできるだけ近く
         left = sx + clamp(rect.left, margin, vw - cardWidth - margin);
         top = sy + clamp(rect.bottom + margin, margin, vh - cardHeight - margin);
       }
 
       card.style.left = left + 'px';
       card.style.top = top + 'px';
-      commentInput.focus();
     }
 
     function closeCard() {
       card.style.display = 'none';
       currentKey = null;
+      clearSelection();
     }
 
     function setDot(row, col, on) {
@@ -888,9 +1014,15 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
     function refreshList() {
       commentList.innerHTML = '';
-      const items = Object.values(comments).sort((a, b) => a.row === b.row ? a.col - b.col : a.row - b.row);
+      const items = Object.values(comments).sort((a, b) => {
+        const aRow = a.isRange ? a.startRow : a.row;
+        const bRow = b.isRange ? b.startRow : b.row;
+        const aCol = a.isRange ? a.startCol : a.col;
+        const bCol = b.isRange ? b.startCol : b.col;
+        return aRow === bRow ? aCol - bCol : aRow - bRow;
+      });
       commentCount.textContent = items.length;
-      commentToggle.textContent = 'コメント一覧 (' + items.length + ')';
+      commentToggle.textContent = 'Comments (' + items.length + ')';
       if (items.length === 0) {
         panelOpen = false;
       }
@@ -898,17 +1030,36 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       if (!items.length) {
         const li = document.createElement('li');
         li.className = 'hint';
-        li.textContent = 'まだコメントはありません';
+        li.textContent = 'No comments yet';
         commentList.appendChild(li);
         return;
       }
       items.forEach((c) => {
         const li = document.createElement('li');
-        li.innerHTML = '<strong>R' + c.row + 'C' + c.col + '</strong> ' + escapeHtml(c.text);
-        li.addEventListener('click', () => {
-          const td = tbody.querySelector('td[data-row="' + c.row + '"][data-col="' + c.col + '"]');
-          if (td) openCard(td, td.textContent);
-        });
+        if (c.isRange) {
+          // Format range label
+          let label;
+          if (c.startCol === c.endCol) {
+            label = 'R' + c.startRow + '-R' + c.endRow + ' C' + c.startCol;
+          } else if (c.startRow === c.endRow) {
+            label = 'R' + c.startRow + ' C' + c.startCol + '-C' + c.endCol;
+          } else {
+            label = 'R' + c.startRow + '-R' + c.endRow + ' C' + c.startCol + '-C' + c.endCol;
+          }
+          li.innerHTML = '<strong>' + label + '</strong> ' + escapeHtml(c.text);
+          li.addEventListener('click', () => {
+            selection = { startRow: c.startRow, endRow: c.endRow, startCol: c.startCol, endCol: c.endCol };
+            updateSelectionVisual();
+            openCardForSelection();
+          });
+        } else {
+          li.innerHTML = '<strong>R' + c.row + ' C' + c.col + '</strong> ' + escapeHtml(c.text);
+          li.addEventListener('click', () => {
+            selection = { startRow: c.row, endRow: c.row, startCol: c.col, endCol: c.col };
+            updateSelectionVisual();
+            openCardForSelection();
+          });
+        }
         commentList.appendChild(li);
       });
     }
@@ -929,7 +1080,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       });
     }
 
-    // --- フィルタ ----------------------------------------------------------
+    // --- Filter -----------------------------------------------------------
     function closeFilterMenu() {
       filterMenu.style.display = 'none';
       filterTargetCol = null;
@@ -972,7 +1123,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       } else if (action === 'empty') {
         filters[col] = (v) => (v ?? '').trim() === '';
       } else if (action === 'contains' || action === 'not-contains') {
-        const keyword = prompt('含めたい文字列を入力してください');
+        const keyword = prompt('Enter the text to filter by');
         if (keyword == null || keyword === '') { closeFilterMenu(); return; }
         const lower = keyword.toLowerCase();
         if (action === 'contains') {
@@ -1000,7 +1151,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       }
     });
 
-    // --- 行メニュー（固定行） ----------------------------------------------
+    // --- Row Menu (Freeze Row) ---------------------------------------------
     function closeRowMenu() {
       rowMenu.style.display = 'none';
       rowMenu.dataset.row = '';
@@ -1031,18 +1182,55 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       }
     });
 
+    function isRangeKey(key) {
+      return key && key.includes(':');
+    }
+
+    function parseRangeKey(key) {
+      // Format: "startRow-startCol:endRow-endCol"
+      const [start, end] = key.split(':');
+      const [startRow, startCol] = start.split('-').map(Number);
+      const [endRow, endCol] = end.split('-').map(Number);
+      return { startRow, startCol, endRow, endCol };
+    }
+
     function saveCurrent() {
       if (!currentKey) return;
       const text = commentInput.value.trim();
-      const [row, col] = currentKey.split('-').map(Number);
-      const td = tbody.querySelector('td[data-row="' + row + '"][data-col="' + col + '"]');
-      const value = td ? td.textContent : '';
-      if (text) {
-        comments[currentKey] = { row, col, text, value };
-        setDot(row, col, true);
+
+      if (isRangeKey(currentKey)) {
+        // Range (rectangular) comment
+        const { startRow, startCol, endRow, endCol } = parseRangeKey(currentKey);
+        if (text) {
+          comments[currentKey] = { startRow, startCol, endRow, endCol, text, isRange: true };
+          for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+              setDot(r, c, true);
+            }
+          }
+        } else {
+          delete comments[currentKey];
+          for (let r = startRow; r <= endRow; r++) {
+            for (let c = startCol; c <= endCol; c++) {
+              const singleKey = r + '-' + c;
+              if (!comments[singleKey]) {
+                setDot(r, c, false);
+              }
+            }
+          }
+        }
       } else {
-        delete comments[currentKey];
-        setDot(row, col, false);
+        // Single cell comment
+        const [row, col] = currentKey.split('-').map(Number);
+        const td = tbody.querySelector('td[data-row="' + row + '"][data-col="' + col + '"]');
+        const value = td ? td.textContent : '';
+        if (text) {
+          comments[currentKey] = { row, col, text, value };
+          setDot(row, col, true);
+        } else {
+          delete comments[currentKey];
+          setDot(row, col, false);
+        }
       }
       refreshList();
       closeCard();
@@ -1050,9 +1238,23 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
     function clearCurrent() {
       if (!currentKey) return;
-      const [row, col] = currentKey.split('-').map(Number);
-      delete comments[currentKey];
-      setDot(row, col, false);
+
+      if (isRangeKey(currentKey)) {
+        const { startRow, startCol, endRow, endCol } = parseRangeKey(currentKey);
+        delete comments[currentKey];
+        for (let r = startRow; r <= endRow; r++) {
+          for (let c = startCol; c <= endCol; c++) {
+            const singleKey = r + '-' + c;
+            if (!comments[singleKey]) {
+              setDot(r, c, false);
+            }
+          }
+        }
+      } else {
+        const [row, col] = currentKey.split('-').map(Number);
+        delete comments[currentKey];
+        setDot(row, col, false);
+      }
       refreshList();
       closeCard();
     }
@@ -1065,7 +1267,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveCurrent();
     });
 
-    // --- 列リサイズ --------------------------------------------------------
+    // --- Column Resize -----------------------------------------------------
     function startResize(colIdx, event) {
       event.preventDefault();
       const startX = event.clientX;
@@ -1099,7 +1301,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
           e.stopPropagation();
         });
       });
-      // 行ヘッダ（row番号）クリックで行固定メニュー
+      // Click on row header (row number) to open freeze row menu
       tbody.querySelectorAll('th').forEach((th) => {
         th.dataset.rowHeader = '1';
         th.addEventListener('click', (e) => {
@@ -1111,7 +1313,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       });
     }
 
-    // --- 固定列・固定行 ----------------------------------------------------
+    // --- Freeze Columns/Rows -----------------------------------------------
     function updateStickyOffsets() {
       freezeCols = Number(freezeCols || 0);
       freezeRows = Number(freezeRows || 0);
@@ -1173,7 +1375,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         accumTop += tr.offsetHeight;
       });
     }
-    // --- 横幅フィット ------------------------------------------------------
+    // --- Fit to Width ------------------------------------------------------
     function fitToWidth() {
       const box = document.querySelector('.table-box');
       const available = box.clientWidth - ROW_HEADER_WIDTH - 24;
@@ -1186,7 +1388,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
     if (fitBtn) fitBtn.addEventListener('click', fitToWidth);
 
-    // --- 送信＆終了 ---------------------------------------------------------
+    // --- Submit & Exit -----------------------------------------------------
     let sent = false;
     function payload(reason) {
       return {
@@ -1227,7 +1429,7 @@ function buildHtml() {
   return htmlTemplate(rows, cols, title, mode, preview);
 }
 
-// --- HTTPサーバー ---------------------------------------------------------
+// --- HTTP Server -----------------------------------------------------------
 const baseName = path.basename(resolvedPath);
 
   const sseClients = new Set();
@@ -1272,7 +1474,7 @@ function startWatcher() {
   try {
     watcher = fs.watch(resolvedPath, { persistent: true }, notifyReload);
   } catch (err) {
-    console.warn('ファイル監視開始に失敗しました', err);
+    console.warn('Failed to start file watcher', err);
   }
   heartbeat = setInterval(() => broadcast('ping'), 25000);
 }
@@ -1312,9 +1514,9 @@ server = http.createServer(async (req, res) => {
       });
       res.end(html);
     } catch (err) {
-      console.error('CSV読み込みエラー', err);
+      console.error('File load error', err);
       res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('CSV読み込みに失敗しました。ファイルを確認してください。');
+      res.end('Failed to load file. Please check the file.');
     }
     return;
   }
@@ -1333,7 +1535,7 @@ server = http.createServer(async (req, res) => {
         payload = JSON.parse(raw);
       }
       const comments = Array.isArray(payload.comments) ? payload.comments : [];
-      console.log('=== コメントを受信 ===');
+      console.log('=== Comments received ===');
       const yamlOut = yaml.dump(payload, { noRefs: true, lineWidth: 120 });
       console.log(yamlOut.trim());
       res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -1343,7 +1545,7 @@ server = http.createServer(async (req, res) => {
       res.writeHead(400, { 'Content-Type': 'text/plain' });
       res.end('bad request');
     } finally {
-      // クライアントが閉じる前に送信されることを想定、即終了
+      // Expecting to be sent before client closes, exit immediately
       shutdown();
     }
     return;
@@ -1362,13 +1564,57 @@ server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Static file serving for images and other assets (relative to the input file)
+  if (req.method === 'GET') {
+    const MIME_TYPES = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml',
+      '.ico': 'image/x-icon',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json',
+      '.pdf': 'application/pdf',
+    };
+    try {
+      const urlPath = decodeURIComponent(req.url.split('?')[0]);
+      // Prevent directory traversal
+      if (urlPath.includes('..')) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('forbidden');
+        return;
+      }
+      const baseDir = path.dirname(resolvedPath);
+      const filePath = path.join(baseDir, urlPath);
+      // Only serve files within the base directory
+      if (!filePath.startsWith(baseDir)) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('forbidden');
+        return;
+      }
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        const content = fs.readFileSync(filePath);
+        res.writeHead(200, { 'Content-Type': contentType });
+        res.end(content);
+        return;
+      }
+    } catch (err) {
+      // fall through to 404
+    }
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain' });
   res.end('not found');
 });
 
 server.listen(port, () => {
-  console.log(`CSVビューア起動: http://localhost:${port}  (ファイル: ${baseName})`);
-  console.log('タブを閉じるとサーバーも終了します。');
+  console.log(`Viewer started: http://localhost:${port}  (file: ${baseName})`);
+  console.log('Close the browser tab to stop the server.');
   if (!opened) {
     const url = `http://localhost:${port}`;
     const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
@@ -1376,7 +1622,7 @@ server.listen(port, () => {
       spawn(opener, [url], { stdio: 'ignore', detached: true });
       opened = true;
     } catch (err) {
-      console.warn('ブラウザ自動起動に失敗しました。URLを手動で開いてください:', url);
+      console.warn('Failed to open browser automatically. Please open this URL manually:', url);
     }
   }
   startWatcher();

@@ -1,6 +1,6 @@
 {
   "name": "annotab",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Lightweight table/text/markdown reviewer with in-browser comments, sticky rows/columns, filters, auto-exit YAML payloads.",
   "type": "module",
   "bin": {
