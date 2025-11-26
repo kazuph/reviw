@@ -274,7 +274,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       color: var(--muted);
       font-size: 13px;
     }
-    .toolbar button, .toolbar select {
+    .toolbar button {
       background: rgba(96,165,250,0.12);
       color: var(--text);
       border: 1px solid var(--border);
@@ -284,7 +284,6 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       cursor: pointer;
     }
     .toolbar button:hover { background: rgba(96,165,250,0.2); }
-    .toolbar select { padding-right: 26px; }
 
     .table-box {
       background: rgba(15, 23, 42, 0.7);
@@ -592,16 +591,6 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     ${hasPreview ? `<div class="md-preview">${previewHtml}</div>` : ''}
     <div class="toolbar">
       <button id="fit-width">横幅にフィット</button>
-      <label>固定列:
-        <select id="freeze-cols">
-          ${Array.from({ length: Math.min(cols, 8) + 1 }).map((_, i) => `<option value="${i}">${i}</option>`).join('')}
-        </select>
-      </label>
-      <label>固定行:
-        <select id="freeze-rows">
-          ${Array.from({ length: Math.min(dataRows.length, 8) + 1 }).map((_, i) => `<option value="${i}">${i}</option>`).join('')}
-        </select>
-      </label>
       <span>ヘッダ右端をドラッグして列幅調整</span>
     </div>
     <div class="table-box">
@@ -640,11 +629,15 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   </aside>
   <button class="comment-toggle" id="comment-toggle">コメント一覧 (0)</button>
   <div class="filter-menu" id="filter-menu">
+    <label class="menu-check"><input type="checkbox" id="freeze-col-check" /> この列まで固定</label>
     <button data-action="not-empty">この列が空でない行</button>
     <button data-action="empty">この列が空の行</button>
     <button data-action="contains">値に含む…</button>
     <button data-action="not-contains">値に含まない…</button>
     <button data-action="reset">この列のフィルタ解除</button>
+  </div>
+  <div class="filter-menu" id="row-menu">
+    <label class="menu-check"><input type="checkbox" id="freeze-row-check" /> この行まで固定</label>
   </div>
 
   <script>
@@ -662,12 +655,13 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   const cellPreview = document.getElementById('cell-preview');
   const commentList = document.getElementById('comment-list');
   const commentCount = document.getElementById('comment-count');
-  const freezeSelect = document.getElementById('freeze-cols');
-  const freezeRowSelect = document.getElementById('freeze-rows');
   const fitBtn = document.getElementById('fit-width');
   const commentPanel = document.querySelector('.comment-list');
   const commentToggle = document.getElementById('comment-toggle');
   const filterMenu = document.getElementById('filter-menu');
+  const rowMenu = document.getElementById('row-menu');
+  const freezeColCheck = document.getElementById('freeze-col-check');
+  const freezeRowCheck = document.getElementById('freeze-row-check');
 
   const ROW_HEADER_WIDTH = 52;
   const MIN_COL_WIDTH = 80;
@@ -678,6 +672,8 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   let panelOpen = false;
   let filters = {}; // colIndex -> predicate
   let filterTargetCol = null;
+  let freezeCols = 0;
+  let freezeRows = 0;
 
     // --- ホットリロード (SSE) ----------------------------------------------
     (() => {
@@ -869,12 +865,13 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       const sx = window.scrollX;
       const sy = window.scrollY;
       const menuWidth = 200;
-      const menuHeight = 200;
+      const menuHeight = 260;
       let left = sx + clamp(anchorRect.left, margin, vw - menuWidth - margin);
       let top = sy + anchorRect.bottom + margin;
       filterMenu.style.left = left + 'px';
       filterMenu.style.top = top + 'px';
       filterMenu.style.display = 'block';
+      freezeColCheck.checked = (freezeCols === col + 1);
     }
 
     function applyFilters() {
@@ -915,9 +912,46 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       updateFilterIndicators();
     });
 
+    freezeColCheck.addEventListener('change', () => {
+      if (filterTargetCol == null) return;
+      freezeCols = freezeColCheck.checked ? filterTargetCol + 1 : 0;
+      updateStickyOffsets();
+    });
+
     document.addEventListener('click', (e) => {
       if (filterMenu.style.display === 'block' && !filterMenu.contains(e.target)) {
         closeFilterMenu();
+      }
+    });
+
+    // --- 行メニュー（固定行） ----------------------------------------------
+    function closeRowMenu() {
+      rowMenu.style.display = 'none';
+      rowMenu.dataset.row = '';
+    }
+    function openRowMenu(row, anchorRect) {
+      rowMenu.dataset.row = String(row);
+      freezeRowCheck.checked = (freezeRows === row);
+      const margin = 8;
+      const vw = window.innerWidth;
+      const sx = window.scrollX;
+      const sy = window.scrollY;
+      const menuWidth = 180;
+      const menuHeight = 80;
+      let left = sx + clamp(anchorRect.left, margin, vw - menuWidth - margin);
+      let top = sy + anchorRect.bottom + margin;
+      rowMenu.style.left = left + 'px';
+      rowMenu.style.top = top + 'px';
+      rowMenu.style.display = 'block';
+    }
+    freezeRowCheck.addEventListener('change', () => {
+      const r = Number(rowMenu.dataset.row || 0);
+      freezeRows = freezeRowCheck.checked ? r : 0;
+      updateStickyOffsets();
+    });
+    document.addEventListener('click', (e) => {
+      if (rowMenu.style.display === 'block' && !rowMenu.contains(e.target) && !(e.target.dataset && e.target.dataset.rowHeader)) {
+        closeRowMenu();
       }
     });
 
@@ -989,12 +1023,22 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
           e.stopPropagation();
         });
       });
+      // 行ヘッダ（row番号）クリックで行固定メニュー
+      tbody.querySelectorAll('th').forEach((th) => {
+        th.dataset.rowHeader = '1';
+        th.addEventListener('click', (e) => {
+          const row = Number(th.textContent);
+          const rect = th.getBoundingClientRect();
+          openRowMenu(row, rect);
+          e.stopPropagation();
+        });
+      });
     }
 
     // --- 固定列・固定行 ----------------------------------------------------
     function updateStickyOffsets() {
-      const freezeCols = Number(freezeSelect.value || 0);
-      const freezeRows = Number(freezeRowSelect.value || 0);
+      freezeCols = Number(freezeCols || 0);
+      freezeRows = Number(freezeRows || 0);
 
       // columns
       const headCells = document.querySelectorAll('thead th[data-col]');
@@ -1054,7 +1098,6 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       });
     }
     freezeSelect.addEventListener('change', updateStickyOffsets);
-    freezeRowSelect.addEventListener('change', updateStickyOffsets);
 
     // --- 横幅フィット ------------------------------------------------------
     function fitToWidth() {
