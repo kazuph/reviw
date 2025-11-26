@@ -317,9 +317,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
     thead th:first-child,
     tbody th {
-      width: 52px;
-      min-width: 52px;
-      max-width: 52px;
+      width: 28px;
+      min-width: 28px;
+      max-width: 28px;
     }
     thead th .th-inner {
       display: flex;
@@ -539,20 +539,29 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .md-layout {
       display: flex;
       gap: 16px;
-      align-items: flex-start;
+      align-items: stretch;
       margin-top: 8px;
+      min-height: calc(100vh - 160px);
     }
     .md-left {
-      flex: 0 0 38%;
-      max-width: 38%;
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .md-left .md-preview {
+      flex: 1;
+      max-height: none;
+      height: auto;
     }
     .md-right {
       flex: 1;
       min-width: 0;
     }
     .md-right .table-box {
-      max-width: 60vw;
-      min-width: 360px;
+      max-width: none;
+      min-width: 0;
+      height: calc(100vh - 160px);
     }
     .md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4 {
       margin: 0.4em 0 0.2em;
@@ -619,10 +628,6 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
             <div class="md-preview">${previewHtml}</div>
           </div>
           <div class="md-right">
-            <div class="toolbar">
-              <button id="fit-width">横幅にフィット</button>
-              <span>ヘッダ右端をドラッグして列幅調整</span>
-            </div>
             <div class="table-box">
               <table id="csv-table">
                 <colgroup id="colgroup"></colgroup>
@@ -714,7 +719,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   const freezeColCheck = document.getElementById('freeze-col-check');
   const freezeRowCheck = document.getElementById('freeze-row-check');
 
-  const ROW_HEADER_WIDTH = 52;
+  const ROW_HEADER_WIDTH = 28;
     const MIN_COL_WIDTH = 80;
     const MAX_COL_WIDTH = 420;
     const DEFAULT_COL_WIDTH = 120;
@@ -1179,7 +1184,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       syncColgroup();
       updateStickyOffsets();
     }
-    fitBtn.addEventListener('click', fitToWidth);
+    if (fitBtn) fitBtn.addEventListener('click', fitToWidth);
 
     // --- 送信＆終了 ---------------------------------------------------------
     let sent = false;

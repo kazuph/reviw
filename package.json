@@ -1,13 +1,18 @@
 {
   "name": "annotab",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Lightweight table/text/markdown reviewer with in-browser comments, sticky rows/columns, filters, auto-exit YAML payloads.",
+  "type": "module",
   "bin": {
-    "annotab": "./cli.js"
+    "annotab": "./cli.cjs"
   },
   "files": [
-    "cli.js"
+    "cli.cjs"
   ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "license": "MIT",
   "author": "kazuph",
   "publishConfig": {
@@ -21,5 +26,10 @@
     "iconv-lite": "^0.6.3",
     "js-yaml": "^4.1.0",
     "marked": "^12.0.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "playwright": "^1.57.0",
+    "vitest": "^4.0.14"
   }
 }
