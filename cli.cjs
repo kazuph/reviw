@@ -225,62 +225,122 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   <meta http-equiv="Expires" content="0" />
   <title>${title} | annotab</title>
   <style>
+    /* Dark theme (default) */
     :root {
-      color-scheme: light dark;
+      color-scheme: dark;
       --bg: #0f172a;
+      --bg-gradient: radial-gradient(circle at 20% 20%, #1e293b 0%, #0b1224 35%, #0b1224 60%, #0f172a 100%);
       --panel: #111827;
+      --panel-alpha: rgba(15, 23, 42, 0.9);
+      --panel-solid: #0b1224;
+      --card-bg: rgba(11, 18, 36, 0.95);
+      --input-bg: rgba(15, 23, 42, 0.6);
       --border: #1f2937;
       --accent: #60a5fa;
       --accent-2: #f472b6;
       --text: #e5e7eb;
+      --text-inverse: #0b1224;
       --muted: #94a3b8;
       --comment: #0f766e;
       --badge: #22c55e;
+      --table-bg: rgba(15, 23, 42, 0.7);
+      --row-even: rgba(30, 41, 59, 0.4);
+      --row-odd: rgba(15, 23, 42, 0.2);
+      --selected-bg: rgba(96,165,250,0.15);
+      --hover-bg: rgba(96,165,250,0.08);
+      --shadow-color: rgba(0,0,0,0.35);
+      --code-bg: #1e293b;
+    }
+    /* Light theme */
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: #f8fafc;
+      --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      --panel: #ffffff;
+      --panel-alpha: rgba(255, 255, 255, 0.95);
+      --panel-solid: #ffffff;
+      --card-bg: rgba(255, 255, 255, 0.98);
+      --input-bg: #f1f5f9;
+      --border: #e2e8f0;
+      --accent: #3b82f6;
+      --accent-2: #ec4899;
+      --text: #1e293b;
+      --text-inverse: #ffffff;
+      --muted: #64748b;
+      --comment: #14b8a6;
+      --badge: #22c55e;
+      --table-bg: #ffffff;
+      --row-even: #f8fafc;
+      --row-odd: #ffffff;
+      --selected-bg: rgba(59,130,246,0.12);
+      --hover-bg: rgba(59,130,246,0.06);
+      --shadow-color: rgba(0,0,0,0.1);
+      --code-bg: #f1f5f9;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Inter", "Hiragino Sans", system-ui, -apple-system, sans-serif;
-      background: radial-gradient(circle at 20% 20%, #1e293b 0%, #0b1224 35%, #0b1224 60%, #0f172a 100%);
+      background: var(--bg-gradient);
       color: var(--text);
       min-height: 100vh;
+      transition: background 200ms ease, color 200ms ease;
     }
     header {
       position: sticky;
       top: 0;
       z-index: 5;
       padding: 12px 16px;
-      background: rgba(15, 23, 42, 0.9);
+      background: var(--panel-alpha);
       backdrop-filter: blur(8px);
       border-bottom: 1px solid var(--border);
       display: flex;
       gap: 12px;
       align-items: center;
       justify-content: space-between;
+      transition: background 200ms ease, border-color 200ms ease;
     }
     header .meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    header .actions { display: flex; gap: 8px; align-items: center; }
     header h1 { font-size: 16px; margin: 0; font-weight: 700; }
     header .badge {
-      background: rgba(96,165,250,0.15);
+      background: var(--selected-bg);
       color: var(--text);
       padding: 6px 10px;
       border-radius: 8px;
       font-size: 12px;
-      border: 1px solid rgba(96,165,250,0.35);
+      border: 1px solid var(--border);
     }
     header button {
       background: linear-gradient(135deg, #38bdf8, #6366f1);
-      color: #0b1224;
+      color: var(--text-inverse);
       border: none;
       border-radius: 10px;
       padding: 10px 14px;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 10px 30px rgba(99,102,241,0.35);
+      box-shadow: 0 10px 30px var(--shadow-color);
       transition: transform 120ms ease, box-shadow 120ms ease;
     }
-    header button:hover { transform: translateY(-1px); box-shadow: 0 16px 36px rgba(99,102,241,0.45); }
+    header button:hover { transform: translateY(-1px); box-shadow: 0 16px 36px var(--shadow-color); }
     header button:active { transform: translateY(0); }
+    /* Theme toggle button */
+    .theme-toggle {
+      background: var(--selected-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 120ms ease, transform 120ms ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+    }
+    .theme-toggle:hover { background: var(--hover-bg); transform: scale(1.05); }
 
     .wrap { padding: 12px 16px 40px; }
     .toolbar {
@@ -304,12 +364,13 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .toolbar button:hover { background: rgba(96,165,250,0.2); }
 
     .table-box {
-      background: rgba(15, 23, 42, 0.7);
+      background: var(--table-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
       overflow: auto;
       max-height: calc(100vh - 110px);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+      box-shadow: 0 20px 50px var(--shadow-color);
+      transition: background 200ms ease, border-color 200ms ease;
     }
     table {
       border-collapse: collapse;
@@ -321,7 +382,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       position: sticky;
       top: 0;
       z-index: 3;
-      background: #0b1224;
+      background: var(--panel-solid);
       color: var(--muted);
       font-size: 12px;
       text-align: center;
@@ -329,6 +390,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       border-bottom: 1px solid var(--border);
       border-right: 1px solid var(--border);
       white-space: nowrap;
+      transition: background 200ms ease;
     }
     thead th:first-child,
     tbody th {
@@ -390,12 +452,12 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
     .freeze {
       position: sticky !important;
-      background: #0b1224;
+      background: var(--panel-solid);
       z-index: 4;
     }
     .freeze-row {
       position: sticky !important;
-      background: #0b1224;
+      background: var(--panel-solid);
     }
     .freeze-row.freeze {
       z-index: 6;
@@ -407,19 +469,20 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       position: sticky;
       left: 0;
       z-index: 2;
-      background: #0b1224;
+      background: var(--panel-solid);
       color: var(--muted);
       text-align: right;
       padding: 8px 10px;
       font-size: 12px;
       border-right: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
+      transition: background 200ms ease;
     }
     td {
       padding: 10px 10px;
       border-bottom: 1px solid var(--border);
       border-right: 1px solid var(--border);
-      background: rgba(255,255,255,0.01);
+      background: var(--row-odd);
       color: var(--text);
       font-size: 13px;
       line-height: 1.45;
@@ -430,9 +493,10 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       word-break: break-word;
       max-width: 320px;
     }
-    td:hover { background: rgba(96,165,250,0.08); box-shadow: inset 0 0 0 1px rgba(96,165,250,0.25); }
+    tr:nth-child(even) td:not(.selected):not(.has-comment) { background: var(--row-even); }
+    td:hover:not(.selected) { background: var(--hover-bg); box-shadow: inset 0 0 0 1px rgba(96,165,250,0.25); }
     td.has-comment { background: rgba(34,197,94,0.12); box-shadow: inset 0 0 0 1px rgba(34,197,94,0.35); }
-    td.selected, th.selected, thead th.selected { background: rgba(99,102,241,0.18); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.35); }
+    td.selected, th.selected, thead th.selected { background: rgba(99,102,241,0.22) !important; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.45); }
     body.dragging { user-select: none; cursor: crosshair; }
     body.dragging td, body.dragging tbody th { cursor: crosshair; }
     tbody th { cursor: pointer; }
@@ -449,13 +513,14 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .floating {
       position: absolute;
       z-index: 10;
-      background: #0b1224;
+      background: var(--panel-solid);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 12px;
       width: min(420px, calc(100vw - 32px));
-      box-shadow: 0 20px 40px rgba(0,0,0,0.45);
+      box-shadow: 0 20px 40px var(--shadow-color);
       display: none;
+      transition: background 200ms ease, border-color 200ms ease;
     }
     .floating header {
       position: relative;
@@ -465,28 +530,32 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       padding: 0 0 8px 0;
       justify-content: space-between;
     }
-    .floating h2 { font-size: 14px; margin: 0; color: #fff; }
+    .floating h2 { font-size: 14px; margin: 0; color: var(--text); }
     .floating button {
       margin-left: 8px;
-      background: rgba(96,165,250,0.15);
-      color: #e5e7eb;
-      border: 1px solid var(--border);
+      background: var(--accent);
+      color: var(--text-inverse);
+      border: 1px solid var(--accent);
       padding: 6px 10px;
       border-radius: 8px;
       font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
+      transition: background 120ms ease, opacity 120ms ease;
     }
+    .floating button:hover { opacity: 0.85; }
     .floating textarea {
       width: 100%;
       min-height: 110px;
       resize: vertical;
       border-radius: 8px;
       border: 1px solid var(--border);
-      background: rgba(15, 23, 42, 0.6);
+      background: var(--input-bg);
       color: var(--text);
       padding: 10px;
       font-size: 13px;
       line-height: 1.4;
+      transition: background 200ms ease, border-color 200ms ease;
     }
     .floating .actions {
       display: flex;
@@ -496,7 +565,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
     .floating .actions button.primary {
       background: linear-gradient(135deg, #22c55e, #16a34a);
-      color: #0b1224;
+      color: var(--text-inverse);
       border: none;
       font-weight: 700;
       box-shadow: 0 10px 30px rgba(22,163,74,0.35);
@@ -510,11 +579,11 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       overflow: auto;
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: rgba(11, 18, 36, 0.95);
-      box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+      background: var(--card-bg);
+      box-shadow: 0 18px 40px var(--shadow-color);
       padding: 12px;
       backdrop-filter: blur(6px);
-      transition: opacity 120ms ease, transform 120ms ease;
+      transition: opacity 120ms ease, transform 120ms ease, background 200ms ease;
     }
     .comment-list h3 { margin: 0 0 8px 0; font-size: 13px; color: var(--muted); }
     .comment-list ol {
@@ -526,8 +595,8 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
     .comment-list li { margin-bottom: 6px; }
     .comment-list .hint { color: var(--muted); font-size: 12px; }
-    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: rgba(96,165,250,0.12); border: 1px solid rgba(96,165,250,0.3); font-size: 12px; color: var(--text); }
-    .pill strong { color: #fff; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--selected-bg); border: 1px solid var(--border); font-size: 12px; color: var(--text); }
+    .pill strong { color: var(--text); font-weight: 700; }
     .comment-list.collapsed {
       opacity: 0;
       pointer-events: none;
@@ -540,18 +609,20 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       padding: 10px 12px;
       border-radius: 10px;
       border: 1px solid var(--border);
-      background: rgba(96,165,250,0.16);
+      background: var(--selected-bg);
       color: var(--text);
       cursor: pointer;
-      box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+      box-shadow: 0 10px 24px var(--shadow-color);
       font-size: 13px;
+      transition: background 200ms ease, border-color 200ms ease;
     }
     .md-preview {
-      background: rgba(15, 23, 42, 0.6);
+      background: var(--input-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 14px;
       margin-bottom: 12px;
+      transition: background 200ms ease, border-color 200ms ease;
     }
     .md-layout {
       display: flex;
@@ -599,21 +670,22 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
     .filter-menu {
       position: absolute;
-      background: #0b1224;
+      background: var(--panel-solid);
       border: 1px solid var(--border);
       border-radius: 10px;
-      box-shadow: 0 14px 30px rgba(0,0,0,0.35);
+      box-shadow: 0 14px 30px var(--shadow-color);
       padding: 8px;
       display: none;
       z-index: 12;
       width: 180px;
+      transition: background 200ms ease, border-color 200ms ease;
     }
     .filter-menu button {
       width: 100%;
       display: block;
       margin: 4px 0;
       padding: 8px 10px;
-      background: rgba(96,165,250,0.12);
+      background: var(--selected-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text);
@@ -621,7 +693,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       font-size: 13px;
       text-align: left;
     }
-    .filter-menu button:hover { background: rgba(96,165,250,0.2); }
+    .filter-menu button:hover { background: var(--hover-bg); }
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -633,21 +705,22 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
     .modal-overlay.visible { display: flex; }
     .modal-dialog {
-      background: #0b1224;
+      background: var(--panel-solid);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 20px;
       width: 90%;
       max-width: 480px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      box-shadow: 0 20px 40px var(--shadow-color);
+      transition: background 200ms ease, border-color 200ms ease;
     }
     .modal-dialog h3 { margin: 0 0 12px; font-size: 18px; color: var(--accent); }
-    .modal-summary { color: #888; font-size: 13px; margin-bottom: 12px; }
-    .modal-dialog label { display: block; font-size: 13px; margin-bottom: 6px; color: #aaa; }
+    .modal-summary { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+    .modal-dialog label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
     .modal-dialog textarea {
       width: 100%;
       min-height: 100px;
-      background: #151e30;
+      background: var(--input-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text);
@@ -655,6 +728,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       font-size: 14px;
       resize: vertical;
       box-sizing: border-box;
+      transition: background 200ms ease, border-color 200ms ease;
     }
     .modal-dialog textarea:focus { outline: none; border-color: var(--accent); }
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
@@ -662,13 +736,13 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       padding: 8px 16px;
       border-radius: 8px;
       border: 1px solid var(--border);
-      background: rgba(96,165,250,0.12);
+      background: var(--selected-bg);
       color: var(--text);
       cursor: pointer;
       font-size: 14px;
     }
-    .modal-actions button:hover { background: rgba(96,165,250,0.2); }
-    .modal-actions button.primary { background: var(--accent); color: #000; border-color: var(--accent); }
+    .modal-actions button:hover { background: var(--hover-bg); }
+    .modal-actions button.primary { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
     .modal-actions button.primary:hover { background: #7dd3fc; }
     @media (max-width: 840px) {
       header { flex-direction: column; align-items: flex-start; }
@@ -683,7 +757,10 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       <span class="badge">Click to comment / ESC to cancel</span>
       <span class="pill">Comments <strong id="comment-count">0</strong></span>
     </div>
-    <div>
+    <div class="actions">
+      <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+        <span id="theme-icon">🌙</span>
+      </button>
       <button id="send-and-exit">Submit & Exit</button>
     </div>
   </header>
@@ -781,6 +858,51 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     const MAX_COLS = ${cols};
     const FILE_NAME = ${JSON.stringify(title)};
     const MODE = ${modeJson};
+
+  // --- Theme Management ---
+  (function initTheme() {
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = document.getElementById('theme-icon');
+
+    function getSystemTheme() {
+      return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+
+    function getStoredTheme() {
+      return localStorage.getItem('annotab-theme');
+    }
+
+    function setTheme(theme) {
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        themeIcon.textContent = '☀️';
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        themeIcon.textContent = '🌙';
+      }
+      localStorage.setItem('annotab-theme', theme);
+    }
+
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      setTheme(newTheme);
+    }
+
+    // Initialize theme: use stored preference, or fall back to system preference
+    const storedTheme = getStoredTheme();
+    const initialTheme = storedTheme || getSystemTheme();
+    setTheme(initialTheme);
+
+    // Listen for system theme changes (only if no stored preference)
+    window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+      if (!getStoredTheme()) {
+        setTheme(e.matches ? 'light' : 'dark');
+      }
+    });
+
+    themeToggle.addEventListener('click', toggleTheme);
+  })();
 
   const tbody = document.getElementById('tbody');
   const table = document.getElementById('csv-table');
