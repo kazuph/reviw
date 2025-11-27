@@ -840,6 +840,17 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     <label class="menu-check"><input type="checkbox" id="freeze-row-check" /> Freeze up to this row</label>
   </div>
 
+  <div class="modal-overlay" id="recovery-modal">
+    <div class="modal-dialog">
+      <h3>Previous Comments Found</h3>
+      <p class="modal-summary" id="recovery-summary"></p>
+      <div class="modal-actions">
+        <button id="recovery-discard">Discard</button>
+        <button class="primary" id="recovery-restore">Restore</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="submit-modal">
     <div class="modal-dialog">
       <h3>Submit Review</h3>
@@ -973,6 +984,56 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     let dragStart = null; // {row, col}
     let dragEnd = null;   // {row, col}
     let selection = null; // {startRow, endRow, startCol, endCol}
+
+    // --- localStorage Comment Persistence ---
+    const STORAGE_KEY = 'annotab:comments:' + FILE_NAME;
+    const STORAGE_TTL = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+
+    function saveCommentsToStorage() {
+      const data = {
+        comments: { ...comments },
+        timestamp: Date.now()
+      };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.warn('Failed to save comments to localStorage:', e);
+      }
+    }
+
+    function loadCommentsFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        // Check TTL
+        if (Date.now() - data.timestamp > STORAGE_TTL) {
+          localStorage.removeItem(STORAGE_KEY);
+          return null;
+        }
+        return data;
+      } catch (e) {
+        console.warn('Failed to load comments from localStorage:', e);
+        return null;
+      }
+    }
+
+    function clearCommentsFromStorage() {
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {
+        console.warn('Failed to clear comments from localStorage:', e);
+      }
+    }
+
+    function getTimeAgo(timestamp) {
+      const diff = Date.now() - timestamp;
+      const minutes = Math.floor(diff / 60000);
+      if (minutes < 1) return 'just now';
+      if (minutes < 60) return minutes + ' minute' + (minutes === 1 ? '' : 's') + ' ago';
+      const hours = Math.floor(minutes / 60);
+      return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
+    }
 
     function escapeHtml(str) {
       return str.replace(/[&<>"]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s] || s));
@@ -1459,6 +1520,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       }
       refreshList();
       closeCard();
+      saveCommentsToStorage();
     }
 
     function clearCurrent() {
@@ -1482,6 +1544,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       }
       refreshList();
       closeCard();
+      saveCommentsToStorage();
     }
 
     document.getElementById('save-comment').addEventListener('click', saveCurrent);
@@ -1638,6 +1701,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     function sendAndExit(reason = 'pagehide') {
       if (sent) return;
       sent = true;
+      clearCommentsFromStorage();
       const blob = new Blob([JSON.stringify(payload(reason))], { type: 'application/json' });
       navigator.sendBeacon('/exit', blob);
     }
@@ -1671,8 +1735,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     submitModal.addEventListener('click', (e) => {
       if (e.target === submitModal) hideSubmitModal();
     });
-    window.addEventListener('pagehide', () => sendAndExit('pagehide'));
-    window.addEventListener('beforeunload', () => sendAndExit('beforeunload'));
+    // Note: We no longer auto-submit on page close/reload.
+    // Users must explicitly click "Submit & Exit" to save comments.
+    // This allows page refresh without losing the server connection.
 
     syncColgroup();
     renderTable();
@@ -1681,6 +1746,58 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     updateFilterIndicators();
     refreshList();
     resetState();
+
+    // --- Comment Recovery from localStorage ---
+    (function checkRecovery() {
+      const stored = loadCommentsFromStorage();
+      if (!stored || Object.keys(stored.comments).length === 0) return;
+
+      const recoveryModal = document.getElementById('recovery-modal');
+      const recoverySummary = document.getElementById('recovery-summary');
+      const recoveryDiscard = document.getElementById('recovery-discard');
+      const recoveryRestore = document.getElementById('recovery-restore');
+
+      const count = Object.keys(stored.comments).length;
+      const timeAgo = getTimeAgo(stored.timestamp);
+      recoverySummary.textContent = count + ' comment' + (count === 1 ? '' : 's') + ' from ' + timeAgo;
+
+      recoveryModal.classList.add('visible');
+
+      function hideRecoveryModal() {
+        recoveryModal.classList.remove('visible');
+      }
+
+      recoveryDiscard.addEventListener('click', () => {
+        clearCommentsFromStorage();
+        hideRecoveryModal();
+      });
+
+      recoveryRestore.addEventListener('click', () => {
+        // Restore comments
+        Object.assign(comments, stored.comments);
+        // Update dots and list
+        Object.values(stored.comments).forEach(c => {
+          if (c.isRange) {
+            for (let r = c.startRow; r <= c.endRow; r++) {
+              for (let col = c.startCol; col <= c.endCol; col++) {
+                setDot(r, col, true);
+              }
+            }
+          } else {
+            setDot(c.row, c.col, true);
+          }
+        });
+        refreshList();
+        hideRecoveryModal();
+      });
+
+      recoveryModal.addEventListener('click', (e) => {
+        if (e.target === recoveryModal) {
+          clearCommentsFromStorage();
+          hideRecoveryModal();
+        }
+      });
+    })();
 
     // --- Scroll Sync for Markdown Mode ---
     if (MODE === 'markdown') {
