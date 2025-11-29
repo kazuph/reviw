@@ -22,15 +22,15 @@ const yaml = require('js-yaml');
 
 // --- CLI arguments ---------------------------------------------------------
 const args = process.argv.slice(2);
-if (!args.length) {
-  console.error('Usage: annotab <file...> [--port 3000] [--encoding utf8|shift_jis|...] [--no-open]');
-  process.exit(1);
-}
 
 const filePaths = [];
 let basePort = 3000;
 let encodingOpt = null;
 let noOpen = false;
+let stdinMode = false;
+let diffMode = false;
+let stdinContent = null;
+
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i];
   if (arg === '--port' && args[i + 1]) {
@@ -41,17 +41,82 @@ for (let i = 0; i < args.length; i += 1) {
     i += 1;
   } else if (arg === '--no-open') {
     noOpen = true;
+  } else if (arg === '--help' || arg === '-h') {
+    console.log(`Usage: annotab <file...> [options]
+       git diff | annotab [options]
+       annotab [options]  (auto runs git diff HEAD)
+
+Options:
+  --port <number>     Server port (default: 3000)
+  --encoding <enc>    Force encoding (utf8, shift_jis, etc.)
+  --no-open           Don't open browser automatically
+  --help, -h          Show this help message
+
+Examples:
+  annotab data.csv                    # View CSV file
+  annotab README.md                   # View Markdown file
+  git diff | annotab                  # Review diff from stdin
+  git diff HEAD~3 | annotab           # Review diff from last 3 commits
+  annotab                             # Auto run git diff HEAD`);
+    process.exit(0);
   } else if (!arg.startsWith('-')) {
     filePaths.push(arg);
   }
 }
 
-if (!filePaths.length) {
-  console.error('Please specify at least one file');
-  process.exit(1);
+// Check if stdin has data (pipe mode)
+async function checkStdin() {
+  return new Promise((resolve) => {
+    if (process.stdin.isTTY) {
+      resolve(false);
+      return;
+    }
+    let data = '';
+    let resolved = false;
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        resolve(data.length > 0 ? data : false);
+      }
+    }, 100);
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on('end', () => {
+      clearTimeout(timeout);
+      if (!resolved) {
+        resolved = true;
+        resolve(data.length > 0 ? data : false);
+      }
+    });
+    process.stdin.on('error', () => {
+      clearTimeout(timeout);
+      if (!resolved) {
+        resolved = true;
+        resolve(false);
+      }
+    });
+  });
 }
 
-// Validate all files exist
+// Run git diff HEAD if no files and no stdin
+function runGitDiff() {
+  return new Promise((resolve, reject) => {
+    const { execSync } = require('child_process');
+    try {
+      // Check if we're in a git repo
+      execSync('git rev-parse --is-inside-work-tree', { stdio: 'pipe' });
+      // Run git diff HEAD
+      const diff = execSync('git diff HEAD', { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 });
+      resolve(diff);
+    } catch (err) {
+      reject(new Error('Not a git repository or git command failed'));
+    }
+  });
+}
+
+// Validate all files exist (if files specified)
 const resolvedPaths = [];
 for (const fp of filePaths) {
   const resolved = path.resolve(fp);
@@ -60,6 +125,158 @@ for (const fp of filePaths) {
     process.exit(1);
   }
   resolvedPaths.push(resolved);
+}
+
+// --- Diff parsing -----------------------------------------------------------
+function parseDiff(diffText) {
+  const files = [];
+  const lines = diffText.split('\n');
+  let currentFile = null;
+  let lineNumber = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // New file header
+    if (line.startsWith('diff --git')) {
+      if (currentFile) files.push(currentFile);
+      const match = line.match(/diff --git a\/(.+?) b\/(.+)/);
+      currentFile = {
+        oldPath: match ? match[1] : '',
+        newPath: match ? match[2] : '',
+        hunks: [],
+        isNew: false,
+        isDeleted: false,
+        isBinary: false
+      };
+      lineNumber = 0;
+      continue;
+    }
+
+    if (!currentFile) continue;
+
+    // File mode info
+    if (line.startsWith('new file mode')) {
+      currentFile.isNew = true;
+      continue;
+    }
+    if (line.startsWith('deleted file mode')) {
+      currentFile.isDeleted = true;
+      continue;
+    }
+    if (line.startsWith('Binary files')) {
+      currentFile.isBinary = true;
+      continue;
+    }
+
+    // Hunk header
+    if (line.startsWith('@@')) {
+      const match = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/);
+      if (match) {
+        currentFile.hunks.push({
+          oldStart: parseInt(match[1], 10),
+          newStart: parseInt(match[2], 10),
+          context: match[3] || '',
+          lines: []
+        });
+      }
+      continue;
+    }
+
+    // Skip other headers
+    if (line.startsWith('---') || line.startsWith('+++') || line.startsWith('index ')) {
+      continue;
+    }
+
+    // Diff content
+    if (currentFile.hunks.length > 0) {
+      const hunk = currentFile.hunks[currentFile.hunks.length - 1];
+      if (line.startsWith('+')) {
+        hunk.lines.push({ type: 'add', content: line.slice(1), lineNum: ++lineNumber });
+      } else if (line.startsWith('-')) {
+        hunk.lines.push({ type: 'del', content: line.slice(1), lineNum: ++lineNumber });
+      } else if (line.startsWith(' ') || line === '') {
+        hunk.lines.push({ type: 'ctx', content: line.slice(1) || '', lineNum: ++lineNumber });
+      }
+    }
+  }
+
+  if (currentFile) files.push(currentFile);
+  return files;
+}
+
+function loadDiff(diffText) {
+  const files = parseDiff(diffText);
+
+  // Sort files: non-binary first, binary last
+  const sortedFiles = [...files].sort((a, b) => {
+    if (a.isBinary && !b.isBinary) return 1;
+    if (!a.isBinary && b.isBinary) return -1;
+    return 0;
+  });
+
+  // Calculate line count for each file
+  const COLLAPSE_THRESHOLD = 50;
+  sortedFiles.forEach((file) => {
+    let lineCount = 0;
+    if (!file.isBinary) {
+      file.hunks.forEach((hunk) => {
+        lineCount += hunk.lines.length;
+      });
+    }
+    file.lineCount = lineCount;
+    file.collapsed = lineCount > COLLAPSE_THRESHOLD;
+  });
+
+  // Convert to rows for display
+  const rows = [];
+  let rowIndex = 0;
+
+  sortedFiles.forEach((file, fileIdx) => {
+    // File header row
+    let label = file.newPath || file.oldPath;
+    if (file.isNew) label += ' (new)';
+    if (file.isDeleted) label += ' (deleted)';
+    if (file.isBinary) label += ' (binary)';
+    rows.push({
+      type: 'file',
+      content: label,
+      filePath: file.newPath || file.oldPath,
+      fileIndex: fileIdx,
+      lineCount: file.lineCount,
+      collapsed: file.collapsed,
+      isBinary: file.isBinary,
+      rowIndex: rowIndex++
+    });
+
+    if (file.isBinary) return;
+
+    file.hunks.forEach((hunk) => {
+      // Hunk header
+      rows.push({
+        type: 'hunk',
+        content: `@@ -${hunk.oldStart} +${hunk.newStart} @@${hunk.context}`,
+        fileIndex: fileIdx,
+        rowIndex: rowIndex++
+      });
+
+      hunk.lines.forEach((line) => {
+        rows.push({
+          type: line.type,
+          content: line.content,
+          fileIndex: fileIdx,
+          rowIndex: rowIndex++
+        });
+      });
+    });
+  });
+
+  return {
+    rows,
+    files: sortedFiles,
+    title: 'Git Diff',
+    mode: 'diff'
+  };
 }
 
 // --- Multi-file state management -------------------------------------------
@@ -205,15 +422,890 @@ function loadData(filePath) {
     const data = loadMarkdown(filePath);
     return { ...data, mode: 'markdown' };
   }
+  if (ext === '.diff' || ext === '.patch') {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const data = loadDiff(content);
+    return { ...data, mode: 'diff' };
+  }
   // default text
   const data = loadText(filePath);
   return { ...data, mode: 'text' };
 }
 
+// --- Safe JSON serialization for inline scripts ---------------------------
+// Prevents </script> breakage and template literal injection while keeping
+// the original values intact once parsed by JS.
+function serializeForScript(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')   // avoid closing the script tag
+    .replace(/>/g, '\\u003e')
+    .replace(/\u2028/g, '\\u2028') // line separator
+    .replace(/\u2029/g, '\\u2029') // paragraph separator
+    .replace(/`/g, '\\`')         // keep template literal boundaries safe
+    .replace(/\$\{/g, '\\${');
+}
+
+function diffHtmlTemplate(diffData) {
+  const { rows, title } = diffData;
+  const serialized = serializeForScript(rows);
+  const fileCount = rows.filter(r => r.type === 'file').length;
+
+  return `<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>${title} | annotab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --bg-gradient: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+      --panel: #161b22;
+      --panel-alpha: rgba(22, 27, 34, 0.95);
+      --border: #30363d;
+      --accent: #58a6ff;
+      --text: #c9d1d9;
+      --text-inverse: #0d1117;
+      --muted: #8b949e;
+      --add-bg: rgba(35, 134, 54, 0.15);
+      --add-line: rgba(35, 134, 54, 0.4);
+      --add-text: #3fb950;
+      --del-bg: rgba(248, 81, 73, 0.15);
+      --del-line: rgba(248, 81, 73, 0.4);
+      --del-text: #f85149;
+      --hunk-bg: rgba(56, 139, 253, 0.15);
+      --file-bg: #161b22;
+      --selected-bg: rgba(88, 166, 255, 0.15);
+      --shadow-color: rgba(0,0,0,0.4);
+    }
+    [data-theme="light"] {
+      color-scheme: light;
+      --bg: #ffffff;
+      --bg-gradient: linear-gradient(135deg, #ffffff 0%, #f6f8fa 100%);
+      --panel: #f6f8fa;
+      --panel-alpha: rgba(246, 248, 250, 0.95);
+      --border: #d0d7de;
+      --accent: #0969da;
+      --text: #24292f;
+      --text-inverse: #ffffff;
+      --muted: #57606a;
+      --add-bg: rgba(35, 134, 54, 0.1);
+      --add-line: rgba(35, 134, 54, 0.3);
+      --add-text: #1a7f37;
+      --del-bg: rgba(248, 81, 73, 0.1);
+      --del-line: rgba(248, 81, 73, 0.3);
+      --del-text: #cf222e;
+      --hunk-bg: rgba(56, 139, 253, 0.1);
+      --file-bg: #f6f8fa;
+      --selected-bg: rgba(9, 105, 218, 0.1);
+      --shadow-color: rgba(0,0,0,0.1);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      background: var(--bg-gradient);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 12px 20px;
+      background: var(--panel-alpha);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header .meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    header .actions { display: flex; gap: 8px; align-items: center; }
+    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    header .badge {
+      background: var(--selected-bg);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+    }
+    header button {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    header button:hover { opacity: 0.9; }
+    .theme-toggle {
+      background: var(--selected-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .theme-toggle:hover { background: var(--border); }
+
+    .wrap { padding: 16px 20px 60px; max-width: 1200px; margin: 0 auto; }
+    .diff-container {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .diff-line {
+      display: flex;
+      font-size: 12px;
+      line-height: 20px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 80ms ease;
+    }
+    .diff-line:last-child { border-bottom: none; }
+    .diff-line:hover { filter: brightness(1.05); }
+    .diff-line.selected { background: var(--selected-bg) !important; box-shadow: inset 3px 0 0 var(--accent); }
+    .diff-line.file-header {
+      background: var(--file-bg);
+      font-weight: 600;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      cursor: default;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .file-header-left { display: flex; align-items: center; gap: 8px; }
+    .file-header-info {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .toggle-btn {
+      background: var(--selected-bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 11px;
+      cursor: pointer;
+      color: var(--text);
+    }
+    .toggle-btn:hover { background: var(--border); }
+    .hidden-lines { display: none; }
+    .load-more-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      background: var(--hunk-bg);
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--accent);
+      gap: 8px;
+    }
+    .load-more-row:hover { background: var(--selected-bg); }
+    .load-more-row .expand-icon { font-size: 10px; }
+    .diff-line.hunk-header {
+      background: var(--hunk-bg);
+      color: var(--muted);
+      padding: 6px 12px;
+      font-size: 11px;
+    }
+    .diff-line.add { background: var(--add-bg); }
+    .diff-line.add .line-content { color: var(--add-text); }
+    .diff-line.add .line-num { background: var(--add-line); color: var(--add-text); }
+    .diff-line.del { background: var(--del-bg); }
+    .diff-line.del .line-content { color: var(--del-text); }
+    .diff-line.del .line-num { background: var(--del-line); color: var(--del-text); }
+    .diff-line.ctx { background: transparent; }
+
+    .line-num {
+      min-width: 40px;
+      padding: 0 8px;
+      text-align: right;
+      color: var(--muted);
+      user-select: none;
+      border-right: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .line-sign {
+      width: 20px;
+      text-align: center;
+      color: var(--muted);
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .diff-line.add .line-sign { color: var(--add-text); }
+    .diff-line.del .line-sign { color: var(--del-text); }
+    .line-content {
+      flex: 1;
+      padding: 0 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      overflow-wrap: break-word;
+    }
+    .line-content.empty { color: var(--muted); font-style: italic; }
+
+    .has-comment { position: relative; }
+    .has-comment::after {
+      content: '';
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    .floating {
+      position: fixed;
+      z-index: 20;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      width: min(420px, calc(100vw - 32px));
+      box-shadow: 0 16px 40px var(--shadow-color);
+      display: none;
+    }
+    .floating header {
+      position: relative;
+      background: transparent;
+      border: none;
+      padding: 0 0 10px 0;
+      justify-content: space-between;
+    }
+    .floating h2 { font-size: 14px; margin: 0; font-weight: 600; }
+    .floating button {
+      background: var(--accent);
+      color: var(--text-inverse);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+    .floating textarea {
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      padding: 10px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .floating .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+    .floating .actions button.primary {
+      background: #238636;
+      color: #fff;
+    }
+
+    .comment-list {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      width: 300px;
+      max-height: 50vh;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel-alpha);
+      backdrop-filter: blur(6px);
+      padding: 12px;
+      box-shadow: 0 16px 40px var(--shadow-color);
+    }
+    .comment-list h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
+    .comment-list ol { margin: 0; padding-left: 18px; font-size: 12px; line-height: 1.5; }
+    .comment-list li { margin-bottom: 6px; cursor: pointer; }
+    .comment-list li:hover { color: var(--accent); }
+    .comment-list .hint { color: var(--muted); font-size: 11px; margin-top: 8px; }
+    .comment-list.collapsed { opacity: 0; pointer-events: none; transform: translateY(8px); }
+    .comment-toggle {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel-alpha);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--selected-bg); border: 1px solid var(--border); font-size: 12px; }
+    .pill strong { font-weight: 700; }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal-dialog {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      width: 90%;
+      max-width: 480px;
+      box-shadow: 0 20px 40px var(--shadow-color);
+    }
+    .modal-dialog h3 { margin: 0 0 12px; font-size: 18px; color: var(--accent); }
+    .modal-summary { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+    .modal-dialog label { display: block; font-size: 13px; margin-bottom: 6px; color: var(--muted); }
+    .modal-dialog textarea {
+      width: 100%;
+      min-height: 100px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 10px;
+      font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+    .modal-actions button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--selected-bg);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .modal-actions button:hover { background: var(--border); }
+    .modal-actions button.primary { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+
+    .no-diff {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+    }
+    .no-diff h2 { font-size: 20px; margin: 0 0 8px; color: var(--text); }
+    .no-diff p { font-size: 14px; margin: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="meta">
+      <h1>${title}</h1>
+      <span class="badge">${fileCount} file${fileCount !== 1 ? 's' : ''} changed</span>
+      <span class="pill">Comments <strong id="comment-count">0</strong></span>
+    </div>
+    <div class="actions">
+      <button class="theme-toggle" id="theme-toggle" title="Toggle theme"><span id="theme-icon">🌙</span></button>
+      <button id="send-and-exit">Submit & Exit</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    ${rows.length === 0 ? '<div class="no-diff"><h2>No changes</h2><p>Working tree is clean</p></div>' : '<div class="diff-container" id="diff-container"></div>'}
+  </div>
+
+  <div class="floating" id="comment-card">
+    <header>
+      <h2 id="card-title">Line Comment</h2>
+      <div style="display:flex; gap:6px;">
+        <button id="close-card">Close</button>
+        <button id="clear-comment">Delete</button>
+      </div>
+    </header>
+    <div id="cell-preview" style="font-size:11px; color: var(--muted); margin-bottom:8px; white-space: pre-wrap; max-height: 60px; overflow: hidden;"></div>
+    <textarea id="comment-input" placeholder="Enter your comment"></textarea>
+    <div class="actions">
+      <button class="primary" id="save-comment">Save</button>
+    </div>
+  </div>
+
+  <aside class="comment-list">
+    <h3>Comments</h3>
+    <ol id="comment-list"></ol>
+    <p class="hint">Click "Submit & Exit" to finish review.</p>
+  </aside>
+  <button class="comment-toggle" id="comment-toggle">Comments (0)</button>
+
+  <div class="modal-overlay" id="submit-modal">
+    <div class="modal-dialog">
+      <h3>Submit Review</h3>
+      <p class="modal-summary" id="modal-summary"></p>
+      <label for="global-comment">Overall comment (optional)</label>
+      <textarea id="global-comment" placeholder="Add a summary or overall feedback..."></textarea>
+      <div class="modal-actions">
+        <button id="modal-cancel">Cancel</button>
+        <button class="primary" id="modal-submit">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DATA = ${serialized};
+    const FILE_NAME = ${serializeForScript(title)};
+    const MODE = 'diff';
+
+    // Theme
+    (function initTheme() {
+      const toggle = document.getElementById('theme-toggle');
+      const icon = document.getElementById('theme-icon');
+      function getSystem() { return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; }
+      function getStored() { return localStorage.getItem('annotab-theme'); }
+      function set(t) {
+        if (t === 'light') { document.documentElement.setAttribute('data-theme', 'light'); icon.textContent = '☀️'; }
+        else { document.documentElement.removeAttribute('data-theme'); icon.textContent = '🌙'; }
+        localStorage.setItem('annotab-theme', t);
+      }
+      set(getStored() || getSystem());
+      toggle.addEventListener('click', () => {
+        const cur = document.documentElement.getAttribute('data-theme');
+        set(cur === 'light' ? 'dark' : 'light');
+      });
+    })();
+
+    const container = document.getElementById('diff-container');
+    const card = document.getElementById('comment-card');
+    const commentInput = document.getElementById('comment-input');
+    const cardTitle = document.getElementById('card-title');
+    const cellPreview = document.getElementById('cell-preview');
+    const commentList = document.getElementById('comment-list');
+    const commentCount = document.getElementById('comment-count');
+    const commentPanel = document.querySelector('.comment-list');
+    const commentToggle = document.getElementById('comment-toggle');
+
+    const comments = {};
+    let currentKey = null;
+    let panelOpen = false;
+    let isDragging = false;
+    let dragStart = null;
+    let dragEnd = null;
+    let selection = null;
+
+    function makeKey(start, end) {
+      return start === end ? String(start) : (start + '-' + end);
+    }
+
+    function keyToRange(key) {
+      if (!key) return null;
+      if (String(key).includes('-')) {
+        const [a, b] = String(key).split('-').map((n) => parseInt(n, 10));
+        return { start: Math.min(a, b), end: Math.max(a, b) };
+      }
+      const n = parseInt(key, 10);
+      return { start: n, end: n };
+    }
+
+    // localStorage
+    const STORAGE_KEY = 'annotab:comments:' + FILE_NAME;
+    const STORAGE_TTL = 3 * 60 * 60 * 1000;
+    function saveToStorage() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ comments: { ...comments }, timestamp: Date.now() })); } catch (_) {}
+    }
+    function loadFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const d = JSON.parse(raw);
+        if (Date.now() - d.timestamp > STORAGE_TTL) { localStorage.removeItem(STORAGE_KEY); return null; }
+        return d;
+      } catch (_) { return null; }
+    }
+    function clearStorage() { try { localStorage.removeItem(STORAGE_KEY); } catch (_) {} }
+
+    function escapeHtml(s) { return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] || c)); }
+
+    function clearSelectionHighlight() {
+      container?.querySelectorAll('.diff-line.selected').forEach(el => el.classList.remove('selected'));
+    }
+
+    function updateSelectionHighlight() {
+      clearSelectionHighlight();
+      if (!selection) return;
+      for (let r = selection.start; r <= selection.end; r++) {
+        const el = container?.querySelector('[data-row="' + r + '"]');
+        if (el) el.classList.add('selected');
+      }
+    }
+
+    function beginDrag(row) {
+      isDragging = true;
+      document.body.classList.add('dragging');
+      dragStart = row;
+      dragEnd = row;
+      selection = { start: row, end: row };
+      updateSelectionHighlight();
+    }
+
+    function updateDrag(row) {
+      if (!isDragging) return;
+      const next = Math.max(0, Math.min(DATA.length - 1, row));
+      if (next === dragEnd) return;
+      dragEnd = next;
+      selection = { start: Math.min(dragStart, dragEnd), end: Math.max(dragStart, dragEnd) };
+      updateSelectionHighlight();
+    }
+
+    function finishDrag() {
+      if (!isDragging) return;
+      isDragging = false;
+      document.body.classList.remove('dragging');
+      if (!selection) { clearSelectionHighlight(); return; }
+      openCardRange(selection.start, selection.end);
+    }
+
+    const expandedFiles = {};
+    const PREVIEW_LINES = 10;
+
+    function renderDiff() {
+      if (!container) return;
+      container.innerHTML = '';
+      let currentFileIdx = null;
+      let currentFileContent = null;
+      let fileLineCount = 0;
+      let hiddenWrapper = null;
+      let hiddenCount = 0;
+
+      DATA.forEach((row, idx) => {
+        const div = document.createElement('div');
+        div.className = 'diff-line';
+        div.dataset.row = idx;
+
+        if (row.type === 'file') {
+          currentFileIdx = row.fileIndex;
+          fileLineCount = 0;
+          hiddenWrapper = null;
+          hiddenCount = 0;
+
+          div.classList.add('file-header');
+          const leftSpan = document.createElement('span');
+          leftSpan.className = 'file-header-left';
+          leftSpan.innerHTML = '<span>' + escapeHtml(row.content) + '</span>';
+          if (row.lineCount > 0) {
+            leftSpan.innerHTML += '<span class="file-header-info">(' + row.lineCount + ' lines)</span>';
+          }
+          div.appendChild(leftSpan);
+          div.style.cursor = 'default';
+          container.appendChild(div);
+
+          currentFileContent = document.createElement('div');
+          currentFileContent.className = 'file-content';
+          currentFileContent.dataset.fileIndex = row.fileIndex;
+          container.appendChild(currentFileContent);
+        } else if (row.type === 'hunk') {
+          div.classList.add('hunk-header');
+          div.innerHTML = '<span class="line-content">' + escapeHtml(row.content) + '</span>';
+          if (currentFileContent) currentFileContent.appendChild(div);
+          else container.appendChild(div);
+        } else {
+          fileLineCount++;
+          const isExpanded = expandedFiles[currentFileIdx];
+          const fileRow = DATA.find(r => r.type === 'file' && r.fileIndex === currentFileIdx);
+          const shouldCollapse = fileRow && fileRow.collapsed && !isExpanded;
+
+          div.classList.add(row.type);
+          const sign = row.type === 'add' ? '+' : row.type === 'del' ? '-' : ' ';
+          div.innerHTML = '<span class="line-num">' + (idx + 1) + '</span>' +
+            '<span class="line-sign">' + sign + '</span>' +
+            '<span class="line-content' + (row.content === '' ? ' empty' : '') + '">' + escapeHtml(row.content || '(empty line)') + '</span>';
+
+          if (shouldCollapse && fileLineCount > PREVIEW_LINES) {
+            if (!hiddenWrapper) {
+              hiddenWrapper = document.createElement('div');
+              hiddenWrapper.className = 'hidden-lines';
+              hiddenWrapper.dataset.fileIndex = currentFileIdx;
+              currentFileContent.appendChild(hiddenWrapper);
+            }
+            hiddenWrapper.appendChild(div);
+            hiddenCount++;
+          } else {
+            if (currentFileContent) currentFileContent.appendChild(div);
+            else container.appendChild(div);
+          }
+        }
+
+        // Insert "Load more" button after processing file content
+        const nextRow = DATA[idx + 1];
+        if (hiddenWrapper && hiddenCount > 0 && (nextRow?.type === 'file' || idx === DATA.length - 1)) {
+          const loadMore = document.createElement('div');
+          loadMore.className = 'load-more-row';
+          const fileIdxForClick = currentFileIdx;
+          const count = hiddenCount;
+          loadMore.innerHTML = '<span class="expand-icon">▼</span> Show ' + count + ' more lines';
+          loadMore.addEventListener('click', function() {
+            expandedFiles[fileIdxForClick] = true;
+            renderDiff();
+          });
+          currentFileContent.insertBefore(loadMore, hiddenWrapper);
+          hiddenWrapper = null;
+          hiddenCount = 0;
+        }
+      });
+    }
+
+    function openCardRange(startRow, endRow) {
+      const start = Math.min(startRow, endRow);
+      const end = Math.max(startRow, endRow);
+      const first = DATA[start];
+      const last = DATA[end];
+      if (!first || first.type === 'file' || first.type === 'hunk') return;
+      selection = { start, end };
+      currentKey = makeKey(start, end);
+      const label = start === end
+        ? 'Comment on line ' + (start + 1)
+        : 'Comment on lines ' + (start + 1) + '–' + (end + 1);
+      cardTitle.textContent = label;
+      const previewText = start === end
+        ? (first.content || '(empty)')
+        : (first.content || '(empty)') + ' … ' + (last.content || '(empty)');
+      cellPreview.textContent = previewText;
+      commentInput.value = comments[currentKey]?.text || '';
+      card.style.display = 'block';
+      positionCard(start);
+      commentInput.focus();
+      updateSelectionHighlight();
+    }
+
+    function positionCard(rowIdx) {
+      const el = container.querySelector('[data-row="' + rowIdx + '"]');
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const cardW = 420, cardH = 260;
+      const margin = 12;
+      let left = rect.right + margin;
+      let top = rect.top;
+      if (left + cardW > window.innerWidth) {
+        left = rect.left - cardW - margin;
+      }
+      if (left < margin) left = margin;
+      if (top + cardH > window.innerHeight) {
+        top = window.innerHeight - cardH - margin;
+      }
+      card.style.left = left + 'px';
+      card.style.top = Math.max(margin, top) + 'px';
+    }
+
+    function closeCard() {
+      card.style.display = 'none';
+      currentKey = null;
+      selection = null;
+      clearSelectionHighlight();
+    }
+
+    function setDotRange(start, end, on) {
+      for (let r = start; r <= end; r++) {
+        const el = container?.querySelector('[data-row="' + r + '"]');
+        if (el) el.classList.toggle('has-comment', on);
+      }
+    }
+
+    function refreshList() {
+      commentList.innerHTML = '';
+      const items = Object.values(comments).sort((a, b) => (a.startRow ?? a.row) - (b.startRow ?? b.row));
+      commentCount.textContent = items.length;
+      commentToggle.textContent = 'Comments (' + items.length + ')';
+      if (items.length === 0) panelOpen = false;
+      commentPanel.classList.toggle('collapsed', !panelOpen || items.length === 0);
+      if (!items.length) {
+        const li = document.createElement('li');
+        li.className = 'hint';
+        li.textContent = 'No comments yet';
+        commentList.appendChild(li);
+        return;
+      }
+      items.forEach(c => {
+        const li = document.createElement('li');
+        const label = c.isRange
+          ? 'L' + (c.startRow + 1) + '-L' + (c.endRow + 1)
+          : 'L' + (c.row + 1);
+        li.innerHTML = '<strong>' + label + '</strong> ' + escapeHtml(c.text.slice(0, 50)) + (c.text.length > 50 ? '...' : '');
+        li.addEventListener('click', () => openCardRange(c.startRow ?? c.row, c.endRow ?? c.row));
+        commentList.appendChild(li);
+      });
+    }
+
+    commentToggle.addEventListener('click', () => {
+      panelOpen = !panelOpen;
+      if (panelOpen && Object.keys(comments).length === 0) panelOpen = false;
+      commentPanel.classList.toggle('collapsed', !panelOpen);
+    });
+
+    function saveCurrent() {
+      if (currentKey == null) return;
+      const text = commentInput.value.trim();
+      const range = keyToRange(currentKey);
+      if (!range) return;
+      const rowIdx = range.start;
+      if (text) {
+        if (range.start === range.end) {
+          comments[currentKey] = { row: rowIdx, text, content: DATA[rowIdx]?.content || '' };
+        } else {
+          comments[currentKey] = {
+            startRow: range.start,
+            endRow: range.end,
+            isRange: true,
+            text,
+            content: DATA.slice(range.start, range.end + 1).map(r => r?.content || '').join('\\n')
+          };
+        }
+        setDotRange(range.start, range.end, true);
+      } else {
+        delete comments[currentKey];
+        setDotRange(range.start, range.end, false);
+      }
+      refreshList();
+      closeCard();
+      saveToStorage();
+    }
+
+    function clearCurrent() {
+      if (currentKey == null) return;
+      const range = keyToRange(currentKey);
+      if (!range) return;
+      delete comments[currentKey];
+      setDotRange(range.start, range.end, false);
+      refreshList();
+      closeCard();
+      saveToStorage();
+    }
+
+    document.getElementById('save-comment').addEventListener('click', saveCurrent);
+    document.getElementById('clear-comment').addEventListener('click', clearCurrent);
+    document.getElementById('close-card').addEventListener('click', closeCard);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeCard();
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveCurrent();
+    });
+
+    container?.addEventListener('mousedown', e => {
+      const line = e.target.closest('.diff-line');
+      if (!line || line.classList.contains('file-header') || line.classList.contains('hunk-header')) return;
+      e.preventDefault();
+      if (window.getSelection) { const sel = window.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); }
+      beginDrag(parseInt(line.dataset.row, 10));
+    });
+
+    container?.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const line = e.target.closest('.diff-line');
+      if (!line || line.classList.contains('file-header') || line.classList.contains('hunk-header')) return;
+      updateDrag(parseInt(line.dataset.row, 10));
+    });
+
+    container?.addEventListener('mouseup', () => finishDrag());
+    window.addEventListener('mouseup', () => { if (isDragging) finishDrag(); });
+
+    // Submit
+    let sent = false;
+    let globalComment = '';
+    const submitModal = document.getElementById('submit-modal');
+    const modalSummary = document.getElementById('modal-summary');
+    const globalCommentInput = document.getElementById('global-comment');
+
+    function payload(reason) {
+      const data = { file: FILE_NAME, mode: MODE, reason, at: new Date().toISOString(), comments: Object.values(comments) };
+      if (globalComment.trim()) data.summary = globalComment.trim();
+      return data;
+    }
+    function sendAndExit(reason = 'button') {
+      if (sent) return;
+      sent = true;
+      clearStorage();
+      navigator.sendBeacon('/exit', new Blob([JSON.stringify(payload(reason))], { type: 'application/json' }));
+    }
+    function showSubmitModal() {
+      const count = Object.keys(comments).length;
+      modalSummary.textContent = count === 0 ? 'No comments added yet.' : count + ' comment' + (count === 1 ? '' : 's') + ' will be submitted.';
+      globalCommentInput.value = globalComment;
+      submitModal.classList.add('visible');
+      globalCommentInput.focus();
+    }
+    function hideSubmitModal() { submitModal.classList.remove('visible'); }
+    document.getElementById('send-and-exit').addEventListener('click', showSubmitModal);
+    document.getElementById('modal-cancel').addEventListener('click', hideSubmitModal);
+    function doSubmit() {
+      globalComment = globalCommentInput.value;
+      hideSubmitModal();
+      sendAndExit('button');
+      setTimeout(() => window.close(), 200);
+    }
+    document.getElementById('modal-submit').addEventListener('click', doSubmit);
+    globalCommentInput.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        doSubmit();
+      }
+    });
+    submitModal.addEventListener('click', e => { if (e.target === submitModal) hideSubmitModal(); });
+
+    // SSE
+    (() => {
+      let es = null;
+      const connect = () => {
+        es = new EventSource('/sse');
+        es.onmessage = ev => { if (ev.data === 'reload') location.reload(); };
+        es.onerror = () => { es.close(); setTimeout(connect, 1500); };
+      };
+      connect();
+    })();
+
+    renderDiff();
+    refreshList();
+
+    // Recovery
+    (function checkRecovery() {
+      const stored = loadFromStorage();
+      if (!stored || Object.keys(stored.comments).length === 0) return;
+      if (confirm('Restore ' + Object.keys(stored.comments).length + ' previous comment(s)?')) {
+        Object.assign(comments, stored.comments);
+        Object.values(stored.comments).forEach(c => setDot(c.row, true));
+        refreshList();
+      } else {
+        clearStorage();
+      }
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 // --- HTML template ---------------------------------------------------------
 function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
-  const serialized = JSON.stringify(dataRows);
-  const modeJson = JSON.stringify(mode);
+  const serialized = serializeForScript(dataRows);
+  const modeJson = serializeForScript(mode);
+  const titleJson = serializeForScript(title);
   const hasPreview = !!previewHtml;
   return `<!doctype html>
 <html lang="ja">
@@ -744,6 +1836,8 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .modal-actions button:hover { background: var(--hover-bg); }
     .modal-actions button.primary { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
     .modal-actions button.primary:hover { background: #7dd3fc; }
+    body.dragging { user-select: none; cursor: crosshair; }
+    body.dragging .diff-line { cursor: crosshair; }
     @media (max-width: 840px) {
       header { flex-direction: column; align-items: flex-start; }
       .comment-list { width: calc(100% - 24px); right: 12px; }
@@ -867,7 +1961,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   <script>
     const DATA = ${serialized};
     const MAX_COLS = ${cols};
-    const FILE_NAME = ${JSON.stringify(title)};
+    const FILE_NAME = ${titleJson};
     const MODE = ${modeJson};
 
   // --- Theme Management ---
@@ -1844,7 +2938,11 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 }
 
 function buildHtml(filePath) {
-  const { rows, cols, title, mode, preview } = loadData(filePath);
+  const data = loadData(filePath);
+  if (data.mode === 'diff') {
+    return diffHtmlTemplate(data);
+  }
+  const { rows, cols, title, mode, preview } = data;
   return htmlTemplate(rows, cols, title, mode, preview);
 }
 
@@ -2103,13 +3201,199 @@ function createFileServer(filePath) {
   });
 }
 
-// Start all servers
-console.log(`Starting servers for ${resolvedPaths.length} file(s)...`);
-serversRunning = resolvedPaths.length;
+// Create server for diff mode
+function createDiffServer(diffContent) {
+  return new Promise((resolve) => {
+    const diffData = loadDiff(diffContent);
 
+    const ctx = {
+      diffData,
+      sseClients: new Set(),
+      heartbeat: null,
+      server: null,
+      port: 0
+    };
+
+    function broadcast(data) {
+      const payload = typeof data === 'string' ? data : JSON.stringify(data);
+      ctx.sseClients.forEach((res) => {
+        try { res.write(`data: ${payload}\n\n`); } catch (_) {}
+      });
+    }
+
+    function shutdownServer(result) {
+      if (ctx.heartbeat) {
+        clearInterval(ctx.heartbeat);
+        ctx.heartbeat = null;
+      }
+      ctx.sseClients.forEach((res) => { try { res.end(); } catch (_) {} });
+      if (ctx.server) {
+        ctx.server.close();
+        ctx.server = null;
+      }
+      if (result) allResults.push(result);
+      serversRunning--;
+      console.log(`Diff server closed. (${serversRunning} remaining)`);
+      checkAllDone();
+    }
+
+    ctx.server = http.createServer(async (req, res) => {
+      if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
+        try {
+          const html = diffHtmlTemplate(diffData);
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            Pragma: 'no-cache',
+            Expires: '0'
+          });
+          res.end(html);
+        } catch (err) {
+          console.error('Diff render error', err);
+          res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Failed to render diff view.');
+        }
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/healthz') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('ok');
+        return;
+      }
+
+      if (req.method === 'POST' && req.url === '/exit') {
+        try {
+          const raw = await readBody(req);
+          let payload = {};
+          if (raw && raw.trim()) {
+            payload = JSON.parse(raw);
+          }
+          res.writeHead(200, { 'Content-Type': 'text/plain' });
+          res.end('bye');
+          shutdownServer(payload);
+        } catch (err) {
+          console.error('payload parse error', err);
+          res.writeHead(400, { 'Content-Type': 'text/plain' });
+          res.end('bad request');
+          shutdownServer(null);
+        }
+        return;
+      }
+
+      if (req.method === 'GET' && req.url === '/sse') {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no'
+        });
+        res.write('retry: 3000\n\n');
+        ctx.sseClients.add(res);
+        req.on('close', () => ctx.sseClients.delete(res));
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('not found');
+    });
+
+    function tryListen(attemptPort, attempts = 0) {
+      if (attempts >= MAX_PORT_ATTEMPTS) {
+        console.error(`Could not find an available port for diff viewer after ${MAX_PORT_ATTEMPTS} attempts.`);
+        serversRunning--;
+        checkAllDone();
+        return;
+      }
+
+      ctx.server.once('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+          tryListen(attemptPort + 1, attempts + 1);
+        } else {
+          console.error('Diff server error:', err);
+          serversRunning--;
+          checkAllDone();
+        }
+      });
+
+      ctx.server.listen(attemptPort, () => {
+        ctx.port = attemptPort;
+        ctx.heartbeat = setInterval(() => broadcast('ping'), 25000);
+        console.log(`Diff viewer started: http://localhost:${attemptPort}`);
+        if (!noOpen) {
+          const url = `http://localhost:${attemptPort}`;
+          const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+          try {
+            spawn(opener, [url], { stdio: 'ignore', detached: true });
+          } catch (err) {
+            console.warn('Failed to open browser automatically. Please open this URL manually:', url);
+          }
+        }
+        resolve(ctx);
+      });
+    }
+
+    tryListen(basePort);
+  });
+}
+
+// Main entry point
 (async () => {
-  for (const filePath of resolvedPaths) {
-    await createFileServer(filePath);
+  // Check for stdin input first
+  const stdinData = await checkStdin();
+
+  if (stdinData) {
+    // Pipe mode: stdin has data
+    stdinMode = true;
+    stdinContent = stdinData;
+
+    // Check if it looks like a diff
+    if (stdinContent.startsWith('diff --git') || stdinContent.includes('\n+++ ') || stdinContent.includes('\n--- ')) {
+      diffMode = true;
+      console.log('Starting diff viewer from stdin...');
+      serversRunning = 1;
+      await createDiffServer(stdinContent);
+      console.log('Close the browser tab or Submit & Exit to finish.');
+    } else {
+      // Treat as plain text
+      console.log('Starting text viewer from stdin...');
+      // For now, just show message - could enhance to support any text
+      console.error('Non-diff stdin content is not supported yet. Use a file instead.');
+      process.exit(1);
+    }
+  } else if (resolvedPaths.length > 0) {
+    // File mode: files specified
+    console.log(`Starting servers for ${resolvedPaths.length} file(s)...`);
+    serversRunning = resolvedPaths.length;
+    for (const filePath of resolvedPaths) {
+      await createFileServer(filePath);
+    }
+    console.log('Close all browser tabs or Submit & Exit to finish.');
+  } else {
+    // No files and no stdin: try auto git diff
+    console.log('No files specified. Running git diff HEAD...');
+    try {
+      const gitDiff = await runGitDiff();
+      if (gitDiff.trim() === '') {
+        console.log('No changes detected (working tree clean).');
+        console.log('');
+        console.log('Usage: annotab <file...> [options]');
+        console.log('       git diff | annotab [options]');
+        console.log('       annotab  (auto runs git diff HEAD)');
+        process.exit(0);
+      }
+      diffMode = true;
+      stdinContent = gitDiff;
+      console.log('Starting diff viewer...');
+      serversRunning = 1;
+      await createDiffServer(gitDiff);
+      console.log('Close the browser tab or Submit & Exit to finish.');
+    } catch (err) {
+      console.error(err.message);
+      console.log('');
+      console.log('Usage: annotab <file...> [options]');
+      console.log('       git diff | annotab [options]');
+      process.exit(1);
+    }
   }
-  console.log('Close all browser tabs or Submit & Exit to finish.');
 })();

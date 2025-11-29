@@ -1,0 +1,10 @@
+diff --git a/test.txt b/test.txt
+--- a/test.txt
++++ b/test.txt
+@@ -1,5 +1,6 @@
+ line1
++added line
+ line2
+-deleted line
+ line3
+ line4
