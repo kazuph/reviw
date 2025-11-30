@@ -72,16 +72,16 @@ reviw changes.diff
 ## Screenshots
 
 ### CSV View
-![CSV View](./assets/screenshot-csv.png)
+![CSV View](./assets/screenshot-csv.png?v=2)
 
 ### Markdown View
-![Markdown View](./assets/screenshot-md.png)
+![Markdown View](./assets/screenshot-md.png?v=2)
 
 ### Diff View
-![Diff View](./assets/screenshot-diff.png)
+![Diff View](./assets/screenshot-diff.png?v=2)
 
 ### Mermaid Fullscreen
-![Mermaid Fullscreen](./assets/screenshot-mermaid.png)
+![Mermaid Fullscreen](./assets/screenshot-mermaid.png?v=2)
 
 ## Output Example
 
