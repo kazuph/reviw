@@ -403,13 +403,74 @@ function loadMarkdown(filePath) {
   const raw = fs.readFileSync(filePath);
   const text = decodeBuffer(raw);
   const lines = text.split(/\r?\n/);
-  const preview = marked.parse(text, { breaks: true });
+
+  // Parse YAML frontmatter
+  let frontmatterHtml = '';
+  let contentStart = 0;
+
+  if (lines[0] && lines[0].trim() === '---') {
+    let frontmatterEnd = -1;
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim() === '---') {
+        frontmatterEnd = i;
+        break;
+      }
+    }
+
+    if (frontmatterEnd > 0) {
+      const frontmatterLines = lines.slice(1, frontmatterEnd);
+      const frontmatterText = frontmatterLines.join('\n');
+
+      try {
+        const frontmatter = yaml.load(frontmatterText);
+        if (frontmatter && typeof frontmatter === 'object') {
+          // Create HTML table for frontmatter
+          frontmatterHtml = '<div class="frontmatter-table"><table>';
+          frontmatterHtml += '<colgroup><col style="width:12%"><col style="width:88%"></colgroup>';
+          frontmatterHtml += '<thead><tr><th colspan="2">Document Metadata</th></tr></thead>';
+          frontmatterHtml += '<tbody>';
+
+          function renderValue(val) {
+            if (Array.isArray(val)) {
+              return val.map(v => '<span class="fm-tag">' + escapeHtmlChars(String(v)) + '</span>').join(' ');
+            }
+            if (typeof val === 'object' && val !== null) {
+              return '<pre>' + escapeHtmlChars(JSON.stringify(val, null, 2)) + '</pre>';
+            }
+            return escapeHtmlChars(String(val));
+          }
+
+          for (const [key, val] of Object.entries(frontmatter)) {
+            frontmatterHtml += '<tr><th>' + escapeHtmlChars(key) + '</th><td>' + renderValue(val) + '</td></tr>';
+          }
+
+          frontmatterHtml += '</tbody></table></div>';
+          contentStart = frontmatterEnd + 1;
+        }
+      } catch (e) {
+        // Invalid YAML, skip frontmatter rendering
+      }
+    }
+  }
+
+  // Parse markdown content (without frontmatter)
+  const contentText = lines.slice(contentStart).join('\n');
+  const preview = frontmatterHtml + marked.parse(contentText, { breaks: true });
+
   return {
     rows: lines.map((line) => [line]),
     cols: 1,
     title: path.basename(filePath),
     preview
   };
+}
+
+function escapeHtmlChars(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function loadData(filePath) {
@@ -1751,10 +1812,201 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .md-preview img { max-width: 100%; height: auto; border-radius: 8px; }
     .md-preview code { background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px; }
     .md-preview pre {
-      background: rgba(255,255,255,0.06);
-      padding: 8px 10px;
+      background: var(--code-bg);
+      padding: 12px 16px;
       border-radius: 8px;
       overflow: auto;
+      border: 1px solid var(--border);
+    }
+    .md-preview pre code {
+      background: none;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .md-preview pre code.hljs {
+      background: transparent;
+      padding: 0;
+    }
+    /* YAML Frontmatter table */
+    .frontmatter-table {
+      margin-bottom: 20px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--panel);
+    }
+    .frontmatter-table table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    .frontmatter-table thead th {
+      background: linear-gradient(135deg, rgba(147, 51, 234, 0.15), rgba(96, 165, 250, 0.15));
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .frontmatter-table tbody th {
+      background: rgba(147, 51, 234, 0.08);
+      color: #c084fc;
+      font-weight: 500;
+      font-size: 12px;
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .frontmatter-table tbody td {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      word-break: break-word;
+    }
+    .frontmatter-table tbody tr:last-child th,
+    .frontmatter-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .frontmatter-table .fm-tag {
+      display: inline-block;
+      background: rgba(96, 165, 250, 0.15);
+      color: var(--accent);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-right: 4px;
+      margin-bottom: 4px;
+    }
+    .frontmatter-table pre {
+      margin: 0;
+      background: var(--code-bg);
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    [data-theme="light"] .frontmatter-table tbody th {
+      color: #7c3aed;
+    }
+    /* Markdown tables in preview */
+    .md-preview table:not(.frontmatter-table table) {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .md-preview table:not(.frontmatter-table table) th,
+    .md-preview table:not(.frontmatter-table table) td {
+      width: 50%;
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .md-preview table:not(.frontmatter-table table) th {
+      background: rgba(255,255,255,0.05);
+    }
+    .md-preview table:not(.frontmatter-table table) th {
+      background: var(--panel);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .md-preview table:not(.frontmatter-table table) td {
+      font-size: 13px;
+    }
+    .md-preview table:not(.frontmatter-table table) tr:last-child td {
+      border-bottom: none;
+    }
+    .md-preview table:not(.frontmatter-table table) tr:hover td {
+      background: var(--hover-bg);
+    }
+    /* Source table (右ペイン) */
+    .table-box table {
+      table-layout: fixed;
+      width: 100%;
+    }
+    .table-box th,
+    .table-box td {
+      word-break: break-word;
+      min-width: 140px;
+    }
+    .table-box th:first-child,
+    .table-box td:first-child {
+      min-width: 320px;
+      max-width: 480px;
+    }
+    /* Image fullscreen overlay */
+    .image-fullscreen-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1001;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    .image-fullscreen-overlay.visible {
+      display: flex;
+    }
+    .image-close-btn {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+      cursor: pointer;
+      color: #fff;
+      font-size: 18px;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+      transition: background 120ms ease, transform 120ms ease;
+    }
+    .image-close-btn:hover {
+      background: rgba(0, 0, 0, 0.75);
+      transform: scale(1.04);
+    }
+    .image-container {
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .image-container img {
+      max-width: 100%;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    /* Copy notification toast */
+    .copy-toast {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--accent);
+      color: var(--text-inverse);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease, transform 200ms ease;
+      z-index: 1000;
+    }
+    .copy-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
     }
     @media (max-width: 960px) {
       .md-layout { flex-direction: column; }
@@ -1859,6 +2111,8 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .mermaid-container .mermaid svg {
       max-width: 100%;
       height: auto;
+      cursor: pointer;
+      pointer-events: auto;
     }
     .mermaid-fullscreen-btn {
       position: absolute;
@@ -1977,6 +2231,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     .mermaid-error-toast.visible { display: block; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css" id="hljs-theme-dark">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github.min.css" id="hljs-theme-light" disabled>
+  <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js"></script>
 </head>
 <body>
   <header>
@@ -2112,6 +2369,11 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     </div>
   </div>
   <div class="mermaid-error-toast" id="mermaid-error-toast"></div>
+  <div class="copy-toast" id="copy-toast">Copied to clipboard!</div>
+  <div class="image-fullscreen-overlay" id="image-fullscreen">
+    <button class="image-close-btn" id="image-close" aria-label="Close image" title="Close (ESC)">✕</button>
+    <div class="image-container" id="image-container"></div>
+  </div>
 
   <script>
     const DATA = ${serialized};
@@ -2133,12 +2395,18 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     }
 
     function setTheme(theme) {
+      const hljsDark = document.getElementById('hljs-theme-dark');
+      const hljsLight = document.getElementById('hljs-theme-light');
       if (theme === 'light') {
         document.documentElement.setAttribute('data-theme', 'light');
         themeIcon.textContent = '☀️';
+        if (hljsDark) hljsDark.disabled = true;
+        if (hljsLight) hljsLight.disabled = false;
       } else {
         document.documentElement.removeAttribute('data-theme');
         themeIcon.textContent = '🌙';
+        if (hljsDark) hljsDark.disabled = false;
+        if (hljsLight) hljsLight.disabled = true;
       }
       localStorage.setItem('reviw-theme', theme);
     }
@@ -2182,11 +2450,14 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   const freezeRowCheck = document.getElementById('freeze-row-check');
 
   const ROW_HEADER_WIDTH = 28;
-    const MIN_COL_WIDTH = 80;
-    const MAX_COL_WIDTH = 420;
-    const DEFAULT_COL_WIDTH = 120;
+    const MIN_COL_WIDTH = 140;
+    const MAX_COL_WIDTH = 520;
+    const DEFAULT_COL_WIDTH = 240;
 
   let colWidths = Array.from({ length: MAX_COLS }, () => DEFAULT_COL_WIDTH);
+  if (MODE !== 'csv' && MAX_COLS === 1) {
+    colWidths[0] = 480;
+  }
   let panelOpen = false;
   let filters = {}; // colIndex -> predicate
   let filterTargetCol = null;
@@ -2343,6 +2614,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         const th = document.createElement('th');
         th.textContent = rIdx + 1;
         tr.appendChild(th);
+
         for (let c = 0; c < MAX_COLS; c += 1) {
           const td = document.createElement('td');
           const val = row[c] || '';
@@ -2422,9 +2694,46 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         isDragging = false;
         document.body.classList.remove('dragging');
         if (selection) {
+          // Copy selected text to clipboard
+          copySelectionToClipboard(selection);
           openCardForSelection();
         }
       });
+    }
+
+    // Copy selected range to clipboard
+    function copySelectionToClipboard(sel) {
+      const { startRow, endRow, startCol, endCol } = sel;
+      const lines = [];
+      for (let r = startRow; r <= endRow; r++) {
+        const rowData = [];
+        for (let c = startCol; c <= endCol; c++) {
+          const td = tbody.querySelector('td[data-row="' + r + '"][data-col="' + c + '"]');
+          if (td) {
+            // Get text content (strip HTML tags from inline code highlighting)
+            rowData.push(td.textContent || '');
+          }
+        }
+        lines.push(rowData.join('\\t'));
+      }
+      const text = lines.join('\\n');
+      if (text && navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+          showCopyToast();
+        }).catch(() => {
+          // Fallback: silent fail
+        });
+      }
+    }
+
+    // Show copy toast notification
+    function showCopyToast() {
+      const toast = document.getElementById('copy-toast');
+      if (!toast) return;
+      toast.classList.add('visible');
+      setTimeout(() => {
+        toast.classList.remove('visible');
+      }, 1500);
     }
 
     function openCardForSelection() {
@@ -3242,8 +3551,8 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       function updateMinimap() {
         if (!svgNaturalWidth || !svgNaturalHeight) return;
 
-        const viewportWidth = window.innerWidth - 40;
-        const viewportHeight = window.innerHeight - 80;
+        const viewportWidth = fsContent.clientWidth;
+        const viewportHeight = fsContent.clientHeight;
 
         // Minimap dimensions
         const mmWidth = 184;
@@ -3256,28 +3565,28 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         const mmSvgLeft = (mmWidth - mmSvgWidth) / 2 + mmPadding;
         const mmSvgTop = (mmHeight - mmSvgHeight) / 2 + mmPadding;
 
-        // Calculate visible area in SVG coordinates (accounting for transform origin at 0,0)
-        // panX/panY are the translation values, currentZoom is the scale
-        // The visible area starts at -panX/currentZoom in SVG coordinates
+        // Visible area in SVG coordinates (transform: translate(panX, panY) scale(currentZoom))
         const visibleLeft = Math.max(0, -panX / currentZoom);
-        const visibleTop = Math.max(0, (-panY + 60) / currentZoom);
+        const visibleTop = Math.max(0, -panY / currentZoom);
         const visibleWidth = viewportWidth / currentZoom;
         const visibleHeight = viewportHeight / currentZoom;
 
-        // Clamp to SVG bounds
-        const clampedLeft = Math.min(visibleLeft, svgNaturalWidth);
-        const clampedTop = Math.min(visibleTop, svgNaturalHeight);
-
         // Position viewport indicator in minimap coordinates
-        const vpLeft = mmSvgLeft + clampedLeft * minimapScale;
-        const vpTop = mmSvgTop + clampedTop * minimapScale;
+        const vpLeft = mmSvgLeft + visibleLeft * minimapScale;
+        const vpTop = mmSvgTop + visibleTop * minimapScale;
         const vpWidth = Math.min(mmWidth - vpLeft + mmPadding, visibleWidth * minimapScale);
         const vpHeight = Math.min(mmHeight - vpTop + mmPadding, visibleHeight * minimapScale);
 
-        minimapViewport.style.left = vpLeft + 'px';
-        minimapViewport.style.top = vpTop + 'px';
-        minimapViewport.style.width = Math.max(20, vpWidth) + 'px';
-        minimapViewport.style.height = Math.max(15, vpHeight) + 'px';
+        // Clamp viewport inside minimap box
+        const clampedLeft = Math.max(mmPadding, Math.min(vpLeft, mmWidth - mmPadding));
+        const clampedTop = Math.max(mmPadding, Math.min(vpTop, mmHeight - mmPadding));
+        const clampedWidth = Math.min(vpWidth, mmWidth - clampedLeft - mmPadding);
+        const clampedHeight = Math.min(vpHeight, mmHeight - clampedTop - mmPadding);
+
+        minimapViewport.style.left = clampedLeft + 'px';
+        minimapViewport.style.top = clampedTop + 'px';
+        minimapViewport.style.width = Math.max(20, clampedWidth) + 'px';
+        minimapViewport.style.height = Math.max(15, clampedHeight) + 'px';
       }
 
       // Use multiplicative zoom for consistent behavior
@@ -3348,6 +3657,74 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         if (e.key === 'Escape' && fsOverlay.classList.contains('visible')) {
           closeFullscreen();
         }
+      });
+    })();
+
+    // --- Highlight.js Initialization ---
+    (function initHighlightJS() {
+      if (typeof hljs === 'undefined') return;
+
+      // Highlight all code blocks in preview (skip mermaid blocks)
+      const preview = document.querySelector('.md-preview');
+      if (preview) {
+        preview.querySelectorAll('pre code').forEach(block => {
+          // Skip if inside mermaid container or already highlighted
+          if (block.closest('.mermaid-container') || block.classList.contains('hljs')) {
+            return;
+          }
+          hljs.highlightElement(block);
+        });
+      }
+    })();
+
+    // --- Image Fullscreen ---
+    (function initImageFullscreen() {
+      const preview = document.querySelector('.md-preview');
+      if (!preview) return;
+
+      const imageOverlay = document.getElementById('image-fullscreen');
+      const imageContainer = document.getElementById('image-container');
+      const imageClose = document.getElementById('image-close');
+      if (!imageOverlay || !imageContainer) return;
+
+      function closeImageOverlay() {
+        imageOverlay.classList.remove('visible');
+        imageContainer.innerHTML = '';
+      }
+
+      if (imageClose) {
+        imageClose.addEventListener('click', closeImageOverlay);
+      }
+
+      if (imageOverlay) {
+        imageOverlay.addEventListener('click', (e) => {
+          if (e.target === imageOverlay) closeImageOverlay();
+        });
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && imageOverlay.classList.contains('visible')) {
+          closeImageOverlay();
+        }
+      });
+
+      preview.querySelectorAll('img').forEach(img => {
+        img.style.cursor = 'pointer';
+        img.title = 'Click to view fullscreen';
+
+        img.addEventListener('click', (e) => {
+          e.stopPropagation();
+
+          imageContainer.innerHTML = '';
+          const clonedImg = img.cloneNode(true);
+          clonedImg.style.maxWidth = '90vw';
+          clonedImg.style.maxHeight = '90vh';
+          clonedImg.style.objectFit = 'contain';
+          clonedImg.style.cursor = 'default';
+          imageContainer.appendChild(clonedImg);
+
+          imageOverlay.classList.add('visible');
+        });
       });
     })();
   </script>

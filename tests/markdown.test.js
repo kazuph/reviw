@@ -8,7 +8,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ARTIFACTS_DIR = path.join(__dirname, '..', '.artifacts');
-const MD_FILE = path.join(__dirname, 'fixtures', 'sample.md');
+const MD_FILE = path.join(__dirname, '..', 'test-sample.md');
 
 function startServer(port) {
   return new Promise((resolve) => {
@@ -93,10 +93,35 @@ describe('Markdown E2E Tests', () => {
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-04-comment-list.png'), fullPage: true });
 
     // 4. Check code block in preview
-    const codeBlock = preview.locator('pre');
+    const codeBlock = preview.locator('pre').first();
     await expect(codeBlock).toBeVisible();
 
     await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-05-code-block.png'), fullPage: true });
+
+    // 5. Mermaid fullscreen opens and closes
+    const mermaidOverlay = page.locator('#mermaid-fullscreen');
+    const hasMermaid = await page.evaluate(() => typeof window.mermaid !== 'undefined');
+    if (hasMermaid) {
+      const mermaidCount = await page.$$eval('.mermaid-container', els => els.length);
+      if (mermaidCount > 0) {
+        const mermaidContainer = preview.locator('.mermaid-container').first();
+        await mermaidContainer.scrollIntoViewIfNeeded();
+        await mermaidContainer.click();
+        await expect(mermaidOverlay).toHaveClass(/visible/);
+        await page.locator('#fs-close').click();
+        await expect(mermaidOverlay).not.toHaveClass(/visible/);
+      }
+    }
+
+    // 6. Image fullscreen uses dedicated overlay (no mermaid minimap bleed)
+    const image = preview.locator('img').first();
+    await image.scrollIntoViewIfNeeded();
+    await image.click();
+    const imageOverlay = page.locator('#image-fullscreen');
+    await expect(imageOverlay).toHaveClass(/visible/);
+    await expect(mermaidOverlay).not.toHaveClass(/visible/);
+    await page.locator('#image-close').click();
+    await expect(imageOverlay).not.toHaveClass(/visible/);
 
     await page.close();
   });
