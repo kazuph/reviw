@@ -1978,15 +1978,15 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       transform: scale(1.04);
     }
     .image-container {
-      max-width: 90vw;
-      max-height: 90vh;
+      width: 90vw;
+      height: 90vh;
       display: flex;
       justify-content: center;
       align-items: center;
     }
     .image-container img {
-      max-width: 100%;
-      max-height: 90vh;
+      width: 100%;
+      height: 100%;
       object-fit: contain;
       border-radius: 8px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -3640,9 +3640,11 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
           imageContainer.innerHTML = '';
           const clonedImg = img.cloneNode(true);
-          clonedImg.style.maxWidth = '90vw';
-          clonedImg.style.maxHeight = '90vh';
-          clonedImg.style.objectFit = 'contain';
+          // CSSで制御するためインラインスタイルはリセット
+          clonedImg.style.width = '';
+          clonedImg.style.height = '';
+          clonedImg.style.maxWidth = '';
+          clonedImg.style.maxHeight = '';
           clonedImg.style.cursor = 'default';
           imageContainer.appendChild(clonedImg);
 
