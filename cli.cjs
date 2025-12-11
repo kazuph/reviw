@@ -839,6 +839,18 @@ function diffHtmlTemplate(diffData) {
       z-index: 100;
     }
     .modal-overlay.visible { display: flex; }
+    /* Submit modal: top-right position, no blocking overlay */
+    #submit-modal {
+      background: transparent;
+      pointer-events: none;
+      align-items: flex-start;
+      justify-content: flex-end;
+    }
+    #submit-modal.visible { display: flex; }
+    #submit-modal .modal-dialog {
+      pointer-events: auto;
+      margin: 20px;
+    }
     .modal-dialog {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -1991,6 +2003,55 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       border-radius: 8px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     }
+    /* Video fullscreen overlay */
+    .video-fullscreen-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1001;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    .video-fullscreen-overlay.visible {
+      display: flex;
+    }
+    .video-close-btn {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+      cursor: pointer;
+      color: #fff;
+      font-size: 18px;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+      transition: background 120ms ease, transform 120ms ease;
+    }
+    .video-close-btn:hover {
+      background: rgba(0, 0, 0, 0.75);
+      transform: scale(1.04);
+    }
+    .video-container {
+      width: 90vw;
+      height: 90vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .video-container video {
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 8px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
     /* Copy notification toast */
     .copy-toast {
       position: fixed;
@@ -2051,6 +2112,18 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       z-index: 100;
     }
     .modal-overlay.visible { display: flex; }
+    /* Submit modal: top-right position, no blocking overlay */
+    #submit-modal {
+      background: transparent;
+      pointer-events: none;
+      align-items: flex-start;
+      justify-content: flex-end;
+    }
+    #submit-modal.visible { display: flex; }
+    #submit-modal .modal-dialog {
+      pointer-events: auto;
+      margin: 20px;
+    }
     .modal-dialog {
       background: var(--panel-solid);
       border: 1px solid var(--border);
@@ -2351,6 +2424,10 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
   <div class="image-fullscreen-overlay" id="image-fullscreen">
     <button class="image-close-btn" id="image-close" aria-label="Close image" title="Close (ESC)">✕</button>
     <div class="image-container" id="image-container"></div>
+  </div>
+  <div class="video-fullscreen-overlay" id="video-fullscreen">
+    <button class="video-close-btn" id="video-close" aria-label="Close video" title="Close (ESC)">✕</button>
+    <div class="video-container" id="video-container"></div>
   </div>
 
   <script>
@@ -3650,6 +3727,78 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
           imageOverlay.classList.add('visible');
         });
+      });
+    })();
+
+    // --- Video Fullscreen ---
+    (function initVideoFullscreen() {
+      const preview = document.querySelector('.md-preview');
+      if (!preview) return;
+
+      const videoOverlay = document.getElementById('video-fullscreen');
+      const videoContainer = document.getElementById('video-container');
+      const videoClose = document.getElementById('video-close');
+      if (!videoOverlay || !videoContainer) return;
+
+      const videoExtensions = /\\.(mp4|mov|webm|avi|mkv|m4v|ogv)$/i;
+
+      function closeVideoOverlay() {
+        videoOverlay.classList.remove('visible');
+        // Stop and remove video
+        const video = videoContainer.querySelector('video');
+        if (video) {
+          video.pause();
+          video.src = '';
+          video.remove();
+        }
+      }
+
+      if (videoClose) {
+        videoClose.addEventListener('click', closeVideoOverlay);
+      }
+
+      if (videoOverlay) {
+        videoOverlay.addEventListener('click', (e) => {
+          if (e.target === videoOverlay) closeVideoOverlay();
+        });
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && videoOverlay.classList.contains('visible')) {
+          closeVideoOverlay();
+        }
+      });
+
+      // Intercept video link clicks
+      preview.querySelectorAll('a').forEach(link => {
+        const href = link.getAttribute('href');
+        if (href && videoExtensions.test(href)) {
+          link.style.cursor = 'pointer';
+          link.title = 'Click to play video fullscreen';
+
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Remove existing video if any
+            const existingVideo = videoContainer.querySelector('video');
+            if (existingVideo) {
+              existingVideo.pause();
+              existingVideo.src = '';
+              existingVideo.remove();
+            }
+
+            const video = document.createElement('video');
+            video.src = href;
+            video.controls = true;
+            video.autoplay = true;
+            video.style.maxWidth = '100%';
+            video.style.maxHeight = '100%';
+            videoContainer.appendChild(video);
+
+            videoOverlay.classList.add('visible');
+          });
+        }
       });
     })();
   </script>
