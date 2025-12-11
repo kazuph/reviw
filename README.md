@@ -6,7 +6,7 @@ A lightweight browser-based tool for reviewing and annotating tabular data, text
 
 ### File Format Support
 - **CSV/TSV**: View tabular data with sticky headers, column freezing, filtering, and column resizing
-- **Markdown**: Side-by-side preview with synchronized scrolling
+- **Markdown**: Side-by-side preview with synchronized scrolling, click-to-comment from preview
 - **Diff/Patch**: GitHub-style diff view with syntax highlighting, collapsible large files (500+ lines), and binary files sorted to end
 - **Text**: Line-by-line commenting for plain text files
 
@@ -15,8 +15,11 @@ A lightweight browser-based tool for reviewing and annotating tabular data, text
 - Click any diagram to open fullscreen viewer
 - Zoom with mouse wheel (centered on cursor position, up to 10x)
 - Pan with mouse drag
-- Minimap showing current viewport position
 - Syntax error display in toast notifications
+
+### Media Fullscreen
+- Click images in Markdown preview to open fullscreen viewer
+- Click videos to open fullscreen playback with native controls
 
 ### UI Features
 - **Theme toggle**: Switch between light and dark modes
@@ -62,6 +65,8 @@ reviw changes.diff
 - `--port <number>`: Specify starting port (default: 4989)
 - `--encoding <encoding>`: Force specific encoding (auto-detected by default)
 - `--no-open`: Prevent automatic browser opening
+- `--help, -h`: Show help message
+- `--version, -v`: Show version number
 
 ### Workflow
 1. Browser opens automatically (macOS: `open` / Linux: `xdg-open` / Windows: `start`)
@@ -72,16 +77,16 @@ reviw changes.diff
 ## Screenshots
 
 ### CSV View
-![CSV View](./assets/screenshot-csv.png?v=2)
+![CSV View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-csv.png)
 
 ### Markdown View
-![Markdown View](./assets/screenshot-md.png?v=2)
+![Markdown View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-md.png)
 
 ### Diff View
-![Diff View](./assets/screenshot-diff.png?v=2)
+![Diff View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-diff.png)
 
 ### Mermaid Fullscreen
-![Mermaid Fullscreen](./assets/screenshot-mermaid.png?v=2)
+![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid.png)
 
 ## Output Example
 
