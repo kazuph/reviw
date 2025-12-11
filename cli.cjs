@@ -4188,7 +4188,7 @@ function shutdownAll() {
 process.on("SIGINT", shutdownAll);
 process.on("SIGTERM", shutdownAll);
 
-function createFileServer(filePath) {
+function createFileServer(filePath, fileIndex = 0) {
   return new Promise((resolve) => {
     const baseName = path.basename(filePath);
     const baseDir = path.dirname(filePath);
@@ -4403,14 +4403,18 @@ function createFileServer(filePath) {
               : process.platform === "win32"
                 ? "start"
                 : "xdg-open";
-          try {
-            spawn(opener, [url], { stdio: "ignore", detached: true });
-          } catch (err) {
-            console.warn(
-              "Failed to open browser automatically. Please open this URL manually:",
-              url,
-            );
-          }
+          // Add delay for multiple files to avoid browser ignoring rapid open commands
+          const delay = fileIndex * 300;
+          setTimeout(() => {
+            try {
+              spawn(opener, [url], { stdio: "ignore", detached: true });
+            } catch (err) {
+              console.warn(
+                "Failed to open browser automatically. Please open this URL manually:",
+                url,
+              );
+            }
+          }, delay);
         }
         startWatcher();
         resolve(ctx);
@@ -4619,8 +4623,8 @@ function createDiffServer(diffContent) {
     // File mode: files specified
     console.log(`Starting servers for ${resolvedPaths.length} file(s)...`);
     serversRunning = resolvedPaths.length;
-    for (const filePath of resolvedPaths) {
-      await createFileServer(filePath);
+    for (let i = 0; i < resolvedPaths.length; i++) {
+      await createFileServer(resolvedPaths[i], i);
     }
     console.log("Close all browser tabs or Submit & Exit to finish.");
   } else {
