@@ -21,7 +21,7 @@ const marked = require("marked");
 const yaml = require("js-yaml");
 
 // --- CLI arguments ---------------------------------------------------------
-const VERSION = "0.10.3";
+const VERSION = require("./package.json").version;
 const args = process.argv.slice(2);
 
 const filePaths = [];
