@@ -116,12 +116,19 @@ function runGitDiff() {
   });
 }
 
-// Validate all files exist (if files specified)
+// Validate all files exist and are not directories (if files specified)
 const resolvedPaths = [];
 for (const fp of filePaths) {
   const resolved = path.resolve(fp);
   if (!fs.existsSync(resolved)) {
     console.error(`File not found: ${resolved}`);
+    process.exit(1);
+  }
+  const stat = fs.statSync(resolved);
+  if (stat.isDirectory()) {
+    console.error(`Cannot open directory: ${resolved}`);
+    console.error(`Usage: reviw <file> [file2...]`);
+    console.error(`Please specify a file, not a directory.`);
     process.exit(1);
   }
   resolvedPaths.push(resolved);
@@ -477,6 +484,19 @@ function escapeHtmlChars(str) {
 }
 
 function loadData(filePath) {
+  // Check if path exists
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+  // Check if path is a directory
+  const stat = fs.statSync(filePath);
+  if (stat.isDirectory()) {
+    throw new Error(
+      `Cannot open directory: ${filePath}\n` +
+      `Usage: reviw <file> [file2...]\n` +
+      `Please specify a file, not a directory.`
+    );
+  }
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".csv" || ext === ".tsv") {
     const data = loadCsv(filePath);
