@@ -21,6 +21,7 @@ const marked = require("marked");
 const yaml = require("js-yaml");
 
 // --- CLI arguments ---------------------------------------------------------
+const VERSION = "0.10.3";
 const args = process.argv.slice(2);
 
 const filePaths = [];
@@ -30,6 +31,49 @@ let noOpen = false;
 let stdinMode = false;
 let diffMode = false;
 let stdinContent = null;
+
+function showHelp() {
+  console.log(`reviw v${VERSION} - Lightweight file reviewer with in-browser comments
+
+Usage:
+  reviw <file...> [options]      Review files (CSV, TSV, Markdown, Text)
+  reviw <file.diff>              Review diff/patch file
+  git diff | reviw [options]     Review diff from stdin
+  reviw                          Auto run git diff HEAD
+
+Supported Formats:
+  CSV/TSV      Tabular data with sticky headers, filtering, column resizing
+  Markdown     Side-by-side preview with synchronized scrolling, Mermaid diagrams
+  Diff/Patch   GitHub-style view with syntax highlighting
+  Text         Line-by-line commenting
+
+Options:
+  --port <number>       Server port (default: 4989)
+  --encoding <enc>, -e  Force encoding (utf8, shift_jis, euc-jp, etc.)
+  --no-open             Don't open browser automatically
+  --help, -h            Show this help message
+  --version, -v         Show version number
+
+Examples:
+  reviw data.csv                    # Review CSV file
+  reviw README.md                   # Review Markdown with preview
+  reviw file1.csv file2.md          # Multiple files on consecutive ports
+  git diff | reviw                  # Review uncommitted changes
+  git diff HEAD~3 | reviw           # Review last 3 commits
+  reviw changes.patch               # Review patch file
+
+Workflow:
+  1. Browser opens automatically (use --no-open to disable)
+  2. Click cells/lines to add comments, drag to select multiple
+  3. Press Cmd/Ctrl+Enter or click "Submit & Exit"
+  4. Comments are output as YAML to stdout
+
+More info: https://github.com/kazuph/reviw`);
+}
+
+function showVersion() {
+  console.log(VERSION);
+}
 
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i];
@@ -42,22 +86,10 @@ for (let i = 0; i < args.length; i += 1) {
   } else if (arg === "--no-open") {
     noOpen = true;
   } else if (arg === "--help" || arg === "-h") {
-    console.log(`Usage: reviw <file...> [options]
-       git diff | reviw [options]
-       reviw [options]  (auto runs git diff HEAD)
-
-Options:
-  --port <number>     Server port (default: 4989)
-  --encoding <enc>    Force encoding (utf8, shift_jis, etc.)
-  --no-open           Don't open browser automatically
-  --help, -h          Show this help message
-
-Examples:
-  reviw data.csv                    # View CSV file
-  reviw README.md                   # View Markdown file
-  git diff | reviw                  # Review diff from stdin
-  git diff HEAD~3 | reviw           # Review diff from last 3 commits
-  reviw                             # Auto run git diff HEAD`);
+    showHelp();
+    process.exit(0);
+  } else if (arg === "--version" || arg === "-v") {
+    showVersion();
     process.exit(0);
   } else if (!arg.startsWith("-")) {
     filePaths.push(arg);
@@ -4593,6 +4625,7 @@ function createDiffServer(diffContent) {
     console.log("Close all browser tabs or Submit & Exit to finish.");
   } else {
     // No files and no stdin: try auto git diff
+    console.log(`reviw v${VERSION}`);
     console.log("No files specified. Running git diff HEAD...");
     try {
       const gitDiff = await runGitDiff();
@@ -4601,7 +4634,9 @@ function createDiffServer(diffContent) {
         console.log("");
         console.log("Usage: reviw <file...> [options]");
         console.log("       git diff | reviw [options]");
-        console.log("       reviw  (auto runs git diff HEAD)");
+        console.log("       reviw              (auto runs git diff HEAD)");
+        console.log("");
+        console.log("Run 'reviw --help' for more information.");
         process.exit(0);
       }
       diffMode = true;
@@ -4615,6 +4650,8 @@ function createDiffServer(diffContent) {
       console.log("");
       console.log("Usage: reviw <file...> [options]");
       console.log("       git diff | reviw [options]");
+      console.log("");
+      console.log("Run 'reviw --help' for more information.");
       process.exit(1);
     }
   }

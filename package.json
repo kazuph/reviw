@@ -1,6 +1,6 @@
 {
   "name": "reviw",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "description": "Lightweight file reviewer with in-browser comments for CSV, TSV, Markdown, and Git diffs.",
   "type": "module",
   "bin": {
