@@ -849,7 +849,7 @@ function diffHtmlTemplate(diffData) {
     #submit-modal.visible { display: flex; }
     #submit-modal .modal-dialog {
       pointer-events: auto;
-      margin: 20px;
+      margin: 60px 20px 20px 20px; /* top margin avoids header button overlap */
     }
     .modal-dialog {
       background: var(--panel);
@@ -2122,7 +2122,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     #submit-modal.visible { display: flex; }
     #submit-modal .modal-dialog {
       pointer-events: auto;
-      margin: 20px;
+      margin: 60px 20px 20px 20px; /* top margin avoids header button overlap */
     }
     .modal-dialog {
       background: var(--panel-solid);
@@ -3801,6 +3801,249 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         }
       });
     })();
+
+    // --- Preview Commenting ---
+    (function initPreviewCommenting() {
+      if (MODE !== 'markdown') return;
+
+      const preview = document.querySelector('.md-preview');
+      if (!preview) return;
+
+      // Add visual hint for clickable elements
+      const style = document.createElement('style');
+      style.textContent = \`
+        .md-preview > p:hover, .md-preview > h1:hover, .md-preview > h2:hover,
+        .md-preview > h3:hover, .md-preview > h4:hover, .md-preview > h5:hover,
+        .md-preview > h6:hover, .md-preview > ul > li:hover, .md-preview > ol > li:hover,
+        .md-preview > pre:hover, .md-preview > blockquote:hover {
+          background: rgba(99, 102, 241, 0.08);
+          cursor: pointer;
+          border-radius: 4px;
+        }
+        .md-preview img:hover {
+          outline: 2px solid var(--accent);
+          cursor: pointer;
+        }
+      \`;
+      document.head.appendChild(style);
+
+      // Helper: find matching source line for text
+      function findSourceLine(text) {
+        if (!text) return -1;
+        const normalized = text.trim().replace(/\\s+/g, ' ').slice(0, 100);
+        if (!normalized) return -1;
+
+        for (let i = 0; i < DATA.length; i++) {
+          const lineText = (DATA[i][0] || '').trim();
+          if (!lineText) continue;
+
+          const lineNorm = lineText.replace(/\\s+/g, ' ').slice(0, 100);
+          if (lineNorm === normalized) return i + 1;
+          if (lineNorm.includes(normalized.slice(0, 30)) && normalized.length > 5) return i + 1;
+          if (normalized.includes(lineNorm.slice(0, 30)) && lineNorm.length > 5) return i + 1;
+
+          // Check for markdown headings: strip # from source and compare
+          if (lineText.match(/^#+\\s/)) {
+            const headingText = lineText.replace(/^#+\\s*/, '').trim();
+            if (headingText === normalized || headingText.toLowerCase() === normalized.toLowerCase()) {
+              return i + 1;
+            }
+          }
+        }
+        return -1;
+      }
+
+      // Helper: find matching source line for table cell (prioritizes table rows)
+      function findTableSourceLine(text) {
+        if (!text) return -1;
+        const normalized = text.trim().replace(/\\s+/g, ' ').slice(0, 100);
+        if (!normalized) return -1;
+
+        // First pass: look for table rows (lines starting with |) containing the text
+        for (let i = 0; i < DATA.length; i++) {
+          const lineText = (DATA[i][0] || '').trim();
+          if (!lineText || !lineText.startsWith('|')) continue;
+
+          const lineNorm = lineText.replace(/\\s+/g, ' ').slice(0, 100);
+          if (lineNorm.includes(normalized.slice(0, 30)) && normalized.length > 5) return i + 1;
+        }
+
+        // Fallback to normal search
+        return findSourceLine(text);
+      }
+
+      // Helper: find code block range in source (fenced code blocks)
+      function findCodeBlockRange(codeText) {
+        const clickedLines = codeText.split('\\n').map(l => l.trim()).filter(l => l);
+        const clickedContent = clickedLines.join('\\n');
+
+        // Extract all code blocks from DATA
+        const codeBlocks = [];
+        let currentBlock = null;
+
+        for (let i = 0; i < DATA.length; i++) {
+          const lineText = (DATA[i][0] || '').trim();
+
+          if (lineText.startsWith('\`\`\`') && !currentBlock) {
+            // Start of a code block
+            currentBlock = { startLine: i + 1, lines: [] };
+          } else if (lineText === '\`\`\`' && currentBlock) {
+            // End of a code block
+            currentBlock.endLine = i + 1;
+            currentBlock.content = currentBlock.lines.map(l => l.trim()).filter(l => l).join('\\n');
+            codeBlocks.push(currentBlock);
+            currentBlock = null;
+          } else if (currentBlock) {
+            // Inside a code block
+            currentBlock.lines.push(DATA[i][0] || '');
+          }
+        }
+
+        // Find the best matching code block by content similarity
+        let bestMatch = null;
+        let bestScore = 0;
+
+        for (const block of codeBlocks) {
+          // Calculate similarity score
+          let score = 0;
+
+          // Exact match
+          if (block.content === clickedContent) {
+            score = 1000;
+          } else {
+            // Check line-by-line matches
+            const blockLines = block.content.split('\\n');
+            for (const clickedLine of clickedLines) {
+              if (clickedLine.length > 3) {
+                for (const blockLine of blockLines) {
+                  if (blockLine.includes(clickedLine) || clickedLine.includes(blockLine)) {
+                    score += clickedLine.length;
+                  }
+                }
+              }
+            }
+          }
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = block;
+          }
+        }
+
+        if (bestMatch) {
+          return { startLine: bestMatch.startLine, endLine: bestMatch.endLine };
+        }
+
+        // Fallback: find by first line content matching
+        const firstCodeLine = clickedLines[0];
+        if (firstCodeLine && firstCodeLine.length > 3) {
+          for (let i = 0; i < DATA.length; i++) {
+            const lineText = (DATA[i][0] || '').trim();
+            if (lineText.includes(firstCodeLine.slice(0, 30))) {
+              return { startLine: i + 1, endLine: i + 1 };
+            }
+          }
+        }
+
+        return { startLine: -1, endLine: -1 };
+      }
+
+      // Helper: find source line for image by src
+      function findImageSourceLine(src) {
+        if (!src) return -1;
+        const filename = src.split('/').pop().split('?')[0];
+        for (let i = 0; i < DATA.length; i++) {
+          const lineText = DATA[i][0] || '';
+          if (lineText.includes(filename) || lineText.includes(src)) {
+            return i + 1;
+          }
+        }
+        return -1;
+      }
+
+      // Trigger source cell selection (reuse existing comment flow)
+      function selectSourceRange(startRow, endRow) {
+        selection = { startRow, endRow: endRow || startRow, startCol: 1, endCol: 1 };
+        updateSelectionVisual();
+
+        // Clear header selection
+        document.querySelectorAll('thead th.selected').forEach(el => el.classList.remove('selected'));
+
+        // Scroll source table to show the selected row, then open card
+        const sourceTd = tbody.querySelector('td[data-row="' + startRow + '"][data-col="1"]');
+        if (sourceTd) {
+          sourceTd.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Wait for scroll to complete before positioning card
+          setTimeout(() => openCardForSelection(), 350);
+        } else {
+          openCardForSelection();
+        }
+      }
+
+      // Click on block elements
+      preview.addEventListener('click', (e) => {
+        // Handle image clicks
+        if (e.target.tagName === 'IMG') {
+          if (!e.defaultPrevented) {
+            const line = findImageSourceLine(e.target.src);
+            if (line > 0) {
+              e.preventDefault();
+              e.stopPropagation();
+              selectSourceRange(line);
+            }
+          }
+          return;
+        }
+
+        // Ignore clicks on links, mermaid, video overlay
+        if (e.target.closest('a, .mermaid-container, .video-fullscreen-overlay')) return;
+
+        // Handle code blocks - select entire block
+        const pre = e.target.closest('pre');
+        if (pre) {
+          const code = pre.querySelector('code') || pre;
+          const { startLine, endLine } = findCodeBlockRange(code.textContent);
+          if (startLine > 0) {
+            e.preventDefault();
+            selectSourceRange(startLine, endLine);
+          }
+          return;
+        }
+
+        const target = e.target.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th');
+        if (!target) return;
+
+        // Use table-specific search for table cells
+        const isTableCell = target.tagName === 'TD' || target.tagName === 'TH';
+        const line = isTableCell ? findTableSourceLine(target.textContent) : findSourceLine(target.textContent);
+        if (line <= 0) return;
+
+        e.preventDefault();
+        selectSourceRange(line);
+      });
+
+      // Text selection to open comment for range
+      preview.addEventListener('mouseup', (e) => {
+        setTimeout(() => {
+          const sel = window.getSelection();
+          if (!sel || sel.isCollapsed) return;
+
+          const text = sel.toString().trim();
+          if (!text || text.length < 5) return;
+
+          const lines = text.split('\\n').filter(l => l.trim());
+          if (lines.length === 0) return;
+
+          const startLine = findSourceLine(lines[0]);
+          const endLine = lines.length > 1 ? findSourceLine(lines[lines.length - 1]) : startLine;
+
+          if (startLine <= 0) return;
+
+          sel.removeAllRanges();
+          selectSourceRange(startLine, endLine > 0 ? endLine : startLine);
+        }, 10);
+      });
+    })();
   </script>
 </body>
 </html>`;
@@ -4039,7 +4282,10 @@ function createFileServer(filePath) {
       res.end("not found");
     });
 
+    let serverStarted = false;
+
     function tryListen(attemptPort, attempts = 0) {
+      if (serverStarted) return; // Prevent double-start race condition
       if (attempts >= MAX_PORT_ATTEMPTS) {
         console.error(
           `Could not find an available port for ${baseName} after ${MAX_PORT_ATTEMPTS} attempts.`,
@@ -4050,6 +4296,7 @@ function createFileServer(filePath) {
       }
 
       ctx.server.once("error", (err) => {
+        if (serverStarted) return; // Already started on another port
         if (err.code === "EADDRINUSE") {
           tryListen(attemptPort + 1, attempts + 1);
         } else {
@@ -4060,6 +4307,12 @@ function createFileServer(filePath) {
       });
 
       ctx.server.listen(attemptPort, () => {
+        if (serverStarted) {
+          // Race condition: server started on multiple ports, close this one
+          try { ctx.server.close(); } catch (_) {}
+          return;
+        }
+        serverStarted = true;
         ctx.port = attemptPort;
         nextPort = attemptPort + 1;
         activeServers.set(filePath, ctx);
@@ -4193,7 +4446,10 @@ function createDiffServer(diffContent) {
       res.end("not found");
     });
 
+    let serverStarted = false;
+
     function tryListen(attemptPort, attempts = 0) {
+      if (serverStarted) return; // Prevent double-start race condition
       if (attempts >= MAX_PORT_ATTEMPTS) {
         console.error(
           `Could not find an available port for diff viewer after ${MAX_PORT_ATTEMPTS} attempts.`,
@@ -4204,6 +4460,7 @@ function createDiffServer(diffContent) {
       }
 
       ctx.server.once("error", (err) => {
+        if (serverStarted) return; // Already started on another port
         if (err.code === "EADDRINUSE") {
           tryListen(attemptPort + 1, attempts + 1);
         } else {
@@ -4214,6 +4471,12 @@ function createDiffServer(diffContent) {
       });
 
       ctx.server.listen(attemptPort, () => {
+        if (serverStarted) {
+          // Race condition: server started on multiple ports, close this one
+          try { ctx.server.close(); } catch (_) {}
+          return;
+        }
+        serverStarted = true;
         ctx.port = attemptPort;
         ctx.heartbeat = setInterval(() => broadcast("ping"), 25000);
         console.log(`Diff viewer started: http://localhost:${attemptPort}`);
