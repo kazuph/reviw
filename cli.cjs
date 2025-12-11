@@ -3847,6 +3847,20 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       \`;
       document.head.appendChild(style);
 
+      // Helper: strip markdown formatting from text
+      function stripMarkdown(text) {
+        return text
+          .replace(/^[-*+]\\s+/, '')           // List markers: - * +
+          .replace(/^\\d+\\.\\s+/, '')          // Numbered list: 1. 2.
+          .replace(/\\*\\*([^*]+)\\*\\*/g, '$1') // Bold: **text**
+          .replace(/\\*([^*]+)\\*/g, '$1')     // Italic: *text*
+          .replace(/__([^_]+)__/g, '$1')      // Bold: __text__
+          .replace(/_([^_]+)_/g, '$1')        // Italic: _text_
+          .replace(/\`([^\`]+)\`/g, '$1')     // Inline code: \`code\`
+          .replace(/\\[([^\\]]+)\\]\\([^)]+\\)/g, '$1') // Links: [text](url)
+          .trim();
+      }
+
       // Helper: find matching source line for text
       function findSourceLine(text) {
         if (!text) return -1;
@@ -3868,6 +3882,14 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
             if (headingText === normalized || headingText.toLowerCase() === normalized.toLowerCase()) {
               return i + 1;
             }
+          }
+
+          // Check for markdown list items: strip list markers and formatting
+          if (lineText.match(/^[-*+]\\s|^\\d+\\.\\s/)) {
+            const strippedLine = stripMarkdown(lineText).replace(/\\s+/g, ' ').slice(0, 100);
+            if (strippedLine === normalized) return i + 1;
+            if (strippedLine.includes(normalized.slice(0, 30)) && normalized.length > 5) return i + 1;
+            if (normalized.includes(strippedLine.slice(0, 30)) && strippedLine.length > 5) return i + 1;
           }
         }
         return -1;
@@ -4306,6 +4328,10 @@ function createFileServer(filePath) {
 
     function tryListen(attemptPort, attempts = 0) {
       if (serverStarted) return; // Prevent double-start race condition
+      // Clear previous listeners from failed attempts to avoid duplicate
+      // "listening" callbacks firing after a later successful bind.
+      ctx.server.removeAllListeners("error");
+      ctx.server.removeAllListeners("listening");
       if (attempts >= MAX_PORT_ATTEMPTS) {
         console.error(
           `Could not find an available port for ${baseName} after ${MAX_PORT_ATTEMPTS} attempts.`,
@@ -4470,6 +4496,10 @@ function createDiffServer(diffContent) {
 
     function tryListen(attemptPort, attempts = 0) {
       if (serverStarted) return; // Prevent double-start race condition
+      // Clear listeners from previous failed attempts to prevent stale
+      // "listening" handlers from firing on the successful bind.
+      ctx.server.removeAllListeners("error");
+      ctx.server.removeAllListeners("listening");
       if (attempts >= MAX_PORT_ATTEMPTS) {
         console.error(
           `Could not find an available port for diff viewer after ${MAX_PORT_ATTEMPTS} attempts.`,
