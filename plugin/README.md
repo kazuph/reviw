@@ -35,6 +35,7 @@ Task ツールで subagent_type: "report-builder" を指定
 | スキル | 説明 |
 |--------|------|
 | `reviw-master` | reviw CLI の全機能を熟知し、適切な使い方を自動提案 |
+| `artifact-proof` | スクショ・動画・ログを `.artifacts/` に蓄積し、PR 用エビデンスを整備 |
 
 ### Hooks（自動フック）
 
@@ -89,8 +90,10 @@ reviw-plugin/
 ├── agents/
 │   └── report-builder.md    # 報告書作成エージェント
 ├── skills/
-│   └── reviw-master/
-│       └── SKILL.md         # reviw 使い方スキル
+│   ├── reviw-master/
+│   │   └── SKILL.md         # reviw 使い方スキル
+│   └── artifact-proof/
+│       └── SKILL.md         # エビデンス収集スキル
 ├── hooks/
 │   └── hooks.json           # 自動フック設定
 └── README.md
