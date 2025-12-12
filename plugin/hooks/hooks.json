@@ -1,0 +1,29 @@
+{
+  "description": "reviw plugin hooks - commit review reminders and workflow enforcement",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE \"git commit|git push\"; then echo \"[reviw-plugin] Reminder: Have you run /done and reviewed with reviw before committing?\"; fi'",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if [ -d \".artifacts\" ]; then LATEST=$(ls -td .artifacts/*/ 2>/dev/null | head -1); if [ -n \"$LATEST\" ] && [ -f \"${LATEST}README.md\" ]; then STATUS=$(grep -o \"ステータス:.*\" \"${LATEST}README.md\" | head -1); if echo \"$STATUS\" | grep -qE \"進行中|レビュー待ち\"; then echo \"[reviw-plugin] Warning: Task in progress. Consider running /done before stopping.\"; fi; fi; fi'",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

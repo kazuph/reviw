@@ -1,0 +1,15 @@
+{
+  "name": "reviw-marketplace",
+  "owner": {
+    "name": "kazuph",
+    "url": "https://github.com/kazuph"
+  },
+  "description": "reviw - Browser-based file review tool with YAML output",
+  "plugins": [
+    {
+      "name": "reviw-plugin",
+      "source": "./plugin",
+      "description": "reviw CLI integration for Claude Code - task management, review workflow, and report generation"
+    }
+  ]
+}

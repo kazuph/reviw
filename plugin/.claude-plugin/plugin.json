@@ -1,0 +1,14 @@
+{
+  "name": "reviw-plugin",
+  "version": "1.0.0",
+  "description": "reviw CLI integration - task management with /do & /done, review workflow, and report generation agent",
+  "author": {
+    "name": "kazuph",
+    "url": "https://github.com/kazuph"
+  },
+  "homepage": "https://github.com/kazuph/reviw",
+  "repository": "https://github.com/kazuph/reviw",
+  "license": "MIT",
+  "keywords": ["review", "csv", "markdown", "diff", "workflow", "task-management"],
+  "hooks": "./hooks/hooks.json"
+}

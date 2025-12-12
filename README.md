@@ -103,10 +103,64 @@ comments:
 summary: Overall the data looks good, minor issues noted above.
 ```
 
+## Claude Code Plugin
+
+This repository also serves as a Claude Code plugin marketplace. The plugin integrates reviw into Claude Code workflows with task management and review automation.
+
+### Installation
+
+```bash
+# In Claude Code
+/plugin marketplace add kazuph/reviw
+/plugin install reviw-plugin@reviw-marketplace
+```
+
+### Plugin Features
+
+| Component | Name | Description |
+|-----------|------|-------------|
+| **Command** | `/reviw:do` | Start a task - create worktree, plan, register todos |
+| **Command** | `/reviw:done` | Complete checklist - collect evidence, start review with reviw |
+| **Agent** | `report-builder` | Prepare reports and evidence for user review |
+| **Skill** | `reviw-master` | Auto-suggest proper reviw usage |
+| **Hook** | PreToolUse | Remind to review before git commit/push |
+| **Hook** | Stop | Warn if task is still in progress |
+
+### Workflow
+
+```
+/reviw:do <task description>
+    ↓
+Create worktree + Plan
+    ↓
+Implementation
+    ↓
+/reviw:done
+    ↓
+Collect evidence + Create report
+    ↓
+npx reviw opens report (foreground)
+    ↓
+User comments → Submit & Exit
+    ↓
+Register feedback to Todo
+    ↓
+Fix → Re-review until approved
+```
+
+### Completion Criteria
+
+| Stage | Content |
+|-------|---------|
+| 1/3 | Implementation complete |
+| 2/3 | Build, start, verification complete |
+| 3/3 | Review with reviw → User approval |
+
 ## Development
 
 - Main source: `cli.cjs`
 - Tests: `npm test` (vitest + playwright)
+- Plugin: `plugin/` directory
 
 ## License
 
