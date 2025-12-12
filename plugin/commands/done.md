@@ -14,8 +14,8 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task
 
 | 作業 | 理由 | サブエージェント |
 |------|------|-----------------|
+| 報告書作成・エビデンス整理 | 画像・動画処理で枯渇 | `subagent_type: "report-builder"` |
 | webapp-testing | スクショ Read でコンテキスト爆発 | `subagent_type: "general-purpose"` |
-| artifact-proof | 画像・動画処理で枯渇 | `subagent_type: "general-purpose"` |
 | E2E テスト実行 | 長いログでコンテキスト消費 | `subagent_type: "general-purpose"` |
 
 ```
@@ -109,9 +109,16 @@ cat .artifacts/*/README.md | grep -A 50 "## PLAN"
    - `webapp-testing` スキルを使用してブラウザで実際に操作
    - 期待通りの動作をするか確認
 
-### 4. 証拠の記録
-   - `artifact-proof` スキルでスクリーンショットと動画を保存し報告書を書く
-   - 詳細はスキルを必ず参照すること
+### 4. 報告書作成・エビデンス整理
+
+**report-builder エージェントを使用すること：**
+
+```
+Task ツールで subagent_type: "report-builder" を指定
+→ artifact-proof スキルが自動ロードされる
+→ 報告書作成・エビデンス整理を実行
+→ reviw でレビュー開始準備が整う
+```
 
 ### 5. reviw でレビュー開始
 
