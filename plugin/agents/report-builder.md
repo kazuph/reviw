@@ -3,6 +3,7 @@ name: report-builder
 description: レビューしてもらうための報告書・エビデンスを整理する専門エージェント。/done 実行時や報告書作成が必要な時に使用。
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
+skills: artifact-proof
 ---
 
 # Report Builder Agent
