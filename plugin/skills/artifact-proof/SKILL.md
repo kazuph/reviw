@@ -90,13 +90,93 @@ npx playwright test tests/e2e/<spec>.spec.ts \
   実行後、動画やtrace出力が別ディレクトリに散らばる場合は`.artifacts/$FEATURE/videos/`へ `mv` して整理。
 
 ## 運用フロー
-1) 作業開始時に対象タスクのArtifact mdを作成。Contextと予定を書く。  
-2) 実行コマンドやログを逐次追記。  
-3) 画面変更後、全スクショを撮り直し `.artifacts/<feature>/images/` へ保存（動画は `videos/`）。  
-4) 目視で差分を確認（ヒューマンインザループ）。意図通りならREADMEに貼り付け。  
-5) `npx reviw .artifacts/<feature>/README.md` で即時プレビューし、ユーザーからのフィードバックをもらうまで待機
+1) 作業開始時に対象タスクのArtifact mdを作成。Contextと予定を書く。
+2) 実行コマンドやログを逐次追記。
+3) 画面変更後、全スクショを撮り直し `.artifacts/<feature>/images/` へ保存（動画は `videos/`）。
+4) 目視で差分を確認（ヒューマンインザループ）。意図通りならREADMEに貼り付け。
+5) **reviw でレビュー開始**（後述の「reviw によるレビュー」セクション参照）
 6) 却下を受けたら再度実装し、修正がある限りスクショと動画を取り直し、必要があればREADME.mdを修正し、再度5を実行、承認されるまでループ
 7) ユーザーからの承認後に初めてコミット、PRがある場合は、PR本文もここまでの修正を反映する
+
+## reviw によるレビュー
+
+reviw は CSV/TSV/Markdown/Diff/テキストファイルをブラウザでレビューし、コメントを YAML 形式で出力する CLI ツール。
+
+### 基本コマンド
+
+```bash
+# 報告書を開く（必ずフォアグラウンドで実行）
+npx reviw .artifacts/<feature>/README.md
+
+# 動画があれば先に開いておく
+open .artifacts/<feature>/videos/demo.webm
+npx reviw .artifacts/<feature>/README.md
+
+# git diff をレビュー
+git diff HEAD | npx reviw
+
+# 複数ファイルを同時に開く
+npx reviw file1.md file2.csv data.tsv
+```
+
+### オプション
+
+| オプション | 説明 |
+|-----------|------|
+| `--port <number>` | ポート番号指定（デフォルト: 4989） |
+| `--encoding <enc>` | 文字エンコーディング指定（shift_jis, euc-jp 等） |
+| `--no-open` | ブラウザ自動起動を無効化 |
+
+### reviw の UI 機能
+
+- **Markdown**: サイドバイサイドプレビュー、スクロール同期、Mermaid 図レンダリング
+- **CSV/TSV**: 固定ヘッダー、列固定、フィルタリング
+- **Diff**: GitHub 風表示、シンタックスハイライト
+- **テーマ**: ライト/ダークモード切替
+- **コメント**: セル/行クリックでコメント追加、Cmd/Ctrl+Enter で送信
+
+### レビューワークフロー
+
+```
+npx reviw .artifacts/<feature>/README.md  # フォアグラウンドで起動
+    ↓
+ブラウザが開く
+    ↓
+ユーザーが内容を確認しコメントを追加
+    ↓
+「Submit & Exit」をクリック
+    ↓
+YAML 形式でフィードバックが出力される
+    ↓
+フィードバックを TodoWrite に登録（詳細に、要約禁止）
+    ↓
+修正 → 再度 reviw でレビュー → 承認まで繰り返し
+```
+
+### 重要：フォアグラウンド起動必須
+
+```bash
+# 正しい（フィードバックを受け取れる）
+npx reviw report.md
+
+# 間違い（フィードバックを受け取れない）
+npx reviw report.md &
+```
+
+バックグラウンドで起動するとユーザーのコメントを受け取れないため、**必ずフォアグラウンドで起動**すること。
+
+### 出力形式（YAML）
+
+```yaml
+file: report.md
+mode: markdown
+comments:
+  - line: 15
+    content: "この部分の説明を追加してください"
+  - line: 23
+    content: "エラーハンドリングが必要です"
+summary: "全体的に良いですが、上記の点を修正してください"
+```
 
 ## PR本文へのスクショ貼り付け
 

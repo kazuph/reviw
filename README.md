@@ -122,8 +122,7 @@ This repository also serves as a Claude Code plugin marketplace. The plugin inte
 | **Command** | `/reviw:do` | Start a task - create worktree, plan, register todos |
 | **Command** | `/reviw:done` | Complete checklist - collect evidence, start review with reviw |
 | **Agent** | `report-builder` | Prepare reports and evidence for user review |
-| **Skill** | `reviw-master` | Auto-suggest proper reviw usage |
-| **Skill** | `artifact-proof` | Collect screenshots, videos, logs under `.artifacts/` |
+| **Skill** | `artifact-proof` | Collect evidence (screenshots, videos, logs) + reviw review workflow |
 | **Hook** | PreToolUse | Remind to review before git commit/push |
 | **Hook** | Stop | Warn if task is still in progress |
 
