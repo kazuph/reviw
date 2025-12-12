@@ -20,17 +20,157 @@ const iconv = require("iconv-lite");
 const marked = require("marked");
 const yaml = require("js-yaml");
 
+// --- XSS Protection for marked (Whitelist approach) ---
+// 許可タグリスト（Markdown由来の安全なタグのみ）
+const allowedTags = new Set([
+  'p', 'br', 'hr',
+  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'ul', 'ol', 'li',
+  'blockquote', 'pre', 'code',
+  'em', 'strong', 'del', 's',
+  'a', 'img',
+  'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  'div', 'span', // Markdown拡張用
+]);
+
+// 許可属性リスト（タグごとに定義）
+const allowedAttributes = {
+  'a': ['href', 'title', 'target', 'rel'],
+  'img': ['src', 'alt', 'title', 'width', 'height'],
+  'code': ['class'], // 言語ハイライト用
+  'pre': ['class'],
+  'div': ['class'],
+  'span': ['class'],
+  'th': ['align'],
+  'td': ['align'],
+};
+
+// HTMLエスケープ関数（XSS対策用）
+function escapeHtmlForXss(html) {
+  return html
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// href/src属性のURLバリデーション
+function isSafeUrl(url) {
+  if (!url) return true;
+  // 空白・制御文字を除去して正規化
+  var normalized = url.toLowerCase().replace(/[\s\x00-\x1f]/g, '');
+  // HTMLエンティティのデコード（&#x0a; &#10; など）
+  var decoded = normalized.replace(/&#x?[0-9a-f]+;?/gi, '');
+  if (decoded.startsWith('javascript:')) return false;
+  if (decoded.startsWith('vbscript:')) return false;
+  if (decoded.startsWith('data:') && !decoded.startsWith('data:image/')) return false;
+  return true;
+}
+
+// HTML文字列をサニタイズ（ホワイトリストに含まれないタグ/属性を除去）
+function sanitizeHtml(html) {
+  // より堅牢なタグマッチング：属性値内の < > を考慮
+  // 引用符で囲まれた属性値を正しく処理するパターン
+  var tagPattern = /<\/?([a-z][a-z0-9]*)((?:\s+[a-z][a-z0-9-]*(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"']*))?)*)\s*\/?>/gi;
+
+  return html.replace(tagPattern, function(match, tag, attrsStr) {
+    var tagLower = tag.toLowerCase();
+
+    // 許可されていないタグはエスケープ
+    if (!allowedTags.has(tagLower)) {
+      return escapeHtmlForXss(match);
+    }
+
+    // 終了タグはそのまま
+    if (match.startsWith('</')) {
+      return '</' + tagLower + '>';
+    }
+
+    // 属性をフィルタリング
+    var allowed = allowedAttributes[tagLower] || [];
+    var safeAttrs = [];
+
+    // 属性を解析（引用符で囲まれた値を正しく処理）
+    var attrRegex = /([a-z][a-z0-9-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']*))/gi;
+    var attrMatch;
+    while ((attrMatch = attrRegex.exec(attrsStr)) !== null) {
+      var attrName = attrMatch[1].toLowerCase();
+      var attrValue = attrMatch[2] !== undefined ? attrMatch[2] :
+                      attrMatch[3] !== undefined ? attrMatch[3] :
+                      attrMatch[4] || '';
+
+      // on*イベントハンドラは常に拒否
+      if (attrName.startsWith('on')) continue;
+
+      // 許可属性のみ
+      if (!allowed.includes(attrName)) continue;
+
+      // href/srcのURL検証
+      if ((attrName === 'href' || attrName === 'src') && !isSafeUrl(attrValue)) {
+        continue;
+      }
+
+      safeAttrs.push(attrName + '="' + attrValue.replace(/"/g, '&quot;') + '"');
+    }
+
+    var finalAttrs = safeAttrs.length > 0 ? ' ' + safeAttrs.join(' ') : '';
+    return '<' + tagLower + finalAttrs + '>';
+  });
+}
+
+marked.use({
+  renderer: {
+    // 生HTMLブロックをサニタイズ
+    html: function(token) {
+      var text = token.raw || token.text || token;
+      return sanitizeHtml(text);
+    },
+    // リンクに安全なURL検証を追加（別タブで開く）
+    link: function(href, title, text) {
+      href = href || "";
+      title = title || "";
+      text = text || "";
+      if (!isSafeUrl(href)) {
+        // 危険なURLはプレーンテキストとして表示
+        return escapeHtmlForXss(text);
+      }
+      var titleAttr = title ? ' title="' + escapeHtmlForXss(title) + '"' : "";
+      return '<a href="' + escapeHtmlForXss(href) + '"' + titleAttr + ' target="_blank" rel="noopener noreferrer">' + text + '</a>';
+    },
+    // 画像にも安全なURL検証を追加
+    image: function(href, title, text) {
+      href = href || "";
+      title = title || "";
+      text = text || "";
+      if (!isSafeUrl(href)) {
+        return escapeHtmlForXss(text || "image");
+      }
+      var titleAttr = title ? ' title="' + escapeHtmlForXss(title) + '"' : "";
+      var altAttr = text ? ' alt="' + escapeHtmlForXss(text) + '"' : "";
+      return '<img src="' + escapeHtmlForXss(href) + '"' + altAttr + titleAttr + '>';
+    }
+  }
+});
+
 // --- CLI arguments ---------------------------------------------------------
 const VERSION = require("./package.json").version;
-const args = process.argv.slice(2);
 
-const filePaths = [];
-let basePort = 4989;
-let encodingOpt = null;
-let noOpen = false;
+// ===== CLI設定のデフォルト値（import時に使用） =====
+const DEFAULT_CONFIG = {
+  basePort: 4989,
+  encodingOpt: null,
+  noOpen: false,
+};
+
+// ===== グローバル設定変数（デフォルト値で初期化、require.main時に更新） =====
+let basePort = DEFAULT_CONFIG.basePort;
+let encodingOpt = DEFAULT_CONFIG.encodingOpt;
+let noOpen = DEFAULT_CONFIG.noOpen;
 let stdinMode = false;
 let diffMode = false;
 let stdinContent = null;
+let resolvedPaths = [];  // ファイルパス（require.main時に設定）
 
 function showHelp() {
   console.log(`reviw v${VERSION} - Lightweight file reviewer with in-browser comments
@@ -75,25 +215,55 @@ function showVersion() {
   console.log(VERSION);
 }
 
-for (let i = 0; i < args.length; i += 1) {
-  const arg = args[i];
-  if (arg === "--port" && args[i + 1]) {
-    basePort = Number(args[i + 1]);
-    i += 1;
-  } else if ((arg === "--encoding" || arg === "-e") && args[i + 1]) {
-    encodingOpt = args[i + 1];
-    i += 1;
-  } else if (arg === "--no-open") {
-    noOpen = true;
-  } else if (arg === "--help" || arg === "-h") {
-    showHelp();
-    process.exit(0);
-  } else if (arg === "--version" || arg === "-v") {
-    showVersion();
-    process.exit(0);
-  } else if (!arg.startsWith("-")) {
-    filePaths.push(arg);
+// ===== CLI引数パース関数（require.main時のみ呼ばれる） =====
+function parseCliArgs(argv) {
+  const args = argv.slice(2);
+  const config = { ...DEFAULT_CONFIG };
+  const filePaths = [];
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg === "--port" && args[i + 1]) {
+      config.basePort = Number(args[i + 1]);
+      i += 1;
+    } else if ((arg === "--encoding" || arg === "-e") && args[i + 1]) {
+      config.encodingOpt = args[i + 1];
+      i += 1;
+    } else if (arg === "--no-open") {
+      config.noOpen = true;
+    } else if (arg === "--help" || arg === "-h") {
+      showHelp();
+      process.exit(0);
+    } else if (arg === "--version" || arg === "-v") {
+      showVersion();
+      process.exit(0);
+    } else if (!arg.startsWith("-")) {
+      filePaths.push(arg);
+    }
   }
+
+  return { config, filePaths };
+}
+
+// ===== ファイルパス検証・解決関数（require.main時のみ呼ばれる） =====
+function validateAndResolvePaths(filePaths) {
+  const resolved = [];
+  for (const fp of filePaths) {
+    const resolvedPath = path.resolve(fp);
+    if (!fs.existsSync(resolvedPath)) {
+      console.error(`File not found: ${resolvedPath}`);
+      process.exit(1);
+    }
+    const stat = fs.statSync(resolvedPath);
+    if (stat.isDirectory()) {
+      console.error(`Cannot open directory: ${resolvedPath}`);
+      console.error(`Usage: reviw <file> [file2...]`);
+      console.error(`Please specify a file, not a directory.`);
+      process.exit(1);
+    }
+    resolved.push(resolvedPath);
+  }
+  return resolved;
 }
 
 // Check if stdin has data (pipe mode)
@@ -146,24 +316,6 @@ function runGitDiff() {
       reject(new Error("Not a git repository or git command failed"));
     }
   });
-}
-
-// Validate all files exist and are not directories (if files specified)
-const resolvedPaths = [];
-for (const fp of filePaths) {
-  const resolved = path.resolve(fp);
-  if (!fs.existsSync(resolved)) {
-    console.error(`File not found: ${resolved}`);
-    process.exit(1);
-  }
-  const stat = fs.statSync(resolved);
-  if (stat.isDirectory()) {
-    console.error(`Cannot open directory: ${resolved}`);
-    console.error(`Usage: reviw <file> [file2...]`);
-    console.error(`Please specify a file, not a directory.`);
-    process.exit(1);
-  }
-  resolvedPaths.push(resolved);
 }
 
 // --- Diff parsing -----------------------------------------------------------
@@ -1387,7 +1539,19 @@ function diffHtmlTemplate(diffData) {
       globalComment = globalCommentInput.value;
       hideSubmitModal();
       sendAndExit('button');
-      setTimeout(() => window.close(), 200);
+      // Try to close window; if it fails (browser security), show completion message
+      setTimeout(() => {
+        window.close();
+        // If window.close() didn't work, show a completion message
+        setTimeout(() => {
+          document.body.innerHTML = \`
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:var(--bg,#1a1a2e);color:var(--text,#e0e0e0);font-family:system-ui,sans-serif;">
+              <h1 style="font-size:2rem;margin-bottom:1rem;">✅ Review Submitted</h1>
+              <p style="color:var(--muted,#888);">You can close this tab now.</p>
+            </div>
+          \`;
+        }, 100);
+      }, 200);
     }
     document.getElementById('modal-submit').addEventListener('click', doSubmit);
     globalCommentInput.addEventListener('keydown', e => {
@@ -1470,6 +1634,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       --hover-bg: rgba(96,165,250,0.08);
       --shadow-color: rgba(0,0,0,0.35);
       --code-bg: #1e293b;
+      --error: #dc3545;
     }
     /* Light theme */
     [data-theme="light"] {
@@ -1496,6 +1661,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       --hover-bg: rgba(59,130,246,0.06);
       --shadow-color: rgba(0,0,0,0.1);
       --code-bg: #f1f5f9;
+      --error: #dc3545;
     }
     * { box-sizing: border-box; }
     body {
@@ -1974,9 +2140,6 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       border-bottom: 1px solid var(--border);
     }
     .md-preview table:not(.frontmatter-table table) th {
-      background: rgba(255,255,255,0.05);
-    }
-    .md-preview table:not(.frontmatter-table table) th {
       background: var(--panel);
       font-weight: 600;
       font-size: 13px;
@@ -2344,7 +2507,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: #dc3545;
+      background: var(--error);
       color: white;
       padding: 12px 24px;
       border-radius: 8px;
@@ -3425,7 +3588,19 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       globalComment = globalCommentInput.value;
       hideSubmitModal();
       sendAndExit('button');
-      setTimeout(() => window.close(), 200);
+      // Try to close window; if it fails (browser security), show completion message
+      setTimeout(() => {
+        window.close();
+        // If window.close() didn't work, show a completion message
+        setTimeout(() => {
+          document.body.innerHTML = \`
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:var(--bg,#1a1a2e);color:var(--text,#e0e0e0);font-family:system-ui,sans-serif;">
+              <h1 style="font-size:2rem;margin-bottom:1rem;">✅ Review Submitted</h1>
+              <p style="color:var(--muted,#888);">You can close this tab now.</p>
+            </div>
+          \`;
+        }, 100);
+      }, 200);
     }
     modalSubmit.addEventListener('click', doSubmit);
     globalCommentInput.addEventListener('keydown', (e) => {
@@ -4034,13 +4209,11 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
             }
           }
 
-          // Check for markdown list items: strip list markers and formatting
-          if (lineText.match(/^[-*+]\\s|^\\d+\\.\\s/)) {
-            const strippedLine = stripMarkdown(lineText).replace(/\\s+/g, ' ').slice(0, 100);
-            if (strippedLine === normalized) return i + 1;
-            if (strippedLine.includes(normalized.slice(0, 30)) && normalized.length > 5) return i + 1;
-            if (normalized.includes(strippedLine.slice(0, 30)) && strippedLine.length > 5) return i + 1;
-          }
+          // Try stripping all markdown formatting (links, bold, italic, etc.)
+          const strippedLine = stripMarkdown(lineText).replace(/\\s+/g, ' ').slice(0, 100);
+          if (strippedLine === normalized) return i + 1;
+          if (strippedLine.includes(normalized.slice(0, 30)) && normalized.length > 5) return i + 1;
+          if (normalized.includes(strippedLine.slice(0, 30)) && strippedLine.length > 5) return i + 1;
         }
         return -1;
       }
@@ -4187,8 +4360,24 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
           return;
         }
 
-        // Ignore clicks on links, mermaid, video overlay
-        if (e.target.closest('a, .mermaid-container, .video-fullscreen-overlay')) return;
+        // Handle links - sync to source but let link work normally
+        const link = e.target.closest('a');
+        if (link) {
+          // Find the parent block element containing this link
+          const parentBlock = link.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th');
+          if (parentBlock) {
+            const isTableCell = parentBlock.tagName === 'TD' || parentBlock.tagName === 'TH';
+            const line = isTableCell ? findTableSourceLine(parentBlock.textContent) : findSourceLine(parentBlock.textContent);
+            if (line > 0) {
+              selectSourceRange(line);
+            }
+          }
+          // Let the link open naturally (target="_blank" is set by marked)
+          return;
+        }
+
+        // Ignore clicks on mermaid, video overlay
+        if (e.target.closest('.mermaid-container, .video-fullscreen-overlay')) return;
 
         // Handle code blocks - select entire block
         const pre = e.target.closest('pre');
@@ -4709,7 +4898,18 @@ function createDiffServer(diffContent) {
   });
 }
 
-// Main entry point
+// Main entry point - only run when executed directly (not when required for testing)
+if (require.main === module) {
+  // Parse CLI arguments and apply configuration
+  const { config, filePaths } = parseCliArgs(process.argv);
+  basePort = config.basePort;
+  encodingOpt = config.encodingOpt;
+  noOpen = config.noOpen;
+  nextPort = config.basePort;  // Update nextPort to match configured basePort
+
+  // Validate and resolve file paths
+  resolvedPaths = validateAndResolvePaths(filePaths);
+
 (async () => {
   // Check for stdin input first
   const stdinData = await checkStdin();
@@ -4778,3 +4978,9 @@ function createDiffServer(diffContent) {
     }
   }
 })();
+}
+
+// Export parser functions for testing
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { parseDiff, parseCsv, DEFAULT_CONFIG };
+}

@@ -30,38 +30,103 @@ function waitForServer(port, timeout = 10000) {
   });
 }
 
+/**
+ * CLIの出力からポート番号とファイル名を動的に取得してサーバーを起動
+ * ポート競合があった場合でも、実際に使用されたポートを正しく取得できる
+ */
 function startMultiFileServer(basePort) {
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const serverProcess = spawn('node', ['cli.cjs', CSV_FILE, MD_FILE, '--port', String(basePort), '--no-open'], {
       cwd: path.join(__dirname, '..'),
       stdio: 'pipe',
       detached: true,
     });
 
-    try {
-      // Wait for both servers to be ready
-      await Promise.all([
-        waitForServer(basePort),
-        waitForServer(basePort + 1),
-      ]);
-      resolve(serverProcess);
-    } catch (err) {
-      try {
-        process.kill(-serverProcess.pid, 'SIGKILL');
-      } catch (_) {}
-      reject(err);
-    }
+    let output = '';
+    const portFileMap = new Map(); // port -> filename
+    const expectedFileCount = 2;
+    let resolved = false;
+
+    const parseOutput = (data) => {
+      output += data.toString();
+      // CLIの出力パターン: "Viewer started: http://localhost:XXXX  (file: filename)"
+      const regex = /Viewer started: http:\/\/localhost:(\d+)\s+\(file:\s*([^)]+)\)/g;
+      let match;
+      while ((match = regex.exec(output)) !== null) {
+        const port = parseInt(match[1], 10);
+        const filename = match[2].trim();
+        if (!portFileMap.has(port)) {
+          portFileMap.set(port, filename);
+        }
+      }
+    };
+
+    serverProcess.stdout.on('data', parseOutput);
+    serverProcess.stderr.on('data', parseOutput);
+
+    const checkServersReady = async () => {
+      if (resolved) return;
+      if (portFileMap.size >= expectedFileCount) {
+        const ports = Array.from(portFileMap.keys());
+        try {
+          // 全てのサーバーが起動するまで待機
+          await Promise.all(ports.map(port => waitForServer(port)));
+          resolved = true;
+          serverProcess.portFileMap = portFileMap;
+          resolve(serverProcess);
+        } catch (err) {
+          // まだ起動していない場合は待機継続
+        }
+      }
+    };
+
+    // 出力を監視して定期的にチェック
+    serverProcess.stdout.on('data', () => checkServersReady());
+    serverProcess.stderr.on('data', () => checkServersReady());
+
+    // タイムアウト
+    setTimeout(() => {
+      if (!resolved) {
+        try {
+          process.kill(-serverProcess.pid, 'SIGKILL');
+        } catch (_) {}
+        reject(new Error(`Failed to start servers. Found ${portFileMap.size}/${expectedFileCount} ports. Output: ${output}`));
+      }
+    }, 15000);
   });
+}
+
+/**
+ * portFileMapからファイル名に対応するポートを取得
+ */
+function getPortForFile(portFileMap, targetFilename) {
+  for (const [port, filename] of portFileMap) {
+    if (filename.includes(targetFilename)) {
+      return port;
+    }
+  }
+  return null;
 }
 
 describe('Multi-file E2E Tests', () => {
   let browser;
   let serverProcess;
+  let csvPort;
+  let mdPort;
   const basePort = 3004;
 
   beforeAll(async () => {
     browser = await chromium.launch({ headless: true });
     serverProcess = await startMultiFileServer(basePort);
+
+    // CLI出力から動的にポートを取得
+    const portFileMap = serverProcess.portFileMap;
+    csvPort = getPortForFile(portFileMap, 'sample.csv');
+    mdPort = getPortForFile(portFileMap, 'sample.md');
+
+    if (!csvPort || !mdPort) {
+      throw new Error(`Failed to find ports. portFileMap: ${JSON.stringify([...portFileMap])}`);
+    }
   });
 
   afterAll(async () => {
@@ -76,18 +141,18 @@ describe('Multi-file E2E Tests', () => {
   });
 
   test('opens multiple files on separate ports', async () => {
-    // Test CSV file on first port
+    // Test CSV file on dynamically acquired port
     const csvPage = await browser.newPage();
-    await csvPage.goto(`http://localhost:${basePort}`);
+    await csvPage.goto(`http://localhost:${csvPort}`);
     await expect(csvPage.locator('header h1')).toContainText('sample.csv');
     const csvTable = csvPage.locator('#csv-table');
     await expect(csvTable).toBeVisible();
 
     await csvPage.screenshot({ path: path.join(ARTIFACTS_DIR, 'multi-01-csv.png'), fullPage: true });
 
-    // Test MD file on second port
+    // Test MD file on dynamically acquired port
     const mdPage = await browser.newPage();
-    await mdPage.goto(`http://localhost:${basePort + 1}`);
+    await mdPage.goto(`http://localhost:${mdPort}`);
     await expect(mdPage.locator('header h1')).toContainText('sample.md');
     const mdPreview = mdPage.locator('.md-preview');
     await expect(mdPreview).toBeVisible();
