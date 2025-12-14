@@ -20,6 +20,8 @@ A lightweight browser-based tool for reviewing and annotating tabular data, text
 ### Media Fullscreen
 - Click images in Markdown preview to open fullscreen viewer
 - Click videos to open fullscreen playback with native controls
+- Click anywhere (including the image/video itself) to close the fullscreen overlay
+- Clicking media automatically highlights the corresponding source line in the Markdown panel
 
 ### UI Features
 - **Theme toggle**: Switch between light and dark modes

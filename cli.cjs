@@ -598,6 +598,7 @@ function loadMarkdown(filePath) {
   // Parse YAML frontmatter
   let frontmatterHtml = "";
   let contentStart = 0;
+  let reviwQuestions = []; // Extract reviw questions for modal
 
   if (lines[0] && lines[0].trim() === "---") {
     let frontmatterEnd = -1;
@@ -615,30 +616,91 @@ function loadMarkdown(filePath) {
       try {
         const frontmatter = yaml.load(frontmatterText);
         if (frontmatter && typeof frontmatter === "object") {
-          // Create HTML table for frontmatter
-          frontmatterHtml = '<div class="frontmatter-table"><table>';
-          frontmatterHtml += '<colgroup><col style="width:12%"><col style="width:88%"></colgroup>';
-          frontmatterHtml += '<thead><tr><th colspan="2">Document Metadata</th></tr></thead>';
-          frontmatterHtml += "<tbody>";
-
-          function renderValue(val) {
-            if (Array.isArray(val)) {
-              return val
-                .map((v) => '<span class="fm-tag">' + escapeHtmlChars(String(v)) + "</span>")
-                .join(" ");
-            }
-            if (typeof val === "object" && val !== null) {
-              return "<pre>" + escapeHtmlChars(JSON.stringify(val, null, 2)) + "</pre>";
-            }
-            return escapeHtmlChars(String(val));
+          // Extract reviw questions if present
+          if (frontmatter.reviw && Array.isArray(frontmatter.reviw.questions)) {
+            reviwQuestions = frontmatter.reviw.questions.map((q, idx) => ({
+              id: q.id || "q" + (idx + 1),
+              question: q.question || "",
+              resolved: q.resolved === true,
+              answer: q.answer || "",
+              options: Array.isArray(q.options) ? q.options : [],
+            }));
           }
 
-          for (const [key, val] of Object.entries(frontmatter)) {
-            frontmatterHtml +=
-              "<tr><th>" + escapeHtmlChars(key) + "</th><td>" + renderValue(val) + "</td></tr>";
-          }
+          // Create HTML table for frontmatter (show reviw questions in detail for 1:1 correspondence with YAML source)
+          const displayFrontmatter = { ...frontmatter };
+          // Keep reviw as-is for detailed rendering
 
-          frontmatterHtml += "</tbody></table></div>";
+          if (Object.keys(displayFrontmatter).length > 0) {
+            frontmatterHtml = '<div class="frontmatter-table"><table>';
+            frontmatterHtml += '<colgroup><col style="width:12%"><col style="width:88%"></colgroup>';
+            frontmatterHtml += '<thead><tr><th colspan="2">Document Metadata</th></tr></thead>';
+            frontmatterHtml += "<tbody>";
+
+            // Render reviw.questions as detailed cards
+            function renderReviwQuestions(questions) {
+              if (!Array.isArray(questions) || questions.length === 0) {
+                return '<span class="fm-tag">質問なし</span>';
+              }
+              let html = '<div class="reviw-questions-preview">';
+              questions.forEach((q, idx) => {
+                const statusIcon = q.resolved ? '✅' : '⏳';
+                const statusClass = q.resolved ? 'resolved' : 'pending';
+                html += '<div class="reviw-q-card ' + statusClass + '">';
+                html += '<div class="reviw-q-header">' + statusIcon + ' <strong>' + escapeHtmlChars(q.id || 'Q' + (idx + 1)) + '</strong></div>';
+                html += '<div class="reviw-q-question">' + escapeHtmlChars(q.question || '') + '</div>';
+                if (q.options && Array.isArray(q.options) && q.options.length > 0) {
+                  html += '<div class="reviw-q-options">';
+                  q.options.forEach(opt => {
+                    html += '<span class="fm-tag">' + escapeHtmlChars(opt) + '</span>';
+                  });
+                  html += '</div>';
+                }
+                if (q.answer) {
+                  html += '<div class="reviw-q-answer">💬 ' + escapeHtmlChars(q.answer) + '</div>';
+                }
+                html += '</div>';
+              });
+              html += '</div>';
+              return html;
+            }
+
+            function renderValue(val, key) {
+              // Special handling for reviw object
+              if (key === 'reviw' && typeof val === 'object' && val !== null) {
+                let html = '';
+                if (val.questions && Array.isArray(val.questions)) {
+                  html += renderReviwQuestions(val.questions);
+                }
+                // Render other reviw properties
+                const { questions, ...rest } = val;
+                if (Object.keys(rest).length > 0) {
+                  html += '<div style="margin-top: 8px;">';
+                  for (const [k, v] of Object.entries(rest)) {
+                    html += '<div><strong>' + escapeHtmlChars(k) + ':</strong> ' + escapeHtmlChars(String(v)) + '</div>';
+                  }
+                  html += '</div>';
+                }
+                return html || '<span class="fm-tag">-</span>';
+              }
+              if (Array.isArray(val)) {
+                return val
+                  .map((v) => '<span class="fm-tag">' + escapeHtmlChars(String(v)) + "</span>")
+                  .join(" ");
+              }
+              if (typeof val === "object" && val !== null) {
+                return "<pre>" + escapeHtmlChars(JSON.stringify(val, null, 2)) + "</pre>";
+              }
+              return escapeHtmlChars(String(val));
+            }
+
+            for (const [key, val] of Object.entries(displayFrontmatter)) {
+              frontmatterHtml +=
+                "<tr><th>" + escapeHtmlChars(key) + "</th><td>" + renderValue(val, key) + "</td></tr>";
+            }
+
+            frontmatterHtml += "</tbody></table></div>";
+          }
           contentStart = frontmatterEnd + 1;
         }
       } catch (e) {
@@ -656,6 +718,7 @@ function loadMarkdown(filePath) {
     cols: 1,
     title: path.basename(filePath),
     preview,
+    reviwQuestions, // Pass questions to UI
   };
 }
 
@@ -1594,10 +1657,11 @@ function diffHtmlTemplate(diffData) {
 }
 
 // --- HTML template ---------------------------------------------------------
-function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
+function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions = []) {
   const serialized = serializeForScript(dataRows);
   const modeJson = serializeForScript(mode);
   const titleJson = serializeForScript(title);
+  const questionsJson = serializeForScript(reviwQuestions || []);
   const hasPreview = !!previewHtml;
   return `<!doctype html>
 <html lang="ja">
@@ -2120,6 +2184,50 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       border-radius: 4px;
       font-size: 11px;
     }
+    /* Reviw questions preview cards */
+    .reviw-questions-preview {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .reviw-q-card {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .reviw-q-card.resolved {
+      border-left: 3px solid #22c55e;
+    }
+    .reviw-q-card.pending {
+      border-left: 3px solid #f59e0b;
+    }
+    .reviw-q-header {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .reviw-q-header strong {
+      color: var(--accent);
+    }
+    .reviw-q-question {
+      font-size: 13px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .reviw-q-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .reviw-q-answer {
+      font-size: 12px;
+      color: #22c55e;
+      background: rgba(34, 197, 94, 0.1);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
     [data-theme="light"] .frontmatter-table tbody th {
       color: #7c3aed;
     }
@@ -2266,6 +2374,268 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       max-height: 100%;
       border-radius: 8px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    /* Reviw Questions Modal */
+    .reviw-questions-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1100;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(4px);
+    }
+    .reviw-questions-overlay.visible {
+      display: flex;
+    }
+    .reviw-questions-modal {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+    }
+    .reviw-questions-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .reviw-questions-header h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .reviw-questions-header h2 span {
+      font-size: 14px;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+    .reviw-questions-close {
+      width: 32px;
+      height: 32px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 150ms ease;
+    }
+    .reviw-questions-close:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+    .reviw-questions-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+    .reviw-questions-footer {
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+    }
+    .reviw-questions-later {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 150ms ease;
+    }
+    .reviw-questions-later:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+    /* Question Item */
+    .reviw-question-item {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .reviw-question-item:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+    .reviw-question-text {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .reviw-question-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .reviw-question-option {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 150ms ease;
+    }
+    .reviw-question-option:hover {
+      border-color: var(--accent);
+      background: rgba(96, 165, 250, 0.1);
+    }
+    .reviw-question-option.selected {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--text-inverse);
+    }
+    .reviw-question-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: var(--input-bg);
+      color: var(--text);
+      border-radius: 8px;
+      font-size: 13px;
+      resize: vertical;
+      min-height: 60px;
+    }
+    .reviw-question-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .reviw-question-input::placeholder {
+      color: var(--text-dim);
+    }
+    .reviw-check-mark {
+      color: #22c55e;
+      font-weight: bold;
+    }
+    .reviw-question-item.answered {
+      border-color: #22c55e;
+      background: rgba(34, 197, 94, 0.05);
+    }
+    .reviw-question-submit {
+      margin-top: 10px;
+      padding: 8px 16px;
+      border: none;
+      background: var(--accent);
+      color: var(--text-inverse);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 150ms ease;
+    }
+    .reviw-question-submit:hover {
+      filter: brightness(1.1);
+    }
+    .reviw-question-submit:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    /* Resolved Section */
+    .reviw-resolved-section {
+      margin-top: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+    .reviw-resolved-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 13px;
+      cursor: pointer;
+      padding: 4px 0;
+    }
+    .reviw-resolved-toggle:hover {
+      color: var(--text);
+    }
+    .reviw-resolved-toggle .arrow {
+      transition: transform 150ms ease;
+    }
+    .reviw-resolved-toggle.open .arrow {
+      transform: rotate(90deg);
+    }
+    .reviw-resolved-list {
+      display: none;
+      margin-top: 12px;
+    }
+    .reviw-resolved-list.visible {
+      display: block;
+    }
+    .reviw-resolved-item {
+      padding: 10px 12px;
+      background: var(--input-bg);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      opacity: 0.7;
+    }
+    .reviw-resolved-item:last-child {
+      margin-bottom: 0;
+    }
+    .reviw-resolved-q {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+    .reviw-resolved-a {
+      font-size: 13px;
+      color: var(--text);
+    }
+    /* Notice Bar */
+    .reviw-questions-bar {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: var(--accent);
+      color: var(--text-inverse);
+      padding: 8px 16px;
+      font-size: 13px;
+      z-index: 1050;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+    }
+    .reviw-questions-bar.visible {
+      display: flex;
+    }
+    .reviw-questions-bar button {
+      padding: 4px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-inverse);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 150ms ease;
+    }
+    .reviw-questions-bar button:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    /* Adjust layout when bar is visible */
+    body.has-questions-bar header {
+      top: 36px;
+    }
+    body.has-questions-bar .toolbar,
+    body.has-questions-bar .table-wrap {
+      margin-top: 36px;
     }
     /* Copy notification toast */
     .copy-toast {
@@ -2682,11 +3052,32 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
     <div class="video-container" id="video-container"></div>
   </div>
 
+  <!-- Reviw Questions Modal -->
+  <div class="reviw-questions-overlay" id="reviw-questions-overlay">
+    <div class="reviw-questions-modal" id="reviw-questions-modal">
+      <div class="reviw-questions-header">
+        <h2>📋 AIからの質問 <span id="reviw-questions-count"></span></h2>
+        <button class="reviw-questions-close" id="reviw-questions-close" aria-label="Close">✕</button>
+      </div>
+      <div class="reviw-questions-body" id="reviw-questions-body"></div>
+      <div class="reviw-questions-footer">
+        <button class="reviw-questions-later" id="reviw-questions-later">後で回答する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reviw Questions Notice Bar -->
+  <div class="reviw-questions-bar" id="reviw-questions-bar">
+    <span id="reviw-questions-bar-message">\ud83d\udccb \u672a\u56de\u7b54\u306e\u8cea\u554f\u304c<span id="reviw-questions-bar-count">0</span>\u4ef6\u3042\u308a\u307e\u3059</span>
+    <button id="reviw-questions-bar-open">\u8cea\u554f\u3092\u898b\u308b</button>
+  </div>
+
   <script>
     const DATA = ${serialized};
     const MAX_COLS = ${cols};
     const FILE_NAME = ${titleJson};
     const MODE = ${modeJson};
+    const REVIW_QUESTIONS = ${questionsJson};
 
   // --- Theme Management ---
   (function initTheme() {
@@ -3045,6 +3436,12 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
     function openCardForSelection() {
       if (!selection) return;
+      // Don't open card while image/video modal is visible
+      const imageOverlay = document.getElementById('image-fullscreen');
+      const videoOverlay = document.getElementById('video-fullscreen');
+      if (imageOverlay?.classList.contains('visible') || videoOverlay?.classList.contains('visible')) {
+        return;
+      }
       const { startRow, endRow, startCol, endCol } = selection;
       const isSingleCell = startRow === endRow && startCol === endCol;
 
@@ -3561,6 +3958,22 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       if (globalComment.trim()) {
         data.summary = globalComment.trim();
       }
+      // Include answered questions
+      if (window.REVIW_ANSWERS) {
+        const answeredQuestions = [];
+        for (const [id, answer] of Object.entries(window.REVIW_ANSWERS)) {
+          if (answer.selected || answer.text.trim()) {
+            answeredQuestions.push({
+              id,
+              selected: answer.selected,
+              text: answer.text.trim()
+            });
+          }
+        }
+        if (answeredQuestions.length > 0) {
+          data.reviwAnswers = answeredQuestions;
+        }
+      }
       return data;
     }
     function sendAndExit(reason = 'pagehide') {
@@ -4042,8 +4455,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       }
 
       if (imageOverlay) {
+        // Close on any click (including image itself)
         imageOverlay.addEventListener('click', (e) => {
-          if (e.target === imageOverlay) closeImageOverlay();
+          closeImageOverlay();
         });
       }
 
@@ -4058,7 +4472,8 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         img.title = 'Click to view fullscreen';
 
         img.addEventListener('click', (e) => {
-          e.stopPropagation();
+          // Don't stop propagation - allow select to work
+          e.preventDefault();
 
           imageContainer.innerHTML = '';
           const clonedImg = img.cloneNode(true);
@@ -4103,8 +4518,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
       }
 
       if (videoOverlay) {
+        // Close on any click (including video itself)
         videoOverlay.addEventListener('click', (e) => {
-          if (e.target === videoOverlay) closeVideoOverlay();
+          closeVideoOverlay();
         });
       }
 
@@ -4123,7 +4539,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
           link.addEventListener('click', (e) => {
             e.preventDefault();
-            e.stopPropagation();
+            // Don't stop propagation - allow select to work
 
             // Remove existing video if any
             const existingVideo = videoContainer.querySelector('video');
@@ -4347,15 +4763,11 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
 
       // Click on block elements
       preview.addEventListener('click', (e) => {
-        // Handle image clicks
+        // Handle image clicks - always select, even if modal is showing
         if (e.target.tagName === 'IMG') {
-          if (!e.defaultPrevented) {
-            const line = findImageSourceLine(e.target.src);
-            if (line > 0) {
-              e.preventDefault();
-              e.stopPropagation();
-              selectSourceRange(line);
-            }
+          const line = findImageSourceLine(e.target.src);
+          if (line > 0) {
+            selectSourceRange(line);
           }
           return;
         }
@@ -4425,6 +4837,227 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml) {
         }, 10);
       });
     })();
+
+    // --- Reviw Questions Modal ---
+    (function initReviwQuestions() {
+      if (MODE !== 'markdown') return;
+      if (!REVIW_QUESTIONS || REVIW_QUESTIONS.length === 0) return;
+
+      const overlay = document.getElementById('reviw-questions-overlay');
+      const modal = document.getElementById('reviw-questions-modal');
+      const body = document.getElementById('reviw-questions-body');
+      const closeBtn = document.getElementById('reviw-questions-close');
+      const laterBtn = document.getElementById('reviw-questions-later');
+      const countSpan = document.getElementById('reviw-questions-count');
+      const bar = document.getElementById('reviw-questions-bar');
+      const barMessage = document.getElementById('reviw-questions-bar-message');
+      const barCount = document.getElementById('reviw-questions-bar-count');
+      const barOpenBtn = document.getElementById('reviw-questions-bar-open');
+
+      if (!overlay || !modal || !body) return;
+
+      // Store answers locally
+      const answers = {};
+      REVIW_QUESTIONS.forEach(q => {
+        answers[q.id] = { selected: '', text: '' };
+      });
+
+      // Count unresolved questions
+      const unresolvedQuestions = REVIW_QUESTIONS.filter(q => !q.resolved);
+      const resolvedQuestions = REVIW_QUESTIONS.filter(q => q.resolved);
+
+      function getUnansweredCount() {
+        // Count questions that have no answer (no selection and no text)
+        return unresolvedQuestions.filter(q => {
+          const a = answers[q.id];
+          return !a.selected && !a.text.trim();
+        }).length;
+      }
+
+      function updateCounts() {
+        const unansweredCount = getUnansweredCount();
+        if (unansweredCount > 0) {
+          countSpan.textContent = '(' + unansweredCount + '\u4ef6\u672a\u56de\u7b54)';
+          barMessage.innerHTML = '\ud83d\udccb \u672a\u56de\u7b54\u306e\u8cea\u554f\u304c<span id="reviw-questions-bar-count">' + unansweredCount + '</span>\u4ef6\u3042\u308a\u307e\u3059';
+          laterBtn.textContent = '\u5f8c\u3067\u56de\u7b54\u3059\u308b';
+        } else {
+          countSpan.textContent = '(\u5168\u3066\u56de\u7b54\u6e08\u307f)';
+          barMessage.innerHTML = '\u2705 \u5168\u3066\u306e\u8cea\u554f\u306b\u56de\u7b54\u3057\u307e\u3057\u305f';
+          laterBtn.textContent = '\u9589\u3058\u308b';
+        }
+      }
+
+      function checkAllAnswered() {
+        if (getUnansweredCount() === 0) {
+          // All answered - close modal but keep bar visible
+          setTimeout(() => {
+            overlay.classList.remove('visible');
+            // Keep bar visible with different message
+            bar.classList.add('visible');
+            document.body.classList.add('has-questions-bar');
+          }, 500);
+        }
+      }
+
+      function renderQuestions() {
+        body.innerHTML = '';
+
+        // Render unresolved questions
+        unresolvedQuestions.forEach((q, idx) => {
+          const item = document.createElement('div');
+          item.className = 'reviw-question-item';
+          item.dataset.id = q.id;
+
+          let optionsHtml = '';
+          if (q.options && q.options.length > 0) {
+            optionsHtml = '<div class="reviw-question-options">' +
+              q.options.map(opt =>
+                '<button class="reviw-question-option" data-value="' + escapeAttr(opt) + '">' + escapeHtml(opt) + '</button>'
+              ).join('') +
+              '</div>';
+          }
+
+          const isOkOnly = q.options && q.options.length === 1 && q.options[0] === 'OK';
+
+          item.innerHTML =
+            '<div class="reviw-question-text">Q' + (idx + 1) + '. ' + escapeHtml(q.question) + '<span class="reviw-check-mark"></span></div>' +
+            optionsHtml +
+            (isOkOnly ? '' : '<textarea class="reviw-question-input" placeholder="\u30c6\u30ad\u30b9\u30c8\u3067\u56de\u7b54\u30fb\u88dc\u8db3..."></textarea>');
+
+          body.appendChild(item);
+
+          // Check mark element
+          const checkMark = item.querySelector('.reviw-check-mark');
+
+          function updateCheckMark() {
+            const answer = answers[q.id];
+            const hasAnswer = answer.selected || answer.text.trim();
+            if (hasAnswer) {
+              checkMark.textContent = ' \u2713';
+              item.classList.add('answered');
+            } else {
+              checkMark.textContent = '';
+              item.classList.remove('answered');
+            }
+          }
+
+          // Option click handlers - always toggle
+          const optionBtns = item.querySelectorAll('.reviw-question-option');
+          optionBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+              const wasSelected = btn.classList.contains('selected');
+              optionBtns.forEach(b => b.classList.remove('selected'));
+              if (!wasSelected) {
+                btn.classList.add('selected');
+                answers[q.id].selected = btn.dataset.value;
+              } else {
+                answers[q.id].selected = '';
+              }
+              updateCheckMark();
+              updateCounts();
+              checkAllAnswered();
+            });
+          });
+
+          // Text input handler
+          const textarea = item.querySelector('.reviw-question-input');
+          if (textarea) {
+            textarea.addEventListener('input', () => {
+              answers[q.id].text = textarea.value;
+              updateCheckMark();
+              updateCounts();
+              checkAllAnswered();
+            });
+          }
+
+          updateCheckMark();
+        });
+
+        // Render resolved questions (collapsed)
+        if (resolvedQuestions.length > 0) {
+          const section = document.createElement('div');
+          section.className = 'reviw-resolved-section';
+          section.innerHTML =
+            '<button class="reviw-resolved-toggle">' +
+              '<span class="arrow">\u25b6</span> \u89e3\u6c7a\u6e08\u307f (' + resolvedQuestions.length + '\u4ef6)' +
+            '</button>' +
+            '<div class="reviw-resolved-list">' +
+              resolvedQuestions.map(q =>
+                '<div class="reviw-resolved-item">' +
+                  '<div class="reviw-resolved-q">' + escapeHtml(q.question) + '</div>' +
+                  '<div class="reviw-resolved-a">\u2192 ' + escapeHtml(q.answer || '(no answer)') + '</div>' +
+                '</div>'
+              ).join('') +
+            '</div>';
+          body.appendChild(section);
+
+          const toggle = section.querySelector('.reviw-resolved-toggle');
+          const list = section.querySelector('.reviw-resolved-list');
+          toggle.addEventListener('click', () => {
+            toggle.classList.toggle('open');
+            list.classList.toggle('visible');
+          });
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+
+      function escapeAttr(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function openModal() {
+        overlay.classList.add('visible');
+        bar.classList.remove('visible');
+        document.body.classList.remove('has-questions-bar');
+      }
+
+      function closeModal(allAnswered) {
+        overlay.classList.remove('visible');
+        const unansweredCount = getUnansweredCount();
+        if (unansweredCount > 0 && !allAnswered) {
+          bar.classList.add('visible');
+          document.body.classList.add('has-questions-bar');
+        } else {
+          bar.classList.remove('visible');
+          document.body.classList.remove('has-questions-bar');
+        }
+      }
+
+      // Event listeners
+      closeBtn.addEventListener('click', () => closeModal(false));
+      laterBtn.addEventListener('click', () => closeModal(false));
+      barOpenBtn.addEventListener('click', openModal);
+
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal(false);
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && overlay.classList.contains('visible')) {
+          closeModal(false);
+        }
+      });
+
+      // Expose answers for submit (only answered ones)
+      window.REVIW_ANSWERS = answers;
+
+      // Initialize
+      updateCounts();
+      renderQuestions();
+
+      // Show modal on load if there are unresolved questions
+      if (unresolvedQuestions.length > 0) {
+        setTimeout(() => openModal(), 300);
+      }
+    })();
   </script>
 </body>
 </html>`;
@@ -4435,8 +5068,8 @@ function buildHtml(filePath) {
   if (data.mode === "diff") {
     return diffHtmlTemplate(data);
   }
-  const { rows, cols, title, mode, preview } = data;
-  return htmlTemplate(rows, cols, title, mode, preview);
+  const { rows, cols, title, mode, preview, reviwQuestions } = data;
+  return htmlTemplate(rows, cols, title, mode, preview, reviwQuestions);
 }
 
 // --- HTTP Server -----------------------------------------------------------
@@ -4467,6 +5100,20 @@ function outputAllResults() {
     const combined = { files: allResults };
     const yamlOut = yaml.dump(combined, { noRefs: true, lineWidth: 120 });
     console.log(yamlOut.trim());
+  }
+
+  // Output answered questions if any
+  const allAnswers = [];
+  for (const result of allResults) {
+    if (result.reviwAnswers && result.reviwAnswers.length > 0) {
+      allAnswers.push(...result.reviwAnswers);
+    }
+  }
+  if (allAnswers.length > 0) {
+    console.log("\n[REVIW_ANSWERS]");
+    const answersYaml = yaml.dump(allAnswers, { noRefs: true, lineWidth: 120 });
+    console.log(answersYaml.trim());
+    console.log("[/REVIW_ANSWERS]");
   }
 }
 
