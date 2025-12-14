@@ -1180,6 +1180,21 @@ function diffHtmlTemplate(diffData) {
     .modal-actions button:hover { background: var(--border); }
     .modal-actions button.primary { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
 
+    .modal-checkboxes { margin: 12px 0; }
+    .modal-checkboxes label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text);
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .modal-checkboxes input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: var(--accent);
+    }
+
     .no-diff {
       text-align: center;
       padding: 60px 20px;
@@ -1234,6 +1249,11 @@ function diffHtmlTemplate(diffData) {
       <p class="modal-summary" id="modal-summary"></p>
       <label for="global-comment">Overall comment (optional)</label>
       <textarea id="global-comment" placeholder="Add a summary or overall feedback..."></textarea>
+      <div class="modal-checkboxes">
+        <label><input type="checkbox" id="prompt-subagents" checked /> All implementation, verification, and report creation will be done by the sub-agents.</label>
+        <label><input type="checkbox" id="prompt-reviw" checked /> Open in REVIW next time.</label>
+        <label><input type="checkbox" id="prompt-screenshots" checked /> Update all screenshots and videos.</label>
+      </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
         <button class="primary" id="modal-submit">Submit</button>
@@ -1602,9 +1622,61 @@ function diffHtmlTemplate(diffData) {
     const modalSummary = document.getElementById('modal-summary');
     const globalCommentInput = document.getElementById('global-comment');
 
+    // Prompt checkboxes
+    const promptCheckboxes = [
+      { id: 'prompt-subagents', text: 'All implementation, verification, and report creation will be done by the sub-agents.' },
+      { id: 'prompt-reviw', text: 'Open in REVIW next time.' },
+      { id: 'prompt-screenshots', text: 'Update all screenshots and videos.' }
+    ];
+    const PROMPT_STORAGE_KEY = 'reviw-prompt-prefs';
+
+    // Load saved preferences
+    function loadPromptPrefs() {
+      try {
+        const saved = localStorage.getItem(PROMPT_STORAGE_KEY);
+        if (saved) {
+          const prefs = JSON.parse(saved);
+          promptCheckboxes.forEach(p => {
+            const el = document.getElementById(p.id);
+            if (el && typeof prefs[p.id] === 'boolean') el.checked = prefs[p.id];
+          });
+        }
+      } catch (e) {}
+    }
+
+    // Save preferences
+    function savePromptPrefs() {
+      try {
+        const prefs = {};
+        promptCheckboxes.forEach(p => {
+          const el = document.getElementById(p.id);
+          if (el) prefs[p.id] = el.checked;
+        });
+        localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(prefs));
+      } catch (e) {}
+    }
+
+    // Initialize checkbox listeners
+    promptCheckboxes.forEach(p => {
+      const el = document.getElementById(p.id);
+      if (el) el.addEventListener('change', savePromptPrefs);
+    });
+    loadPromptPrefs();
+
+    function getSelectedPrompts() {
+      const prompts = [];
+      promptCheckboxes.forEach(p => {
+        const el = document.getElementById(p.id);
+        if (el && el.checked) prompts.push(p.text);
+      });
+      return prompts;
+    }
+
     function payload(reason) {
       const data = { file: FILE_NAME, mode: MODE, reason, at: new Date().toISOString(), comments: Object.values(comments) };
       if (globalComment.trim()) data.summary = globalComment.trim();
+      const prompts = getSelectedPrompts();
+      if (prompts.length > 0) data.prompts = prompts;
       return data;
     }
     function sendAndExit(reason = 'button') {
@@ -1625,6 +1697,7 @@ function diffHtmlTemplate(diffData) {
     document.getElementById('modal-cancel').addEventListener('click', hideSubmitModal);
     function doSubmit() {
       globalComment = globalCommentInput.value;
+      savePromptPrefs();
       hideSubmitModal();
       sendAndExit('button');
       // Try to close window; if it fails (browser security), show completion message
@@ -2781,6 +2854,22 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     .modal-actions button:hover { background: var(--hover-bg); }
     .modal-actions button.primary { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
     .modal-actions button.primary:hover { background: #7dd3fc; }
+
+    .modal-checkboxes { margin: 12px 0; }
+    .modal-checkboxes label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text);
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .modal-checkboxes input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: var(--accent);
+    }
+
     body.dragging { user-select: none; cursor: crosshair; }
     body.dragging .diff-line { cursor: crosshair; }
     @media (max-width: 840px) {
@@ -3047,6 +3136,11 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       <p class="modal-summary" id="modal-summary"></p>
       <label for="global-comment">Overall comment (optional)</label>
       <textarea id="global-comment" placeholder="Add a summary or overall feedback..."></textarea>
+      <div class="modal-checkboxes">
+        <label><input type="checkbox" id="prompt-subagents" checked /> All implementation, verification, and report creation will be done by the sub-agents.</label>
+        <label><input type="checkbox" id="prompt-reviw" checked /> Open in REVIW next time.</label>
+        <label><input type="checkbox" id="prompt-screenshots" checked /> Update all screenshots and videos.</label>
+      </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
         <button class="primary" id="modal-submit">Submit</button>
@@ -3979,6 +4073,56 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     const modalCancel = document.getElementById('modal-cancel');
     const modalSubmit = document.getElementById('modal-submit');
 
+    // Prompt checkboxes
+    const promptCheckboxes = [
+      { id: 'prompt-subagents', text: 'All implementation, verification, and report creation will be done by the sub-agents.' },
+      { id: 'prompt-reviw', text: 'Open in REVIW next time.' },
+      { id: 'prompt-screenshots', text: 'Update all screenshots and videos.' }
+    ];
+    const PROMPT_STORAGE_KEY = 'reviw-prompt-prefs';
+
+    // Load saved preferences
+    function loadPromptPrefs() {
+      try {
+        const saved = localStorage.getItem(PROMPT_STORAGE_KEY);
+        if (saved) {
+          const prefs = JSON.parse(saved);
+          promptCheckboxes.forEach(p => {
+            const el = document.getElementById(p.id);
+            if (el && typeof prefs[p.id] === 'boolean') el.checked = prefs[p.id];
+          });
+        }
+      } catch (e) {}
+    }
+
+    // Save preferences
+    function savePromptPrefs() {
+      try {
+        const prefs = {};
+        promptCheckboxes.forEach(p => {
+          const el = document.getElementById(p.id);
+          if (el) prefs[p.id] = el.checked;
+        });
+        localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(prefs));
+      } catch (e) {}
+    }
+
+    // Initialize checkbox listeners
+    promptCheckboxes.forEach(p => {
+      const el = document.getElementById(p.id);
+      if (el) el.addEventListener('change', savePromptPrefs);
+    });
+    loadPromptPrefs();
+
+    function getSelectedPrompts() {
+      const prompts = [];
+      promptCheckboxes.forEach(p => {
+        const el = document.getElementById(p.id);
+        if (el && el.checked) prompts.push(p.text);
+      });
+      return prompts;
+    }
+
     function payload(reason) {
       const data = {
         file: FILE_NAME,
@@ -3990,6 +4134,8 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       if (globalComment.trim()) {
         data.summary = globalComment.trim();
       }
+      const prompts = getSelectedPrompts();
+      if (prompts.length > 0) data.prompts = prompts;
       // Include answered questions
       if (window.REVIW_ANSWERS) {
         const answeredQuestions = [];
@@ -4031,6 +4177,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     modalCancel.addEventListener('click', hideSubmitModal);
     function doSubmit() {
       globalComment = globalCommentInput.value;
+      savePromptPrefs();
       hideSubmitModal();
       sendAndExit('button');
       // Try to close window; if it fails (browser security), show completion message
