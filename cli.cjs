@@ -13,6 +13,7 @@
 
 const fs = require("fs");
 const http = require("http");
+const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 const chardet = require("chardet");
@@ -465,7 +466,8 @@ function loadDiff(diffText) {
   return {
     rows,
     files: sortedFiles,
-    title: "Git Diff",
+    projectRoot: "",
+    relativePath: "Git Diff",
     mode: "diff",
   };
 }
@@ -574,7 +576,7 @@ function loadCsv(filePath) {
   return {
     rows,
     cols: Math.max(1, maxCols),
-    title: path.basename(filePath),
+    ...formatTitlePaths(filePath),
   };
 }
 
@@ -585,7 +587,7 @@ function loadText(filePath) {
   return {
     rows: lines.map((line) => [line]),
     cols: 1,
-    title: path.basename(filePath),
+    ...formatTitlePaths(filePath),
     preview: null,
   };
 }
@@ -716,7 +718,7 @@ function loadMarkdown(filePath) {
   return {
     rows: lines.map((line) => [line]),
     cols: 1,
-    title: path.basename(filePath),
+    ...formatTitlePaths(filePath),
     preview,
     reviwQuestions, // Pass questions to UI
   };
@@ -728,6 +730,20 @@ function escapeHtmlChars(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function formatTitlePaths(filePath) {
+  const cwd = process.cwd();
+  const home = os.homedir();
+  const relativePath = path.relative(cwd, filePath) || path.basename(filePath);
+  let projectRoot = cwd;
+  if (projectRoot.startsWith(home)) {
+    projectRoot = "~" + projectRoot.slice(home.length);
+  }
+  if (!projectRoot.endsWith("/")) {
+    projectRoot += "/";
+  }
+  return { projectRoot, relativePath };
 }
 
 function loadData(filePath) {
@@ -777,7 +793,7 @@ function serializeForScript(value) {
 }
 
 function diffHtmlTemplate(diffData) {
-  const { rows, title } = diffData;
+  const { rows, projectRoot, relativePath } = diffData;
   const serialized = serializeForScript(rows);
   const fileCount = rows.filter((r) => r.type === "file").length;
 
@@ -789,7 +805,7 @@ function diffHtmlTemplate(diffData) {
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>${title} | reviw</title>
+  <title>${relativePath} | reviw</title>
   <style>
     :root {
       color-scheme: dark;
@@ -858,7 +874,9 @@ function diffHtmlTemplate(diffData) {
     }
     header .meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     header .actions { display: flex; gap: 8px; align-items: center; }
-    header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    header h1 { display: flex; flex-direction: column; margin: 0; line-height: 1.3; }
+    header h1 .title-path { font-size: 11px; font-weight: 400; color: var(--muted); }
+    header h1 .title-file { font-size: 16px; font-weight: 600; }
     header .badge {
       background: var(--selected-bg);
       color: var(--text);
@@ -1021,11 +1039,14 @@ function diffHtmlTemplate(diffData) {
       display: none;
     }
     .floating header {
-      position: relative;
+      position: static;
       background: transparent;
+      backdrop-filter: none;
       border: none;
       padding: 0 0 10px 0;
+      display: flex;
       justify-content: space-between;
+      align-items: center;
     }
     .floating h2 { font-size: 14px; margin: 0; font-weight: 600; }
     .floating button {
@@ -1049,6 +1070,10 @@ function diffHtmlTemplate(diffData) {
       padding: 10px;
       font-size: 13px;
       font-family: inherit;
+    }
+    .floating textarea:focus {
+      outline: none;
+      border-color: var(--accent);
     }
     .floating .actions {
       display: flex;
@@ -1167,7 +1192,7 @@ function diffHtmlTemplate(diffData) {
 <body>
   <header>
     <div class="meta">
-      <h1>${title}</h1>
+      <h1>${projectRoot ? `<span class="title-path">${projectRoot}</span>` : ""}<span class="title-file">${relativePath}</span></h1>
       <span class="badge">${fileCount} file${fileCount !== 1 ? "s" : ""} changed</span>
       <span class="pill">Comments <strong id="comment-count">0</strong></span>
     </div>
@@ -1657,10 +1682,10 @@ function diffHtmlTemplate(diffData) {
 }
 
 // --- HTML template ---------------------------------------------------------
-function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions = []) {
+function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHtml, reviwQuestions = []) {
   const serialized = serializeForScript(dataRows);
   const modeJson = serializeForScript(mode);
-  const titleJson = serializeForScript(title);
+  const titleJson = serializeForScript(relativePath); // Use relativePath as file identifier
   const questionsJson = serializeForScript(reviwQuestions || []);
   const hasPreview = !!previewHtml;
   return `<!doctype html>
@@ -1671,7 +1696,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions =
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>${title} | reviw</title>
+  <title>${relativePath} | reviw</title>
   <style>
     /* Dark theme (default) */
     :root {
@@ -1752,7 +1777,9 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions =
     }
     header .meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     header .actions { display: flex; gap: 8px; align-items: center; }
-    header h1 { font-size: 16px; margin: 0; font-weight: 700; }
+    header h1 { display: flex; flex-direction: column; margin: 0; line-height: 1.3; }
+    header h1 .title-path { font-size: 11px; font-weight: 400; color: var(--muted); }
+    header h1 .title-file { font-size: 16px; font-weight: 700; }
     header .badge {
       background: var(--selected-bg);
       color: var(--text);
@@ -1973,12 +2000,14 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions =
       transition: background 200ms ease, border-color 200ms ease;
     }
     .floating header {
-      position: relative;
-      top: 0;
+      position: static;
       background: transparent;
+      backdrop-filter: none;
       border: none;
       padding: 0 0 8px 0;
+      display: flex;
       justify-content: space-between;
+      align-items: center;
     }
     .floating h2 { font-size: 14px; margin: 0; color: var(--text); }
     .floating button {
@@ -2006,6 +2035,10 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions =
       font-size: 13px;
       line-height: 1.4;
       transition: background 200ms ease, border-color 200ms ease;
+    }
+    .floating textarea:focus {
+      outline: none;
+      border-color: var(--accent);
     }
     .floating .actions {
       display: flex;
@@ -2384,7 +2417,6 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions =
       z-index: 1100;
       justify-content: center;
       align-items: center;
-      backdrop-filter: blur(4px);
     }
     .reviw-questions-overlay.visible {
       display: flex;
@@ -2899,7 +2931,7 @@ function htmlTemplate(dataRows, cols, title, mode, previewHtml, reviwQuestions =
 <body>
   <header>
     <div class="meta">
-      <h1>${title}</h1>
+      <h1><span class="title-path">${projectRoot}</span><span class="title-file">${relativePath}</span></h1>
       <span class="badge">Click to comment / ESC to cancel</span>
       <span class="pill">Comments <strong id="comment-count">0</strong></span>
     </div>
@@ -5068,8 +5100,8 @@ function buildHtml(filePath) {
   if (data.mode === "diff") {
     return diffHtmlTemplate(data);
   }
-  const { rows, cols, title, mode, preview, reviwQuestions } = data;
-  return htmlTemplate(rows, cols, title, mode, preview, reviwQuestions);
+  const { rows, cols, projectRoot, relativePath, mode, preview, reviwQuestions } = data;
+  return htmlTemplate(rows, cols, projectRoot, relativePath, mode, preview, reviwQuestions);
 }
 
 // --- HTTP Server -----------------------------------------------------------
@@ -5361,7 +5393,14 @@ function createFileServer(filePath, fileIndex = 0) {
           const delay = fileIndex * 300;
           setTimeout(() => {
             try {
-              spawn(opener, [url], { stdio: "ignore", detached: true });
+              const child = spawn(opener, [url], { stdio: "ignore", detached: true });
+              child.on('error', (err) => {
+                console.warn(
+                  "Failed to open browser automatically. Please open this URL manually:",
+                  url,
+                );
+              });
+              child.unref();
             } catch (err) {
               console.warn(
                 "Failed to open browser automatically. Please open this URL manually:",
@@ -5529,7 +5568,14 @@ function createDiffServer(diffContent) {
                 ? "start"
                 : "xdg-open";
           try {
-            spawn(opener, [url], { stdio: "ignore", detached: true });
+            const child = spawn(opener, [url], { stdio: "ignore", detached: true });
+            child.on('error', (err) => {
+              console.warn(
+                "Failed to open browser automatically. Please open this URL manually:",
+                url,
+              );
+            });
+            child.unref();
           } catch (err) {
             console.warn(
               "Failed to open browser automatically. Please open this URL manually:",
