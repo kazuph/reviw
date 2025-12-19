@@ -90,6 +90,9 @@ reviw changes.diff
 ### Mermaid Fullscreen
 ![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid.png)
 
+### Submit Review Dialog
+![Submit Review Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-submit-dialog.png)
+
 ## Output Example
 
 ```yaml

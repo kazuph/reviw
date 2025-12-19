@@ -1254,6 +1254,7 @@ function diffHtmlTemplate(diffData) {
         <label><input type="checkbox" id="prompt-reviw" checked /> Open in REVIW next time.</label>
         <label><input type="checkbox" id="prompt-screenshots" checked /> Update all screenshots and videos.</label>
         <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> Add the user's feedback to the Todo list, and do not check it off without the user's approval.</label>
+        <label><input type="checkbox" id="prompt-deep-dive" checked /> Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs.</label>
       </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
@@ -1628,7 +1629,8 @@ function diffHtmlTemplate(diffData) {
       { id: 'prompt-subagents', text: 'All implementation, verification, and report creation will be done by the sub-agents.' },
       { id: 'prompt-reviw', text: 'Open in REVIW next time.' },
       { id: 'prompt-screenshots', text: 'Update all screenshots and videos.' },
-      { id: 'prompt-user-feedback-todo', text: "Add the user's feedback to the Todo list, and do not check it off without the user's approval." }
+      { id: 'prompt-user-feedback-todo', text: "Add the user's feedback to the Todo list, and do not check it off without the user's approval." },
+      { id: 'prompt-deep-dive', text: "Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs." }
     ];
     const PROMPT_STORAGE_KEY = 'reviw-prompt-prefs';
 
@@ -3143,6 +3145,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         <label><input type="checkbox" id="prompt-reviw" checked /> Open in REVIW next time.</label>
         <label><input type="checkbox" id="prompt-screenshots" checked /> Update all screenshots and videos.</label>
         <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> Add the user's feedback to the Todo list, and do not check it off without the user's approval.</label>
+        <label><input type="checkbox" id="prompt-deep-dive" checked /> Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs.</label>
       </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
@@ -4081,7 +4084,8 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       { id: 'prompt-subagents', text: 'All implementation, verification, and report creation will be done by the sub-agents.' },
       { id: 'prompt-reviw', text: 'Open in REVIW next time.' },
       { id: 'prompt-screenshots', text: 'Update all screenshots and videos.' },
-      { id: 'prompt-user-feedback-todo', text: "Add the user's feedback to the Todo list, and do not check it off without the user's approval." }
+      { id: 'prompt-user-feedback-todo', text: "Add the user's feedback to the Todo list, and do not check it off without the user's approval." },
+      { id: 'prompt-deep-dive', text: "Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs." }
     ];
     const PROMPT_STORAGE_KEY = 'reviw-prompt-prefs';
 
