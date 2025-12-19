@@ -9,6 +9,5 @@
   "homepage": "https://github.com/kazuph/reviw",
   "repository": "https://github.com/kazuph/reviw",
   "license": "MIT",
-  "keywords": ["review", "csv", "markdown", "diff", "workflow", "task-management"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["review", "csv", "markdown", "diff", "workflow", "task-management"]
 }
