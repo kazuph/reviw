@@ -13,12 +13,12 @@
         "matcher": "Bash"
       }
     ],
-    "Stop": [
+    "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-checklist.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/completion-checklist.sh"
           }
         ]
       }
