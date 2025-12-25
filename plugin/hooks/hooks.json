@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'if [ -d \".artifacts\" ]; then LATEST=$(ls -td .artifacts/*/ 2>/dev/null | head -1); if [ -n \"$LATEST\" ] && [ -f \"${LATEST}README.md\" ]; then STATUS=$(grep -o \"ステータス:.*\" \"${LATEST}README.md\" | head -1); if echo \"$STATUS\" | grep -qE \"進行中|レビュー待ち\"; then echo \"[reviw-plugin] Warning: Task in progress. Consider running /done before stopping.\"; fi; fi; fi'",
+            "command": "bash -c 'echo \"\" && echo \"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\" && echo \"┃  [reviw-plugin] 完了報告前チェックリスト                 ┃\" && echo \"┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\" && echo \"\" && echo \"【完了基準】実装だけでは 1/3。以下を確認せよ：\" && echo \"\" && echo \"  □ 実装完了（1/3）\" && echo \"    → ビルドは成功したか？ (npm run build / pnpm build)\" && echo \"    → 型エラー・lint エラーはないか？\" && echo \"\" && echo \"  □ 動作検証完了（2/3）\" && echo \"    → 開発サーバーを起動して実際に動かしたか？\" && echo \"    → webapp-testing スキルで検証したか？\" && echo \"\" && echo \"  □ レビュー完了（3/3）\" && echo \"    → .artifacts/<feature>/ にエビデンス（スクショ・動画）はあるか？\" && echo \"    → artifact-proof スキルで報告書を作成したか？\" && echo \"    → /done を実行したか？\" && echo \"    → reviw でフォアグラウンド起動してレビューを受けたか？\" && echo \"    → ユーザーから承認を得たか？\" && echo \"\" && echo \"【禁止事項】\" && echo \"  ✗ 「実装しました！」だけの報告\" && echo \"  ✗ 動作確認なしの完了宣言\" && echo \"  ✗ 証拠なしの「動きました」報告\" && echo \"  ✗ reviw でのレビュー前にコミット・プッシュ\" && echo \"\" && echo \"【もし上記が未完了なら】\" && echo \"  → 完了報告ではなく、次に何をすべきか伝えること\" && echo \"  → /done を実行してレビューフローに進むこと\" && echo \"\"'",
             "timeout": 5
           }
         ]
