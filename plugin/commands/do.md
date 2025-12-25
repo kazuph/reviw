@@ -61,15 +61,43 @@ WORKTREE_PATH="$(git gtr go <branch-name>)"
 cd "$WORKTREE_PATH"
 ```
 
-### 2. 成果物ディレクトリの準備
+### 2. .gitignore の設定
 
-`.artifacts/<feature-name>/` ディレクトリを作成し、README.md を配置する。
+**重要：** `.worktree` と `.artifacts` をコミット対象から除外する。
 
 ```bash
-mkdir -p .artifacts/<feature-name>
+# プロジェクトルートの .gitignore に追記（存在しない場合のみ）
+if ! grep -q "^\.worktree$" .gitignore 2>/dev/null; then
+  echo ".worktree" >> .gitignore
+fi
+if ! grep -q "^\.artifacts$" .gitignore 2>/dev/null; then
+  echo ".artifacts" >> .gitignore
+fi
 ```
 
-### 3. 計画の策定（README.md）
+**理由：**
+- `.worktree/` - 作業用ディレクトリはローカル専用
+- `.artifacts/` - エビデンス（スクショ・動画）はリポジトリを肥大化させるため除外
+
+### 3. 成果物ディレクトリの準備
+
+worktree 内に `.artifacts/<feature-name>/` ディレクトリを作成する。
+
+**ディレクトリ構成：**
+```
+.worktree/<branch-name>/
+└── .artifacts/
+    └── <feature-name>/
+        ├── README.md      # 計画・進捗・エビデンスリンク
+        ├── images/        # スクリーンショット
+        └── videos/        # 動画ファイル
+```
+
+```bash
+mkdir -p .artifacts/<feature-name>/{images,videos}
+```
+
+### 4. 計画の策定（README.md）
 
 `.artifacts/<feature-name>/README.md` を作成し、以下のフォーマットで計画を書き出す：
 
@@ -114,11 +142,11 @@ mkdir -p .artifacts/<feature-name>
 <artifact-proof で収集したエビデンスへのリンクを追記していく>
 ```
 
-### 4. TodoWrite への反映
+### 5. TodoWrite への反映
 
 上記の PLAN を TodoWrite ツールにも反映する。これにより進捗が可視化される。
 
-### 5. サブエージェントによる並列実装
+### 6. サブエージェントによる並列実装
 
 **計画策定後、実装は必ずサブエージェント（Task ツール）で実行する。**
 
@@ -162,7 +190,7 @@ Task(subagent_type="webapp-master", prompt="FooterComponent を実装...")
 - サブエージェントを起動せず「実装します」と宣言だけすること
 - 並列可能なタスクを順次実行すること（効率低下）
 
-### 6. 成果を意識した行動指針の確認
+### 7. 成果を意識した行動指針の確認
 
 **重要な注意事項を表示：**
 
