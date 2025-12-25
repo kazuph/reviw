@@ -37,7 +37,32 @@ Task ツールで subagent を起動
 
 $ARGUMENTS = これからやりたいことの依頼文、仕様説明など
 
-## 実行手順
+## タスク再開の場合
+
+**セッション起動時・compact 後は、新規作成前に既存 worktree を確認せよ。**
+
+```bash
+# 作業中の worktree を確認
+git worktree list
+
+# worktree に移動
+cd .worktree/<機能名>
+
+# 進捗を確認
+cat .artifacts/<機能名>/REPORT.md
+```
+
+**REPORT.md の TODO を確認し、未完了項目から作業を再開せよ。**
+
+### 報告書の場所
+
+```
+.worktree/<機能名>/.artifacts/<機能名>/REPORT.md
+```
+
+※ `<機能名>` = ブランチ名から prefix を除いた部分（例: `feature/auth` → `auth`）
+
+## 実行手順（新規タスクの場合）
 
 ### 1. 作業環境のセットアップ
 
@@ -48,7 +73,16 @@ $ARGUMENTS = これからやりたいことの依頼文、仕様説明など
 git rev-parse --show-toplevel
 ```
 
-次に、タスク用の worktree を作成する。ブランチ名は依頼内容から適切な名前を自動生成する（例: `feature/add-login`, `fix/button-style`）。
+次に、タスク用の worktree を作成する。ブランチ名は依頼内容から適切な名前を自動生成する。
+
+### worktree の命名規則
+
+| 種別 | ブランチ名 | 例 |
+|------|-----------|-----|
+| 新機能 | `feature/<機能名>` | `feature/auth`, `feature/events` |
+| バグ修正 | `fix/<内容>` | `fix/login-error`, `fix/validation` |
+| リファクタ | `refactor/<対象>` | `refactor/api-client` |
+| ドキュメント | `docs/<対象>` | `docs/readme` |
 
 ```bash
 # worktree を作成（--from-current で現在のブランチから分岐）
@@ -81,25 +115,25 @@ fi
 
 ### 3. 成果物ディレクトリの準備
 
-worktree 内に `.artifacts/<feature-name>/` ディレクトリを作成する。
+worktree 内に `.artifacts/<機能名>/` ディレクトリを作成する。
 
 **ディレクトリ構成：**
 ```
-.worktree/<branch-name>/
+.worktree/<機能名>/
 └── .artifacts/
-    └── <feature-name>/
-        ├── RESULT.md      # 計画・進捗・エビデンスリンク
-        ├── images/        # スクリーンショット
-        └── videos/        # 動画ファイル
+    └── <機能名>/
+        ├── REPORT.md     # 計画・進捗・エビデンスリンク
+        ├── images/       # スクリーンショット
+        └── videos/       # 動画ファイル
 ```
 
 ```bash
-mkdir -p .artifacts/<feature-name>/{images,videos}
+mkdir -p .artifacts/<機能名>/{images,videos}
 ```
 
-### 4. 計画の策定（RESULT.md）
+### 4. 計画の策定（REPORT.md）
 
-`.artifacts/<feature-name>/RESULT.md` を作成し、以下のフォーマットで計画を書き出す：
+`.artifacts/<機能名>/REPORT.md` を作成し、以下のフォーマットで計画を書き出す：
 
 ```markdown
 # <タスク名>
@@ -111,6 +145,13 @@ mkdir -p .artifacts/<feature-name>/{images,videos}
 ## 概要
 
 <依頼内容の要約>
+
+## 進捗
+
+| 日付 | 内容 | 状態 |
+|------|------|------|
+| YYYY-MM-DD | 計画策定 | 完了 |
+| YYYY-MM-DD | API実装 | 進行中 |
 
 ## PLAN
 
@@ -132,6 +173,17 @@ mkdir -p .artifacts/<feature-name>/{images,videos}
 - [ ] 動作確認が取れていること
 - [ ] エビデンス（スクリーンショット/動画）が残っていること
 - [ ] reviw でレビューを受けること
+
+## テスト結果
+
+### 単体テスト
+- `tests/unit/xxx.test.ts`: PASS/FAIL
+
+### 結合テスト
+- `tests/integration/xxx.test.ts`: PASS/FAIL
+
+### E2Eテスト
+- `tests/e2e/xxx.spec.ts`: PASS/FAIL
 
 ## 技術的なメモ
 
@@ -185,11 +237,6 @@ Task(subagent_type="webapp-master", prompt="FooterComponent を実装...")
 | 動作確認 | `general-purpose` + webapp-testing skill | 検証フェーズ |
 | エビデンス収集 | `general-purpose` + artifact-proof skill | 完了報告準備 |
 
-**禁止事項：**
-- メインスレッドで直接コードを書くこと（コンテキスト枯渇の原因）
-- サブエージェントを起動せず「実装します」と宣言だけすること
-- 並列可能なタスクを順次実行すること（効率低下）
-
 ### 7. 成果を意識した行動指針の確認
 
 **重要な注意事項を表示：**
@@ -221,10 +268,39 @@ Task(subagent_type="webapp-master", prompt="FooterComponent を実装...")
 
 ## 禁止事項
 
+- **main ブランチでの直接作業を禁止** - 必ず worktree を作成してから作業を開始すること
 - 計画なしに実装を始めること
 - worktree を作成せずにメインブランチで作業すること
 - エビデンス収集を忘れること
 - /done を実行せずに完了報告すること
+- メインスレッドで直接コードを書くこと（コンテキスト枯渇の原因）
+- サブエージェントを起動せず「実装します」と宣言だけすること
+- 並列可能なタスクを順次実行すること（効率低下）
+
+## PR 作成フロー（参考）
+
+PR の作成先（develop / main）はプロジェクトの CLAUDE.md に従う。
+
+```bash
+# 1. worktree で作業完了後
+cd .worktree/<機能名>
+
+# 2. コミット（/done 実行後）
+git add .
+git commit -m "feat: <内容>"
+
+# 3. プッシュ
+git push -u origin <branch-name>
+
+# 4. PR 作成（プロジェクト設定に従う）
+gh pr create --base <target-branch> --head <branch-name>
+
+# 5. マージ後、worktree 削除
+cd ../..
+git worktree remove .worktree/<機能名>
+```
+
+**注意**: main への直接 PR 作成は AI 禁止のプロジェクトもある。プロジェクトの CLAUDE.md を確認すること。
 
 ## 例
 
@@ -234,6 +310,6 @@ Task(subagent_type="webapp-master", prompt="FooterComponent を実装...")
 
 これにより：
 1. `feature/add-login-button` ブランチで worktree が作成される
-2. `.artifacts/add-login-button/RESULT.md` に計画が書き出される
+2. `.worktree/add-login-button/.artifacts/add-login-button/REPORT.md` に計画が書き出される
 3. TodoWrite に TODO が登録される
 4. 成果志向の行動指針が表示される
