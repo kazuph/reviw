@@ -125,4 +125,140 @@ describe('Markdown E2E Tests', () => {
 
     await page.close();
   });
+
+  test('image fullscreen navigation with arrow keys', async () => {
+    const page = await browser.newPage();
+    await page.goto(`http://localhost:${port}`);
+
+    const preview = page.locator('.md-preview');
+    const imageOverlay = page.locator('#image-fullscreen');
+    const imageContainer = page.locator('#image-container');
+
+    // Count images in preview
+    const imageCount = await preview.locator('img').count();
+    if (imageCount < 2) {
+      console.log('Skipping image navigation test: need at least 2 images');
+      await page.close();
+      return;
+    }
+
+    // 1. Click first image to open fullscreen
+    const firstImage = preview.locator('img').first();
+    await firstImage.scrollIntoViewIfNeeded();
+    await firstImage.click();
+    await expect(imageOverlay).toHaveClass(/visible/);
+
+    // 2. Check counter shows "1 / N"
+    const counter = imageContainer.locator('.fullscreen-counter');
+    await expect(counter).toContainText(`1 / ${imageCount}`);
+
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-nav-01-first-image.png') });
+
+    // 3. Press ArrowRight to go to next image
+    await page.keyboard.press('ArrowRight');
+    await expect(counter).toContainText(`2 / ${imageCount}`);
+
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-nav-02-second-image.png') });
+
+    // 4. Press ArrowLeft to go back
+    await page.keyboard.press('ArrowLeft');
+    await expect(counter).toContainText(`1 / ${imageCount}`);
+
+    // 5. Press Escape to close
+    await page.keyboard.press('Escape');
+    await expect(imageOverlay).not.toHaveClass(/visible/);
+
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-nav-03-closed.png') });
+
+    await page.close();
+  });
+
+  test('scroll sync between source and preview', async () => {
+    const page = await browser.newPage();
+    await page.goto(`http://localhost:${port}`);
+
+    const mdLeft = page.locator('.md-left');
+    const mdRight = page.locator('.md-right');
+
+    // Get initial scroll positions
+    const initialLeftScroll = await mdLeft.evaluate(el => el.scrollTop);
+    const initialRightScroll = await mdRight.evaluate(el => el.scrollTop);
+
+    // Both should start at top
+    expect(initialLeftScroll).toBeLessThan(10);
+    expect(initialRightScroll).toBeLessThan(10);
+
+    // Scroll left pane down
+    await mdLeft.evaluate(el => {
+      el.scrollTop = el.scrollHeight * 0.5;
+    });
+
+    // Wait for sync
+    await page.waitForTimeout(200);
+
+    // Right pane should have scrolled too
+    const rightScrollAfter = await mdRight.evaluate(el => el.scrollTop);
+    expect(rightScrollAfter).toBeGreaterThan(100);
+
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-sync-01-scrolled.png') });
+
+    // Scroll to bottom
+    await mdLeft.evaluate(el => {
+      el.scrollTop = el.scrollHeight;
+    });
+
+    await page.waitForTimeout(200);
+
+    // Right pane should be near bottom
+    const rightScrollBottom = await mdRight.evaluate(el => ({
+      scrollTop: el.scrollTop,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight
+    }));
+    const rightMaxScroll = rightScrollBottom.scrollHeight - rightScrollBottom.clientHeight;
+    expect(rightScrollBottom.scrollTop).toBeGreaterThan(rightMaxScroll * 0.8);
+
+    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-sync-02-bottom.png') });
+
+    await page.close();
+  });
+
+  test('comment dialog positioning at bottom', async () => {
+    const page = await browser.newPage();
+    await page.goto(`http://localhost:${port}`);
+
+    const mdLeft = page.locator('.md-left');
+    const preview = page.locator('.md-preview');
+    const commentCard = page.locator('#comment-card');
+
+    // Scroll to bottom of preview
+    await preview.evaluate(el => {
+      el.scrollTop = el.scrollHeight;
+    });
+
+    await page.waitForTimeout(200);
+
+    // Click on last paragraph in preview
+    const lastParagraph = preview.locator('p').last();
+    await lastParagraph.scrollIntoViewIfNeeded();
+    await lastParagraph.click();
+
+    // Wait for comment card to appear
+    await page.waitForTimeout(400);
+
+    // Check if comment card is visible and within viewport
+    const isVisible = await commentCard.isVisible();
+    if (isVisible) {
+      const cardBox = await commentCard.boundingBox();
+      const viewportSize = page.viewportSize();
+
+      // Card should be within viewport (not cut off)
+      expect(cardBox.y).toBeGreaterThanOrEqual(0);
+      expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(viewportSize.height + 50); // Allow small overflow
+
+      await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'md-comment-01-bottom.png') });
+    }
+
+    await page.close();
+  });
 });

@@ -4284,6 +4284,29 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         let activePane = null;
         let rafId = null;
 
+        // Build anchor map for section-based sync
+        // Maps line numbers to heading elements in preview
+        const headingAnchors = [];
+        const preview = document.querySelector('.md-preview');
+        if (preview) {
+          const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+          headings.forEach(h => {
+            const text = h.textContent.trim();
+            // Find corresponding line in source
+            for (let i = 0; i < DATA.length; i++) {
+              const lineText = (DATA[i][0] || '').trim();
+              if (lineText.match(/^#+\\s/) && lineText.replace(/^#+\\s*/, '').trim() === text) {
+                headingAnchors.push({
+                  line: i + 1,
+                  sourceEl: mdLeft.querySelector('td[data-row="' + (i + 1) + '"]'),
+                  previewEl: h
+                });
+                break;
+              }
+            }
+          });
+        }
+
         function syncScroll(source, target, sourceName) {
           // Only sync if this pane initiated the scroll
           if (activePane && activePane !== sourceName) return;
@@ -4299,12 +4322,62 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
             // Snap to edges for precision
             if (source.scrollTop <= 1) {
               target.scrollTop = 0;
-            } else if (source.scrollTop >= sourceMax - 1) {
-              target.scrollTop = targetMax;
-            } else {
-              const ratio = source.scrollTop / sourceMax;
-              target.scrollTop = Math.round(ratio * targetMax);
+              setTimeout(() => { activePane = null; }, 100);
+              return;
             }
+            if (source.scrollTop >= sourceMax - 1) {
+              target.scrollTop = targetMax;
+              setTimeout(() => { activePane = null; }, 100);
+              return;
+            }
+
+            // Try section-based sync if anchors exist
+            if (headingAnchors.length > 0) {
+              const sourceRect = source.getBoundingClientRect();
+              const viewportTop = sourceRect.top;
+              const viewportMid = viewportTop + sourceRect.height / 3;
+
+              // Find the heading closest to viewport top in source
+              let closestAnchor = null;
+              let closestDistance = Infinity;
+
+              for (const anchor of headingAnchors) {
+                const el = sourceName === 'left' ? anchor.sourceEl : anchor.previewEl;
+                if (!el) continue;
+                const rect = el.getBoundingClientRect();
+                const distance = Math.abs(rect.top - viewportMid);
+                if (distance < closestDistance) {
+                  closestDistance = distance;
+                  closestAnchor = anchor;
+                }
+              }
+
+              if (closestAnchor) {
+                const sourceEl = sourceName === 'left' ? closestAnchor.sourceEl : closestAnchor.previewEl;
+                const targetEl = sourceName === 'left' ? closestAnchor.previewEl : closestAnchor.sourceEl;
+
+                if (sourceEl && targetEl) {
+                  const sourceElRect = sourceEl.getBoundingClientRect();
+                  const sourceOffset = sourceElRect.top - sourceRect.top;
+
+                  // Calculate where target element should be
+                  const targetRect = target.getBoundingClientRect();
+                  const targetElRect = targetEl.getBoundingClientRect();
+                  const currentTargetOffset = targetElRect.top - targetRect.top;
+
+                  // Adjust target scroll to align the anchor
+                  const adjustment = currentTargetOffset - sourceOffset;
+                  target.scrollTop = target.scrollTop + adjustment;
+
+                  setTimeout(() => { activePane = null; }, 100);
+                  return;
+                }
+              }
+            }
+
+            // Fallback to ratio-based sync
+            const ratio = source.scrollTop / sourceMax;
+            target.scrollTop = Math.round(ratio * targetMax);
 
             // Release lock after scroll settles
             setTimeout(() => { activePane = null; }, 100);
@@ -4632,9 +4705,47 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       const imageClose = document.getElementById('image-close');
       if (!imageOverlay || !imageContainer) return;
 
+      // Collect all images for navigation
+      const allImages = Array.from(preview.querySelectorAll('img'));
+      let currentImageIndex = -1;
+
+      function showImage(index) {
+        if (index < 0 || index >= allImages.length) return;
+        currentImageIndex = index;
+        const img = allImages[index];
+
+        imageContainer.innerHTML = '';
+        const clonedImg = img.cloneNode(true);
+        // CSSで制御するためインラインスタイルはリセット
+        clonedImg.style.width = '';
+        clonedImg.style.height = '';
+        clonedImg.style.maxWidth = '';
+        clonedImg.style.maxHeight = '';
+        clonedImg.style.cursor = 'default';
+        imageContainer.appendChild(clonedImg);
+
+        // Show navigation hint
+        const counter = document.createElement('div');
+        counter.className = 'fullscreen-counter';
+        counter.textContent = \`\${index + 1} / \${allImages.length}\`;
+        counter.style.cssText = 'position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,0.6);padding:8px 16px;border-radius:20px;font-size:14px;';
+        imageContainer.appendChild(counter);
+
+        imageOverlay.classList.add('visible');
+      }
+
       function closeImageOverlay() {
         imageOverlay.classList.remove('visible');
         imageContainer.innerHTML = '';
+        currentImageIndex = -1;
+      }
+
+      function navigateImage(direction) {
+        if (!imageOverlay.classList.contains('visible')) return;
+        const newIndex = currentImageIndex + direction;
+        if (newIndex >= 0 && newIndex < allImages.length) {
+          showImage(newIndex);
+        }
       }
 
       if (imageClose) {
@@ -4649,30 +4760,33 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
 
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && imageOverlay.classList.contains('visible')) {
-          closeImageOverlay();
+        if (!imageOverlay.classList.contains('visible')) return;
+
+        switch (e.key) {
+          case 'Escape':
+            closeImageOverlay();
+            break;
+          case 'ArrowLeft':
+          case 'ArrowUp':
+            e.preventDefault();
+            navigateImage(-1);
+            break;
+          case 'ArrowRight':
+          case 'ArrowDown':
+            e.preventDefault();
+            navigateImage(1);
+            break;
         }
       });
 
-      preview.querySelectorAll('img').forEach(img => {
+      allImages.forEach((img, index) => {
         img.style.cursor = 'pointer';
-        img.title = 'Click to view fullscreen';
+        img.title = 'Click to view fullscreen (← → to navigate)';
 
         img.addEventListener('click', (e) => {
           // Don't stop propagation - allow select to work
           e.preventDefault();
-
-          imageContainer.innerHTML = '';
-          const clonedImg = img.cloneNode(true);
-          // CSSで制御するためインラインスタイルはリセット
-          clonedImg.style.width = '';
-          clonedImg.style.height = '';
-          clonedImg.style.maxWidth = '';
-          clonedImg.style.maxHeight = '';
-          clonedImg.style.cursor = 'default';
-          imageContainer.appendChild(clonedImg);
-
-          imageOverlay.classList.add('visible');
+          showImage(index);
         });
       });
     })();
@@ -4689,14 +4803,70 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
       const videoExtensions = /\\.(mp4|mov|webm|avi|mkv|m4v|ogv)$/i;
 
+      // Collect all video links for navigation
+      const allVideoLinks = Array.from(preview.querySelectorAll('a')).filter(link => {
+        const href = link.getAttribute('href');
+        return href && videoExtensions.test(href);
+      });
+      let currentVideoIndex = -1;
+
+      function showVideo(index) {
+        if (index < 0 || index >= allVideoLinks.length) return;
+        currentVideoIndex = index;
+        const link = allVideoLinks[index];
+        const href = link.getAttribute('href');
+
+        // Remove existing video if any
+        const existingVideo = videoContainer.querySelector('video');
+        if (existingVideo) {
+          existingVideo.pause();
+          existingVideo.src = '';
+          existingVideo.remove();
+        }
+
+        // Remove existing counter
+        const existingCounter = videoContainer.querySelector('.fullscreen-counter');
+        if (existingCounter) existingCounter.remove();
+
+        const video = document.createElement('video');
+        video.src = href;
+        video.controls = true;
+        video.autoplay = true;
+        video.style.maxWidth = '100%';
+        video.style.maxHeight = '100%';
+        // Prevent click on video from closing overlay
+        video.addEventListener('click', (e) => e.stopPropagation());
+        videoContainer.appendChild(video);
+
+        // Show navigation hint
+        if (allVideoLinks.length > 1) {
+          const counter = document.createElement('div');
+          counter.className = 'fullscreen-counter';
+          counter.textContent = \`\${index + 1} / \${allVideoLinks.length}\`;
+          counter.style.cssText = 'position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,0.6);padding:8px 16px;border-radius:20px;font-size:14px;';
+          videoContainer.appendChild(counter);
+        }
+
+        videoOverlay.classList.add('visible');
+      }
+
       function closeVideoOverlay() {
         videoOverlay.classList.remove('visible');
+        currentVideoIndex = -1;
         // Stop and remove video
         const video = videoContainer.querySelector('video');
         if (video) {
           video.pause();
           video.src = '';
           video.remove();
+        }
+      }
+
+      function navigateVideo(direction) {
+        if (!videoOverlay.classList.contains('visible')) return;
+        const newIndex = currentVideoIndex + direction;
+        if (newIndex >= 0 && newIndex < allVideoLinks.length) {
+          showVideo(newIndex);
         }
       }
 
@@ -4712,41 +4882,37 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
 
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && videoOverlay.classList.contains('visible')) {
-          closeVideoOverlay();
+        if (!videoOverlay.classList.contains('visible')) return;
+
+        switch (e.key) {
+          case 'Escape':
+            closeVideoOverlay();
+            break;
+          case 'ArrowLeft':
+          case 'ArrowUp':
+            e.preventDefault();
+            navigateVideo(-1);
+            break;
+          case 'ArrowRight':
+          case 'ArrowDown':
+            e.preventDefault();
+            navigateVideo(1);
+            break;
         }
       });
 
       // Intercept video link clicks
-      preview.querySelectorAll('a').forEach(link => {
-        const href = link.getAttribute('href');
-        if (href && videoExtensions.test(href)) {
-          link.style.cursor = 'pointer';
-          link.title = 'Click to play video fullscreen';
+      allVideoLinks.forEach((link, index) => {
+        link.style.cursor = 'pointer';
+        link.title = allVideoLinks.length > 1
+          ? 'Click to play video fullscreen (← → to navigate)'
+          : 'Click to play video fullscreen';
 
-          link.addEventListener('click', (e) => {
-            e.preventDefault();
-            // Don't stop propagation - allow select to work
-
-            // Remove existing video if any
-            const existingVideo = videoContainer.querySelector('video');
-            if (existingVideo) {
-              existingVideo.pause();
-              existingVideo.src = '';
-              existingVideo.remove();
-            }
-
-            const video = document.createElement('video');
-            video.src = href;
-            video.controls = true;
-            video.autoplay = true;
-            video.style.maxWidth = '100%';
-            video.style.maxHeight = '100%';
-            videoContainer.appendChild(video);
-
-            videoOverlay.classList.add('visible');
-          });
-        }
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          // Don't stop propagation - allow select to work
+          showVideo(index);
+        });
       });
     })();
 

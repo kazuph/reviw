@@ -93,6 +93,10 @@ graph TD
 
 ![CSV View](./assets/screenshot-csv.png)
 
+![Image 2](https://picsum.photos/seed/test1/400/300)
+
+![Image 3](https://picsum.photos/seed/test2/400/300)
+
 ## Table
 
 | Feature | Status |
