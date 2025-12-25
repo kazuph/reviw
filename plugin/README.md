@@ -103,7 +103,7 @@ reviw-plugin/
 │       └── SKILL.md         # エビデンス収集 + reviw レビュースキル
 ├── hooks/
 │   └── hooks.json           # 自動フック設定
-└── README.md
+└── RESULT.md
 ```
 
 ## reviw の基本的な使い方

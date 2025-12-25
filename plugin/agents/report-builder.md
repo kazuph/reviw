@@ -29,13 +29,13 @@ ls -la .artifacts/
 # 最新の feature ディレクトリを特定
 ls -la .artifacts/*/
 
-# README.md の内容を確認
-cat .artifacts/*/README.md
+# RESULT.md の内容を確認
+cat .artifacts/*/RESULT.md
 ```
 
 ### 2. 報告書の充実
 
-README.md に以下の情報が揃っているか確認し、不足があれば追記：
+RESULT.md に以下の情報が揃っているか確認し、不足があれば追記：
 
 ```markdown
 # <タスク名>
@@ -114,7 +114,7 @@ git diff HEAD~1..HEAD
 open .artifacts/<feature>/demo.mp4
 
 # reviw でレビュー開始
-npx reviw .artifacts/<feature>/README.md
+npx reviw .artifacts/<feature>/RESULT.md
 ```
 
 ## 出力フォーマット
@@ -125,7 +125,7 @@ npx reviw .artifacts/<feature>/README.md
 ## 報告書作成完了
 
 ### 報告書
-- パス: .artifacts/<feature>/README.md
+- パス: .artifacts/<feature>/RESULT.md
 - ステータス: レビュー準備完了
 
 ### エビデンス
@@ -134,7 +134,7 @@ npx reviw .artifacts/<feature>/README.md
 
 ### レビュー開始コマンド
 \`\`\`bash
-npx reviw .artifacts/<feature>/README.md
+npx reviw .artifacts/<feature>/RESULT.md
 \`\`\`
 
 ### 注意事項

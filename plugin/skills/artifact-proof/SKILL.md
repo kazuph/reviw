@@ -23,13 +23,13 @@ allowed-tools:
 
 ## ディレクトリと命名
 - FEATURE を決めて以下を作成:
-  - `.artifacts/<feature>/README.md`
+  - `.artifacts/<feature>/RESULT.md`
   - `.artifacts/<feature>/images/`
   - `.artifacts/<feature>/videos/`
 - 命名例: `20251130-login-before.png`, `20251130-login-after.png`, `20251130-login-run.webm`
 - **動画ファイル（.webm, .mp4等）は必ずGit LFSで管理する**（後述）
 
-## Artifactテンプレ（README.md）
+## Artifactテンプレ（RESULT.md）
 ```markdown
 # <feature> / <ticket>
 
@@ -95,7 +95,7 @@ npx playwright test tests/e2e/<spec>.spec.ts \
 3) 画面変更後、全スクショを撮り直し `.artifacts/<feature>/images/` へ保存（動画は `videos/`）。
 4) 目視で差分を確認（ヒューマンインザループ）。意図通りならREADMEに貼り付け。
 5) **reviw でレビュー開始**（後述の「reviw によるレビュー」セクション参照）
-6) 却下を受けたら再度実装し、修正がある限りスクショと動画を取り直し、必要があればREADME.mdを修正し、再度5を実行、承認されるまでループ
+6) 却下を受けたら再度実装し、修正がある限りスクショと動画を取り直し、必要があればRESULT.mdを修正し、再度5を実行、承認されるまでループ
 7) ユーザーからの承認後に初めてコミット、PRがある場合は、PR本文もここまでの修正を反映する
 
 ## reviw によるレビュー
@@ -106,11 +106,11 @@ reviw は CSV/TSV/Markdown/Diff/テキストファイルをブラウザでレビ
 
 ```bash
 # 報告書を開く（必ずフォアグラウンドで実行）
-npx reviw .artifacts/<feature>/README.md
+npx reviw .artifacts/<feature>/RESULT.md
 
 # 動画があれば先に開いておく
 open .artifacts/<feature>/videos/demo.webm
-npx reviw .artifacts/<feature>/README.md
+npx reviw .artifacts/<feature>/RESULT.md
 
 # git diff をレビュー
 git diff HEAD | npx reviw
@@ -138,7 +138,7 @@ npx reviw file1.md file2.csv data.tsv
 ### レビューワークフロー
 
 ```
-npx reviw .artifacts/<feature>/README.md  # フォアグラウンドで起動
+npx reviw .artifacts/<feature>/RESULT.md  # フォアグラウンドで起動
     ↓
 ブラウザが開く
     ↓

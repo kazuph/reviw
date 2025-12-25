@@ -88,7 +88,7 @@ worktree 内に `.artifacts/<feature-name>/` ディレクトリを作成する�
 .worktree/<branch-name>/
 └── .artifacts/
     └── <feature-name>/
-        ├── README.md      # 計画・進捗・エビデンスリンク
+        ├── RESULT.md      # 計画・進捗・エビデンスリンク
         ├── images/        # スクリーンショット
         └── videos/        # 動画ファイル
 ```
@@ -97,9 +97,9 @@ worktree 内に `.artifacts/<feature-name>/` ディレクトリを作成する�
 mkdir -p .artifacts/<feature-name>/{images,videos}
 ```
 
-### 4. 計画の策定（README.md）
+### 4. 計画の策定（RESULT.md）
 
-`.artifacts/<feature-name>/README.md` を作成し、以下のフォーマットで計画を書き出す：
+`.artifacts/<feature-name>/RESULT.md` を作成し、以下のフォーマットで計画を書き出す：
 
 ```markdown
 # <タスク名>
@@ -234,6 +234,6 @@ Task(subagent_type="webapp-master", prompt="FooterComponent を実装...")
 
 これにより：
 1. `feature/add-login-button` ブランチで worktree が作成される
-2. `.artifacts/add-login-button/README.md` に計画が書き出される
+2. `.artifacts/add-login-button/RESULT.md` に計画が書き出される
 3. TodoWrite に TODO が登録される
 4. 成果志向の行動指針が表示される

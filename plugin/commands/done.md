@@ -39,12 +39,12 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task
 
 ## /do からの引き継ぎ
 
-`/do` で開始したタスクは `.artifacts/<feature>/README.md` に PLAN が記録されている。
+`/do` で開始したタスクは `.artifacts/<feature>/RESULT.md` に PLAN が記録されている。
 まず、その TODO の状態を確認せよ：
 
 ```bash
-# .artifacts ディレクトリの README.md を確認
-cat .artifacts/*/README.md | grep -A 50 "## PLAN"
+# .artifacts ディレクトリの RESULT.md を確認
+cat .artifacts/*/RESULT.md | grep -A 50 "## PLAN"
 ```
 
 **TODO にチェックが付くということは？**
@@ -129,7 +129,7 @@ Task ツールで subagent_type: "report-builder" を指定
 open .artifacts/<feature>/demo.mp4
 
 # 報告書を reviw で開く（フォアグラウンド）
-npx reviw .artifacts/<feature>/README.md
+npx reviw .artifacts/<feature>/RESULT.md
 ```
 
 reviw でレビューを開始すると：
