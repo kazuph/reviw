@@ -3566,7 +3566,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }, 1500);
     }
 
-    function openCardForSelection() {
+    function openCardForSelection(previewElement) {
       if (!selection) return;
       // Don't open card while image/video modal is visible
       const imageOverlay = document.getElementById('image-fullscreen');
@@ -3604,8 +3604,48 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       commentInput.value = existingComment?.text || '';
 
       card.style.display = 'block';
+      // 常にソーステーブルの選択セル位置を基準にカードを配置
+      // これにより、プレビューからクリックしてもソースからクリックしても
+      // 同じ行に対しては同じ位置にダイアログが表示される
       positionCardForSelection(startRow, endRow, startCol, endCol);
       commentInput.focus();
+    }
+
+    // Position card near a clicked preview element (used when clicking from preview pane)
+    // Note: Uses viewport-relative coordinates directly since .md-left/.md-right containers scroll,
+    // not the document. The card uses position:absolute but with no positioned ancestor,
+    // so it's positioned relative to the initial containing block.
+    function positionCardNearElement(element) {
+      const cardWidth = card.offsetWidth || 380;
+      const cardHeight = card.offsetHeight || 220;
+      const rect = element.getBoundingClientRect();
+      const margin = 12;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Use viewport-relative coordinates directly from getBoundingClientRect()
+      // No need to add window.scrollX/Y since the containers scroll, not the document
+      let left = rect.right + margin;
+      let top = rect.top;
+
+      // If card would go off the right edge, position it below the element
+      if (left + cardWidth > vw - margin) {
+        left = Math.max(rect.left, margin);
+        left = Math.min(left, vw - cardWidth - margin);
+        top = rect.bottom + margin;
+      }
+
+      // If card would go off the bottom, position it above the element
+      if (top + cardHeight > vh - margin) {
+        top = rect.top - cardHeight - margin;
+      }
+
+      // Ensure card stays within viewport
+      top = Math.max(margin, Math.min(top, vh - cardHeight - margin));
+      left = Math.max(margin, Math.min(left, vw - cardWidth - margin));
+
+      card.style.left = left + 'px';
+      card.style.top = top + 'px';
     }
 
     function positionCardForSelection(startRow, endRow, startCol, endCol) {
@@ -3632,6 +3672,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       const sx = window.scrollX;
       const sy = window.scrollY;
 
+      // Check if the selection is within viewport
+      const isInViewport = rect.top >= 0 && rect.top < vh && rect.bottom > 0;
+
       const spaceRight = vw - rect.right - margin;
       const spaceLeft = rect.left - margin - ROW_HEADER_WIDTH; // Account for row header
       const spaceBelow = vh - rect.bottom - margin;
@@ -3643,27 +3686,37 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       let left = sx + rect.right + margin;
       let top = sy + rect.top;
 
-      // Priority: right > below > above > left > fallback right
-      if (spaceRight >= cardWidth) {
-        // Prefer right side of selection
-        left = sx + rect.right + margin;
-        top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
-      } else if (spaceBelow >= cardHeight) {
-        left = sx + clamp(rect.left, minLeft, vw - cardWidth - margin);
-        top = sy + rect.bottom + margin;
-      } else if (spaceAbove >= cardHeight) {
-        left = sx + clamp(rect.left, minLeft, vw - cardWidth - margin);
-        top = sy + rect.top - cardHeight - margin;
-      } else if (spaceLeft >= cardWidth) {
-        left = sx + rect.left - cardWidth - margin;
-        top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
+      // If selection is outside viewport, position card in center of viewport
+      if (!isInViewport) {
+        left = sx + Math.max(vw / 2 - cardWidth / 2, minLeft);
+        top = sy + Math.max(vh / 2 - cardHeight / 2, margin);
       } else {
-        // Fallback: place to right side even if it means going off screen
-        // Position card at right edge of selection, clamped to viewport
-        left = sx + Math.max(rect.right + margin, minLeft);
-        left = Math.min(left, sx + vw - cardWidth - margin);
-        top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
+        // Priority: right > below > above > left > fallback right
+        if (spaceRight >= cardWidth) {
+          // Prefer right side of selection
+          left = sx + rect.right + margin;
+          top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
+        } else if (spaceBelow >= cardHeight) {
+          left = sx + clamp(rect.left, minLeft, vw - cardWidth - margin);
+          top = sy + rect.bottom + margin;
+        } else if (spaceAbove >= cardHeight) {
+          left = sx + clamp(rect.left, minLeft, vw - cardWidth - margin);
+          top = sy + rect.top - cardHeight - margin;
+        } else if (spaceLeft >= cardWidth) {
+          left = sx + rect.left - cardWidth - margin;
+          top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
+        } else {
+          // Fallback: place to right side even if it means going off screen
+          // Position card at right edge of selection, clamped to viewport
+          left = sx + Math.max(rect.right + margin, minLeft);
+          left = Math.min(left, sx + vw - cardWidth - margin);
+          top = sy + clamp(rect.top, margin, vh - cardHeight - margin);
+        }
       }
+
+      // Final clamp to ensure card stays within viewport
+      left = clamp(left, margin, sx + vw - cardWidth - margin);
+      top = clamp(top, sy + margin, sy + vh - cardHeight - margin);
 
       card.style.left = left + 'px';
       card.style.top = top + 'px';
@@ -3673,6 +3726,8 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       card.style.display = 'none';
       currentKey = null;
       clearSelection();
+      // Re-enable scroll sync when card is closed
+      window._disableScrollSync = false;
     }
 
     function setDot(row, col, on) {
@@ -4277,12 +4332,16 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     })();
 
     // --- Scroll Sync for Markdown Mode ---
+    // Global flag to temporarily disable scroll sync (used by selectSourceRange)
+    window._disableScrollSync = false;
+    // Global RAF ID so we can cancel pending scroll syncs from selectSourceRange
+    window._scrollSyncRafId = null;
+
     if (MODE === 'markdown') {
       const mdLeft = document.querySelector('.md-left');
       const mdRight = document.querySelector('.md-right');
       if (mdLeft && mdRight) {
         let activePane = null;
-        let rafId = null;
 
         // Build anchor map for section-based sync
         // Maps line numbers to heading elements in preview
@@ -4308,12 +4367,21 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         }
 
         function syncScroll(source, target, sourceName) {
+          // Skip if scroll sync is temporarily disabled
+          if (window._disableScrollSync) return;
+          // Skip if scroll sync is disabled until a certain time (for preview click scroll)
+          if (window._scrollSyncDisableUntil && Date.now() < window._scrollSyncDisableUntil) return;
+
           // Only sync if this pane initiated the scroll
           if (activePane && activePane !== sourceName) return;
           activePane = sourceName;
 
-          if (rafId) cancelAnimationFrame(rafId);
-          rafId = requestAnimationFrame(() => {
+          if (window._scrollSyncRafId) cancelAnimationFrame(window._scrollSyncRafId);
+          window._scrollSyncRafId = requestAnimationFrame(() => {
+            // Check again inside RAF in case _disableScrollSync was set after RAF was scheduled
+            if (window._disableScrollSync) return;
+            if (window._scrollSyncDisableUntil && Date.now() < window._scrollSyncDisableUntil) return;
+
             const sourceMax = source.scrollHeight - source.clientHeight;
             const targetMax = target.scrollHeight - target.clientHeight;
 
@@ -4384,8 +4452,19 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           });
         }
 
-        mdLeft.addEventListener('scroll', () => syncScroll(mdLeft, mdRight, 'left'), { passive: true });
-        mdRight.addEventListener('scroll', () => syncScroll(mdRight, mdLeft, 'right'), { passive: true });
+        // Store scroll handlers for temporary removal
+        const leftScrollHandler = () => syncScroll(mdLeft, mdRight, 'left');
+        const rightScrollHandler = () => syncScroll(mdRight, mdLeft, 'right');
+        mdLeft.addEventListener('scroll', leftScrollHandler, { passive: true });
+        mdRight.addEventListener('scroll', rightScrollHandler, { passive: true });
+
+        // Expose handlers for temporary removal during preview click
+        window._scrollHandlers = {
+          left: leftScrollHandler,
+          right: rightScrollHandler,
+          mdLeft: mdLeft,
+          mdRight: mdRight
+        };
       }
     }
 
@@ -5096,22 +5175,59 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
 
       // Trigger source cell selection (reuse existing comment flow)
-      function selectSourceRange(startRow, endRow) {
+      // When clickedPreviewElement is provided (from preview click), position card near that element
+      function selectSourceRange(startRow, endRow, clickedPreviewElement) {
+        // IMMEDIATELY disable scroll sync at the very start
+        window._disableScrollSync = true;
+        window._scrollSyncDisableUntil = Date.now() + 2000;
+
+        // Cancel any pending scroll sync RAF
+        if (window._scrollSyncRafId) {
+          cancelAnimationFrame(window._scrollSyncRafId);
+          window._scrollSyncRafId = null;
+        }
+
+        // TEMPORARILY REMOVE scroll event listeners to prevent any interference
+        const handlers = window._scrollHandlers;
+        if (handlers) {
+          handlers.mdLeft.removeEventListener('scroll', handlers.left);
+          handlers.mdRight.removeEventListener('scroll', handlers.right);
+        }
+
         selection = { startRow, endRow: endRow || startRow, startCol: 1, endCol: 1 };
         updateSelectionVisual();
 
         // Clear header selection
         document.querySelectorAll('thead th.selected').forEach(el => el.classList.remove('selected'));
 
-        // Scroll source table to show the selected row, then open card
-        const sourceTd = tbody.querySelector('td[data-row="' + startRow + '"][data-col="1"]');
-        if (sourceTd) {
-          sourceTd.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          // Wait for scroll to complete before positioning card
-          setTimeout(() => openCardForSelection(), 350);
-        } else {
-          openCardForSelection();
+        // Scroll source pane FIRST (before opening card) to ensure target is visible
+        const targetRow = startRow;
+        const mdRight = document.querySelector('.md-right');
+        const sourceTd = document.querySelector('td[data-row="' + targetRow + '"][data-col="1"]');
+        if (mdRight && sourceTd) {
+          const tdOffsetTop = sourceTd.offsetTop;
+          const containerHeight = mdRight.clientHeight;
+          const tdHeight = sourceTd.offsetHeight;
+          const scrollTarget = tdOffsetTop - (containerHeight / 2) + (tdHeight / 2);
+          // Use scrollTo with instant behavior to ensure immediate scroll
+          mdRight.scrollTo({
+            top: Math.max(0, scrollTarget),
+            behavior: 'instant'
+          });
         }
+
+        // Open the card (synchronously) - now target cell should be visible for positioning
+        openCardForSelection();
+
+        // Re-add scroll handlers after a delay to allow scroll to settle
+        setTimeout(() => {
+          if (handlers) {
+            handlers.mdLeft.addEventListener('scroll', handlers.left, { passive: true });
+            handlers.mdRight.addEventListener('scroll', handlers.right, { passive: true });
+          }
+          window._disableScrollSync = false;
+          window._scrollSyncDisableUntil = 0;
+        }, 500);
       }
 
       // Click on block elements
@@ -5120,7 +5236,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         if (e.target.tagName === 'IMG') {
           const line = findImageSourceLine(e.target.src);
           if (line > 0) {
-            selectSourceRange(line);
+            selectSourceRange(line, null, e.target);
           }
           return;
         }
@@ -5134,7 +5250,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
             const isTableCell = parentBlock.tagName === 'TD' || parentBlock.tagName === 'TH';
             const line = isTableCell ? findTableSourceLine(parentBlock.textContent) : findSourceLine(parentBlock.textContent);
             if (line > 0) {
-              selectSourceRange(line);
+              selectSourceRange(line, null, parentBlock);
             }
           }
           // Let the link open naturally (target="_blank" is set by marked)
@@ -5151,7 +5267,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           const { startLine, endLine } = findCodeBlockRange(code.textContent);
           if (startLine > 0) {
             e.preventDefault();
-            selectSourceRange(startLine, endLine);
+            selectSourceRange(startLine, endLine, pre);
           }
           return;
         }
@@ -5165,7 +5281,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         if (line <= 0) return;
 
         e.preventDefault();
-        selectSourceRange(line);
+        selectSourceRange(line, null, target);
       });
 
       // Text selection to open comment for range
@@ -5185,8 +5301,13 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
           if (startLine <= 0) return;
 
+          // Get the element containing the selection for positioning
+          const range = sel.getRangeAt(0);
+          const container = range.commonAncestorContainer;
+          const element = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
+
           sel.removeAllRanges();
-          selectSourceRange(startLine, endLine > 0 ? endLine : startLine);
+          selectSourceRange(startLine, endLine > 0 ? endLine : startLine, element);
         }, 10);
       });
     })();
