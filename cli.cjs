@@ -149,6 +149,13 @@ marked.use({
       }
       var titleAttr = title ? ' title="' + escapeHtmlForXss(title) + '"' : "";
       var altAttr = text ? ' alt="' + escapeHtmlForXss(text) + '"' : "";
+      // Check if this is a video file - wrap in <a> tag for video player functionality
+      var videoExtensions = /\.(mp4|mov|webm|avi|mkv|m4v|ogv)$/i;
+      if (videoExtensions.test(href)) {
+        // For videos, return a clickable link with video icon
+        var displayText = text || href.split('/').pop();
+        return '<a href="' + escapeHtmlForXss(href) + '"' + titleAttr + ' class="video-link">📹' + escapeHtmlForXss(displayText) + '</a>';
+      }
       return '<img src="' + escapeHtmlForXss(href) + '"' + altAttr + titleAttr + '>';
     }
   }
@@ -5740,7 +5747,7 @@ function createFileServer(filePath, fileIndex = 0) {
       }
 
       // Static file serving for images and other assets
-      if (req.method === "GET") {
+      if (req.method === "GET" || req.method === "HEAD") {
         const MIME_TYPES = {
           ".png": "image/png",
           ".jpg": "image/jpeg",
@@ -5753,9 +5760,21 @@ function createFileServer(filePath, fileIndex = 0) {
           ".js": "application/javascript",
           ".json": "application/json",
           ".pdf": "application/pdf",
+          // Video formats
+          ".mp4": "video/mp4",
+          ".webm": "video/webm",
+          ".mov": "video/quicktime",
+          ".avi": "video/x-msvideo",
+          ".mkv": "video/x-matroska",
+          ".m4v": "video/x-m4v",
+          ".ogv": "video/ogg",
         };
         try {
-          const urlPath = decodeURIComponent(req.url.split("?")[0]);
+          let urlPath = decodeURIComponent(req.url.split("?")[0]);
+          // Remove leading slash so path.join works correctly with relative baseDir
+          if (urlPath.startsWith("/")) {
+            urlPath = urlPath.slice(1);
+          }
           if (urlPath.includes("..")) {
             res.writeHead(403, { "Content-Type": "text/plain" });
             res.end("forbidden");
@@ -5770,9 +5789,57 @@ function createFileServer(filePath, fileIndex = 0) {
           if (fs.existsSync(staticPath) && fs.statSync(staticPath).isFile()) {
             const ext = path.extname(staticPath).toLowerCase();
             const contentType = MIME_TYPES[ext] || "application/octet-stream";
-            const content = fs.readFileSync(staticPath);
-            res.writeHead(200, { "Content-Type": contentType });
-            res.end(content);
+            const stat = fs.statSync(staticPath);
+            const fileSize = stat.size;
+
+            // Check if this is a video file that needs Range Request support
+            const isVideo = contentType.startsWith("video/");
+            const rangeHeader = req.headers.range;
+
+            if (isVideo && rangeHeader) {
+              // Parse Range header (e.g., "bytes=0-1023")
+              const parts = rangeHeader.replace(/bytes=/, "").split("-");
+              const start = parseInt(parts[0], 10);
+              const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+              const chunkSize = end - start + 1;
+
+              res.writeHead(206, {
+                "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+                "Accept-Ranges": "bytes",
+                "Content-Length": chunkSize,
+                "Content-Type": contentType,
+              });
+
+              if (req.method === "HEAD") {
+                res.end();
+              } else {
+                const stream = fs.createReadStream(staticPath, { start, end });
+                stream.pipe(res);
+              }
+            } else {
+              // Non-range request or non-video file
+              const headers = {
+                "Content-Type": contentType,
+                "Content-Length": fileSize,
+              };
+              // Add Accept-Ranges for video files so browser knows it can seek
+              if (isVideo) {
+                headers["Accept-Ranges"] = "bytes";
+              }
+              res.writeHead(200, headers);
+
+              // HEAD requests don't need body
+              if (req.method === "HEAD") {
+                res.end();
+              } else if (fileSize > 1024 * 1024) {
+                // Use streaming for large files (> 1MB)
+                const stream = fs.createReadStream(staticPath);
+                stream.pipe(res);
+              } else {
+                const content = fs.readFileSync(staticPath);
+                res.end(content);
+              }
+            }
             return;
           }
         } catch (err) {
