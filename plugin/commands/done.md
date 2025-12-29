@@ -1,202 +1,202 @@
 ---
-description: タスク完了チェック - エビデンス収集、reviwでレビュー開始
+description: Task completion check - Evidence collection, reviw review initiation
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task
 ---
 
-# タスク完了チェックリスト
+# Task Completion Checklist
 
-実装が終わったと思ったら、このコマンドを実行して完了基準を満たしているか確認せよ。
+When you think implementation is done, run this command to verify completion criteria are met.
 
-## 重要：サブエージェント必須（compact 対策）
+## Important: Subagent Mandatory (compact countermeasure)
 
-**このルールを忘れて「実装しました！」と報告するのは、compact でコンテキストが消えたから。**
-**以下の作業は必ずサブエージェント（Task ツール）で実行せよ：**
+**Forgetting this rule and reporting "Implemented!" happens because context is lost due to compact.**
+**The following work MUST be executed by subagents (Task tool):**
 
-| 作業 | 理由 | サブエージェント |
-|------|------|-----------------|
-| 報告書作成・エビデンス整理 | 画像・動画処理で枯渇 | `subagent_type: "report-builder"` |
-| webapp-testing | スクショ Read でコンテキスト爆発 | `subagent_type: "general-purpose"` |
-| E2E テスト実行 | 長いログでコンテキスト消費 | `subagent_type: "general-purpose"` |
+| Work | Reason | Subagent |
+|------|--------|----------|
+| Report creation/evidence organization | Context depletion from image/video processing | `subagent_type: "report-builder"` |
+| webapp-testing | Context explosion from screenshot Read | `subagent_type: "general-purpose"` |
+| E2E test execution | Context consumption from long logs | `subagent_type: "general-purpose"` |
 
 ```
-悪いパターン（メインスレッドで直接実行）：
-   webapp-testing でスクショ撮影
-   → スクショを Read
-   → コンテキスト枯渇
-   → compact 発動
-   → /done の内容を忘れる
-   → 「実装しました！」で報告
-   → 無限ループ
+Bad pattern (direct execution on main thread):
+   webapp-testing screenshot capture
+   → Read screenshot
+   → Context depletion
+   → compact triggered
+   → /done contents forgotten
+   → Report with "Implemented!"
+   → Infinite loop
 
-良いパターン（サブエージェントで実行）：
-   Task ツールで subagent を起動
-   → サブエージェント内で webapp-testing 実行
-   → サブエージェントがスクショを確認
-   → 結果を要約してメインスレッドに返す
-   → メインスレッドのコンテキストは温存
-   → /done のルールを覚えたまま報告できる
+Good pattern (execution via subagent):
+   Launch subagent with Task tool
+   → Execute webapp-testing within subagent
+   → Subagent verifies screenshots
+   → Return summary to main thread
+   → Main thread context preserved
+   → Can report while remembering /done rules
 ```
 
-## /do からの引き継ぎ
+## Handoff from /do
 
-`/do` で開始したタスクは `.artifacts/<feature>/RESULT.md` に PLAN が記録されている。
-まず、その TODO の状態を確認せよ：
+Tasks started with `/do` have their PLAN recorded in `.artifacts/<feature>/RESULT.md`.
+First, verify the TODO status:
 
 ```bash
-# .artifacts ディレクトリの RESULT.md を確認
+# Check RESULT.md in .artifacts directory
 cat .artifacts/*/RESULT.md | grep -A 50 "## PLAN"
 ```
 
-**TODO にチェックが付くということは？**
+**What does checking a TODO mean?**
 
-| チェック状態 | 意味 | 次のアクション |
-|-------------|------|---------------|
-| `- [ ]` 未チェック | まだ完了していない | 作業を継続せよ |
-| `- [x]` チェック済み | **検証済み**で完了 | 次の項目へ |
+| Check status | Meaning | Next action |
+|--------------|---------|-------------|
+| `- [ ]` Unchecked | Not yet complete | Continue work |
+| `- [x]` Checked | **Verified** and complete | Move to next item |
 
-**重要：「実装しただけ」ではチェックを付けてはならない**
+**Important: Do NOT check items for "just implemented"**
 
-チェックを付けられる条件：
-- 実装 + ビルド成功 + 動作確認 + エビデンス収集
+Conditions for checking:
+- Implementation + Build success + Operation verification + Evidence collection
 
-## 完了基準（3段階）
+## Completion Criteria (3 stages)
 
-| 段階 | 内容 | 進捗 |
-|------|------|------|
-| 1/3 | 実装完了 | まだ報告するな |
-| 2/3 | ビルド・起動・動作検証完了 | まだ報告するな |
-| 3/3 | reviw でレビュー → ユーザー承認 | ここで初めて完了 |
+| Stage | Content | Progress |
+|-------|---------|----------|
+| 1/3 | Implementation complete | Do NOT report yet |
+| 2/3 | Build/start/operation verification complete | Do NOT report yet |
+| 3/3 | reviw review → User approval | Now finally complete |
 
 ```
 +---------------------------------------------------------------+
-|  実装完了 ≠ タスク完了                                        |
+|  Implementation complete ≠ Task complete                      |
 +---------------------------------------------------------------+
 |                                                               |
-|  「実装しました」→ 差し戻し                                   |
-|  「ビルド通りました」→ 差し戻し                               |
-|  「動きました（証拠なし）」→ 差し戻し                         |
+|  "Implemented" → Rejected                                     |
+|  "Build passed" → Rejected                                    |
+|  "It works (no evidence)" → Rejected                          |
 |                                                               |
-|  「証拠付きで動作確認しました」→ ようやくレビュー開始         |
+|  "Verified operation with evidence" → Finally review starts   |
 |                                                               |
 +---------------------------------------------------------------+
 ```
 
-## 実装後の必須アクション
+## Required Actions After Implementation
 
-以下をすべて実行するまで「完了」と言ってはならない：
+Do NOT say "complete" until all of the following are executed:
 
-### 0. TODO の現状確認（差し戻し判定）
-
-```
-現在の TODO 状態を確認し、以下に該当する場合は差し戻す：
-
-- 実装系の TODO だけチェックが付いている → 差し戻し
-- 検証系の TODO（ビルド・動作確認）が未チェック → 差し戻し
-- エビデンス収集の TODO が未チェック → 差し戻し
-
-差し戻し時は以下を表示：
-「実装だけでは完了ではありません。ビルド→動作確認→エビデンス収集を実行してください。」
-```
-
-### 1. ビルド実行
-   - `npm run build` / `pnpm build` などでエラーがないか確認
-   - 型エラー、lint エラーがないか確認
-
-### 2. 開発サーバー起動（Webプロジェクトの場合）
-   - 実際にサーバーを起動する
-
-### 3. 動作検証
-   - `webapp-testing` スキルを使用してブラウザで実際に操作
-   - 期待通りの動作をするか確認
-
-### 4. 報告書作成・エビデンス整理
-
-**report-builder エージェントを使用すること：**
+### 0. Verify TODO Current Status (Rejection Determination)
 
 ```
-Task ツールで subagent_type: "report-builder" を指定
-→ artifact-proof スキルが自動ロードされる
-→ 報告書作成・エビデンス整理を実行
-→ reviw でレビュー開始準備が整う
+Check current TODO status and reject if any of the following apply:
+
+- Only implementation TODOs are checked → Reject
+- Verification TODOs (build/operation check) are unchecked → Reject
+- Evidence collection TODOs are unchecked → Reject
+
+On rejection, display:
+"Implementation alone is not completion. Execute build → operation verification → evidence collection."
 ```
 
-### 5. reviw でレビュー開始
+### 1. Execute Build
+   - Verify no errors with `npm run build` / `pnpm build` etc.
+   - Check for type errors, lint errors
 
-**重要：reviw はフォアグラウンドで起動すること**
+### 2. Start Development Server (for Web projects)
+   - Actually start the server
+
+### 3. Operation Verification
+   - Use `webapp-testing` skill to actually operate in browser
+   - Verify expected behavior
+
+### 4. Report Creation/Evidence Organization
+
+**Use report-builder agent:**
+
+```
+Specify subagent_type: "report-builder" with Task tool
+→ artifact-proof skill auto-loads
+→ Execute report creation/evidence organization
+→ Ready to start reviw review
+```
+
+### 5. Start reviw Review
+
+**Important: Launch reviw in foreground**
 
 ```bash
-# 動画ファイルを先に開く（あれば）
+# Open video file first (if exists)
 open .artifacts/<feature>/demo.mp4
 
-# 報告書を reviw で開く（フォアグラウンド）
+# Open report with reviw (foreground)
 npx reviw .artifacts/<feature>/RESULT.md
 ```
 
-reviw でレビューを開始すると：
-1. ブラウザが開き、報告書が表示される
-2. ユーザーがコメントを付けて Submit & Exit
-3. YAML 形式でフィードバックが返ってくる
-4. フィードバックを TodoWrite に登録して対応
+When reviw review starts:
+1. Browser opens, report is displayed
+2. User adds comments and Submit & Exit
+3. Feedback returns in YAML format
+4. Register feedback in TodoWrite and respond
 
-**フォアグラウンドで起動する理由：**
-- ユーザーのレビューコメントを受け取るため
-- バックグラウンドだとフィードバックが伝わらない
+**Reason for foreground launch:**
+- To receive user review comments
+- Feedback won't be conveyed in background
 
-### 6. フィードバック対応
+### 6. Feedback Response
 
-フィードバックをもらったら：
-1. **必ず TodoWrite に登録してから作業開始**
-2. Todo の文章は詳細に書く（要約禁止）
-3. 修正完了後、再度エビデンス収集 → reviw でレビュー
+After receiving feedback:
+1. **MUST register in TodoWrite before starting work**
+2. Write TODO sentences in detail (no summarization)
+3. After modification complete, evidence collection again → reviw review
 
-## reviw の使い方ヒント
+## reviw Usage Tips
 
 ```bash
-# Markdown を開く
+# Open Markdown
 npx reviw report.md
 
-# 複数ファイルを開く
+# Open multiple files
 npx reviw file1.md file2.csv
 
-# git diff を開く
+# Open git diff
 git diff HEAD | npx reviw
 
-# ポート指定
+# Specify port
 npx reviw report.md --port 5000
 ```
 
-## 禁止事項
+## Prohibited Actions
 
-- 「実装完了です！」だけの報告
-- 動作確認なしの完了宣言
-- 証拠なしの「動きました」報告
-- モック・スキップ・バイパスによる検証の省略
-- **実装しただけで TODO にチェックを付けること**
-- **reviw をバックグラウンドで起動すること**
+- Reporting only "Implementation complete!"
+- Completion declaration without operation verification
+- "It works" report without evidence
+- Omitting verification via mock/skip/bypass
+- **Checking TODO just for implementing**
+- **Launching reviw in background**
 
-## 報告テンプレート
+## Report Template
 
 ```
-## 実施内容
-- [何を実装したか]
+## Implementation Details
+- [What was implemented]
 
-## TODO 消化状況（/do からの引き継ぎ）
-- [x] 実装: [具体的な内容]
-- [x] ビルド: 成功
-- [x] 動作確認: webapp-testing で検証済み
-- [x] エビデンス: artifact-proof で収集済み
+## TODO Completion Status (Handoff from /do)
+- [x] Implementation: [specific details]
+- [x] Build: Success
+- [x] Operation verification: Verified with webapp-testing
+- [x] Evidence: Collected with artifact-proof
 
-## 検証結果
-- ビルド: [成功/失敗]
-- 動作確認: [成功/失敗]
-- 証跡: [スクリーンショット/動画のパス]
+## Verification Results
+- Build: [success/failure]
+- Operation verification: [success/failure]
+- Evidence: [screenshot/video path]
 
-## 確認事項
-[ユーザーに確認してほしいことがあれば記載]
+## Confirmation Items
+[If there's anything for user to confirm, describe here]
 ```
 
 ---
 
-**このチェックリストを満たすまで、タスク完了とは言えない。**
-**実装だけで完了を主張した場合、即座に差し戻す。**
-**reviw でレビューを受けて初めてタスク完了となる。**
+**Until this checklist is satisfied, it cannot be called task complete.**
+**If completion is claimed with only implementation, immediately reject.**
+**Task completion only occurs after receiving reviw review.**

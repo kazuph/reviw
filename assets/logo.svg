@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200">
+  <defs>
+    <!-- Gradient for background -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d5016;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#4a7c23;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6b8e23;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Subtle pattern overlay -->
+    <pattern id="dots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.05)"/>
+    </pattern>
+
+    <!-- Glow effect for text -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background with rounded corners -->
+  <rect x="0" y="0" width="800" height="200" rx="16" ry="16" fill="url(#bgGradient)"/>
+  <rect x="0" y="0" width="800" height="200" rx="16" ry="16" fill="url(#dots)"/>
+
+  <!-- Decorative review elements - left side -->
+  <!-- Comment bubble with checkmark -->
+  <g transform="translate(60, 100)">
+    <!-- Bubble body -->
+    <path d="M-35,-40 L35,-40 Q45,-40 45,-30 L45,20 Q45,30 35,30 L5,30 L-5,45 L-10,30 L-35,30 Q-45,30 -45,20 L-45,-30 Q-45,-40 -35,-40 Z"
+          fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,200,0.3)" stroke-width="2"/>
+    <!-- Checkmark inside -->
+    <path d="M-15,0 L-5,10 L20,-15"
+          fill="none" stroke="#f5f5dc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Document with lines - subtle background element -->
+  <g transform="translate(720, 100)" opacity="0.2">
+    <rect x="-30" y="-45" width="60" height="80" rx="4" fill="none" stroke="#f5f5dc" stroke-width="2"/>
+    <line x1="-20" y1="-25" x2="20" y2="-25" stroke="#f5f5dc" stroke-width="2"/>
+    <line x1="-20" y1="-10" x2="20" y2="-10" stroke="#f5f5dc" stroke-width="2"/>
+    <line x1="-20" y1="5" x2="10" y2="5" stroke="#f5f5dc" stroke-width="2"/>
+    <path d="M5,15 L12,22 L25,5" fill="none" stroke="#f5f5dc" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- Main text "reviw" -->
+  <text x="400" y="115"
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="90"
+        font-weight="700"
+        text-anchor="middle"
+        fill="#f5f5dc"
+        filter="url(#glow)"
+        letter-spacing="-2">
+    reviw
+  </text>
+
+  <!-- Tagline -->
+  <text x="400" y="155"
+        font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+        font-size="18"
+        font-weight="400"
+        text-anchor="middle"
+        fill="rgba(245,245,220,0.7)"
+        letter-spacing="3">
+    HUMAN-IN-THE-LOOP REVIEW
+  </text>
+
+  <!-- Decorative lines -->
+  <line x1="180" y1="170" x2="280" y2="170" stroke="rgba(245,245,220,0.3)" stroke-width="1"/>
+  <line x1="520" y1="170" x2="620" y2="170" stroke="rgba(245,245,220,0.3)" stroke-width="1"/>
+
+  <!-- Small decorative checkmarks scattered -->
+  <g opacity="0.15">
+    <path d="M150,50 L155,55 L165,42" fill="none" stroke="#f5f5dc" stroke-width="2" stroke-linecap="round"/>
+    <path d="M650,45 L655,50 L665,37" fill="none" stroke="#f5f5dc" stroke-width="2" stroke-linecap="round"/>
+    <path d="M180,150 L183,153 L190,144" fill="none" stroke="#f5f5dc" stroke-width="2" stroke-linecap="round"/>
+    <path d="M620,155 L623,158 L630,149" fill="none" stroke="#f5f5dc" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

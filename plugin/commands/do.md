@@ -1,106 +1,106 @@
 ---
-description: タスク開始 - worktree作成、計画策定、reviwでのレビュー準備
-argument-hint: <タスクの説明>
+description: Task Start - worktree creation, planning, and review preparation in reviw
+argument-hint: <task description>
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite
 ---
 
-# タスク開始コマンド
+# Task Start Command
 
-これからやりたいことの依頼を受け、作業環境をセットアップして計画を立てる。
+Receive requests for tasks to be done, set up the work environment, and create a plan.
 
-## 重要：サブエージェント必須
+## Important: Subagents Required
 
-**コンテキスト枯渇を防ぐため、以下の作業は必ずサブエージェント（Task ツール）で実行せよ：**
+**To prevent context exhaustion, the following tasks MUST be executed by subagents (Task tool):**
 
-| 作業 | 理由 | サブエージェント |
+| Task | Reason | Subagent |
 |------|------|-----------------|
-| webapp-testing | スクショ Read でコンテキスト爆発 | `subagent_type: "general-purpose"` |
-| artifact-proof | 画像・動画処理で枯渇 | `subagent_type: "general-purpose"` |
-| E2E テスト実行 | 長いログでコンテキスト消費 | `subagent_type: "general-purpose"` |
+| webapp-testing | Context explosion from screenshot Read | `subagent_type: "general-purpose"` |
+| artifact-proof | Exhaustion from image/video processing | `subagent_type: "general-purpose"` |
+| E2E test execution | Context consumption from long logs | `subagent_type: "general-purpose"` |
 
 ```
-メインスレッドで webapp-testing を直接実行すると：
-   → スクショを Read → コンテキスト枯渇 → compact 発動
-   → /done の内容を忘れる → 「実装しました！」で報告
-   → 差し戻し → 無限ループ
+When webapp-testing is executed directly in the main thread:
+   → Read screenshots → Context exhaustion → compact triggered
+   → Forgets /done content → Reports "Implementation complete!"
+   → Rejection → Infinite loop
 ```
 
-**正しいやり方：**
+**Correct approach:**
 ```
-Task ツールで subagent を起動
-→ サブエージェント内で webapp-testing 実行
-→ サブエージェントが結果を要約して返す
-→ メインスレッドのコンテキストは温存される
+Launch subagent with Task tool
+→ Execute webapp-testing within subagent
+→ Subagent summarizes results and returns
+→ Main thread context is preserved
 ```
 
-## 引数
+## Arguments
 
-$ARGUMENTS = これからやりたいことの依頼文、仕様説明など
+$ARGUMENTS = Request text for what to do, specification explanation, etc.
 
-## タスク再開の場合
+## When Resuming a Task
 
-**セッション起動時・compact 後は、新規作成前に既存 worktree を確認せよ。**
+**At session startup / after compact, check existing worktrees before creating new ones.**
 
 ```bash
-# 作業中の worktree を確認
+# Check worktrees in progress
 git worktree list
 
-# worktree に移動
-cd .worktree/<機能名>
+# Move to worktree
+cd .worktree/<feature-name>
 
-# 進捗を確認
-cat .artifacts/<機能名>/REPORT.md
+# Check progress
+cat .artifacts/<feature-name>/REPORT.md
 ```
 
-**REPORT.md の TODO を確認し、未完了項目から作業を再開せよ。**
+**Check TODOs in REPORT.md and resume work from incomplete items.**
 
-### 報告書の場所
+### Report Location
 
 ```
-.worktree/<機能名>/.artifacts/<機能名>/REPORT.md
+.worktree/<feature-name>/.artifacts/<feature-name>/REPORT.md
 ```
 
-※ `<機能名>` = ブランチ名から prefix を除いた部分（例: `feature/auth` → `auth`）
+※ `<feature-name>` = part after removing prefix from branch name (e.g., `feature/auth` → `auth`)
 
-## 実行手順（新規タスクの場合）
+## Execution Steps (For New Tasks)
 
-### 1. 作業環境のセットアップ
+### 1. Work Environment Setup
 
-まず、現在のプロジェクトが git リポジトリであることを確認する。
+First, verify that the current project is a git repository.
 
 ```bash
-# プロジェクトルートで実行
+# Execute at project root
 git rev-parse --show-toplevel
 ```
 
-次に、タスク用の worktree を作成する。ブランチ名は依頼内容から適切な名前を自動生成する。
+Next, create a worktree for the task. Branch name is automatically generated appropriately from the request content.
 
-### worktree の命名規則
+### worktree Naming Convention
 
-| 種別 | ブランチ名 | 例 |
+| Type | Branch Name | Example |
 |------|-----------|-----|
-| 新機能 | `feature/<機能名>` | `feature/auth`, `feature/events` |
-| バグ修正 | `fix/<内容>` | `fix/login-error`, `fix/validation` |
-| リファクタ | `refactor/<対象>` | `refactor/api-client` |
-| ドキュメント | `docs/<対象>` | `docs/readme` |
+| New feature | `feature/<feature-name>` | `feature/auth`, `feature/events` |
+| Bug fix | `fix/<content>` | `fix/login-error`, `fix/validation` |
+| Refactoring | `refactor/<target>` | `refactor/api-client` |
+| Documentation | `docs/<target>` | `docs/readme` |
 
 ```bash
-# worktree を作成（--from-current で現在のブランチから分岐）
+# Create worktree (--from-current to branch from current branch)
 git gtr new <branch-name> --from-current
 
-# worktree のパスを取得
+# Get worktree path
 WORKTREE_PATH="$(git gtr go <branch-name>)"
 
-# worktree に移動
+# Move to worktree
 cd "$WORKTREE_PATH"
 ```
 
-### 2. .gitignore の設定
+### 2. .gitignore Configuration
 
-**重要：** `.worktree` と `.artifacts` をコミット対象から除外する。
+**Important:** Exclude `.worktree` and `.artifacts` from commit targets.
 
 ```bash
-# プロジェクトルートの .gitignore に追記（存在しない場合のみ）
+# Add to project root .gitignore (only if not already present)
 if ! grep -q "^\.worktree$" .gitignore 2>/dev/null; then
   echo ".worktree" >> .gitignore
 fi
@@ -109,207 +109,224 @@ if ! grep -q "^\.artifacts$" .gitignore 2>/dev/null; then
 fi
 ```
 
-**理由：**
-- `.worktree/` - 作業用ディレクトリはローカル専用
-- `.artifacts/` - エビデンス（スクショ・動画）はリポジトリを肥大化させるため除外
+**Reason:**
+- `.worktree/` - Work directory is for local use only
+- `.artifacts/` - Evidence (screenshots/videos) excluded to prevent repository bloat
 
-### 3. 成果物ディレクトリの準備
+**When you want to commit specific evidence:**
 
-worktree 内に `.artifacts/<機能名>/` ディレクトリを作成する。
+Even if included in `.gitignore`, you can explicitly add with `git add --force`:
 
-**ディレクトリ構成：**
+```bash
+# Force add specific files
+git add --force .artifacts/<feature>/images/important-screenshot.png
+git add --force .artifacts/<feature>/REPORT.md
+
+# Use Git LFS for videos
+git lfs track "*.mp4" "*.webm"
+git add .gitattributes
+git add --force .artifacts/<feature>/videos/demo.mp4
 ```
-.worktree/<機能名>/
+
+The recommended approach is to exclude by default and explicitly commit only what's needed.
+
+### 3. Deliverables Directory Preparation
+
+Create `.artifacts/<feature-name>/` directory within the worktree.
+
+**Directory Structure:**
+```
+.worktree/<feature-name>/
 └── .artifacts/
-    └── <機能名>/
-        ├── REPORT.md     # 計画・進捗・エビデンスリンク
-        ├── images/       # スクリーンショット
-        └── videos/       # 動画ファイル
+    └── <feature-name>/
+        ├── REPORT.md     # Plan, progress, and evidence links
+        ├── images/       # Screenshots
+        └── videos/       # Video files
 ```
 
 ```bash
-mkdir -p .artifacts/<機能名>/{images,videos}
+mkdir -p .artifacts/<feature-name>/{images,videos}
 ```
 
-### 4. 計画の策定（REPORT.md）
+### 4. Planning (REPORT.md)
 
-`.artifacts/<機能名>/REPORT.md` を作成し、以下のフォーマットで計画を書き出す：
+Create `.artifacts/<feature-name>/REPORT.md` and write the plan in the following format:
 
 ```markdown
-# <タスク名>
+# <Task Name>
 
-作成日: YYYY-MM-DD
-ブランチ: <branch-name>
-ステータス: 進行中
+Created: YYYY-MM-DD
+Branch: <branch-name>
+Status: In Progress
 
-## 概要
+## Overview
 
-<依頼内容の要約>
+<Summary of request content>
 
-## 進捗
+## Progress
 
-| 日付 | 内容 | 状態 |
+| Date | Content | Status |
 |------|------|------|
-| YYYY-MM-DD | 計画策定 | 完了 |
-| YYYY-MM-DD | API実装 | 進行中 |
+| YYYY-MM-DD | Planning | Completed |
+| YYYY-MM-DD | API Implementation | In Progress |
 
 ## PLAN
 
 ### TODO
 
-- [ ] <具体的なタスク1>
-- [ ] <具体的なタスク2>
-- [ ] <具体的なタスク3>
-- [ ] ビルド・型チェックの実行
-- [ ] 開発サーバーの起動
-- [ ] webapp-testing で動作確認
-- [ ] artifact-proof でエビデンス収集
-- [ ] /done で完了報告（reviw でレビュー）
+- [ ] <Specific task 1>
+- [ ] <Specific task 2>
+- [ ] <Specific task 3>
+- [ ] Execute build and type check
+- [ ] Start development server
+- [ ] Verify operation with webapp-testing
+- [ ] Collect evidence with artifact-proof
+- [ ] Complete report with /done (review in reviw)
 
-### 完了条件
+### Completion Criteria
 
-- [ ] 実装が完了していること
-- [ ] ビルドが成功すること
-- [ ] 動作確認が取れていること
-- [ ] エビデンス（スクリーンショット/動画）が残っていること
-- [ ] reviw でレビューを受けること
+- [ ] Implementation completed
+- [ ] Build successful
+- [ ] Operation verified
+- [ ] Evidence (screenshots/videos) collected
+- [ ] Reviewed in reviw
 
-## テスト結果
+## Test Results
 
-### 単体テスト
+### Unit Tests
 - `tests/unit/xxx.test.ts`: PASS/FAIL
 
-### 結合テスト
+### Integration Tests
 - `tests/integration/xxx.test.ts`: PASS/FAIL
 
-### E2Eテスト
+### E2E Tests
 - `tests/e2e/xxx.spec.ts`: PASS/FAIL
 
-## 技術的なメモ
+## Technical Notes
 
-<実装中に気づいた点やメモを追記していく>
+<Add notes and observations during implementation>
 
-## エビデンス
+## Evidence
 
-<artifact-proof で収集したエビデンスへのリンクを追記していく>
+<Add links to evidence collected with artifact-proof>
 ```
 
-### 5. TodoWrite への反映
+### 5. Reflection to TodoWrite
 
-上記の PLAN を TodoWrite ツールにも反映する。これにより進捗が可視化される。
+Reflect the above PLAN to the TodoWrite tool as well. This visualizes progress.
 
-### 6. サブエージェントによる並列実装
+### 6. Parallel Implementation with Subagents
 
-**計画策定後、実装は必ずサブエージェント（Task ツール）で実行する。**
+**After planning, implementation MUST be executed with subagents (Task tool).**
 
-メインスレッドはディレクター役に徹し、以下のフローで進める：
+The main thread should focus on the director role and proceed with the following flow:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  メインスレッド（ディレクター）                              │
+│  Main Thread (Director)                                     │
 │                                                             │
-│  1. プラン策定完了                                          │
-│  2. タスクを依存関係で分類                                  │
-│     ├─ 独立タスク → 並列でサブエージェント起動             │
-│     └─ 依存タスク → 前段完了後に起動                       │
-│  3. 各サブエージェントの結果を統合                          │
-│  4. 次のフェーズへ進む                                      │
+│  1. Planning completed                                      │
+│  2. Classify tasks by dependencies                          │
+│     ├─ Independent tasks → Launch subagents in parallel     │
+│     └─ Dependent tasks → Launch after previous completion   │
+│  3. Integrate results from each subagent                    │
+│  4. Proceed to next phase                                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**並列実行の例：**
+**Example of Parallel Execution:**
 
 ```
-# 独立した3つのコンポーネント実装を並列で起動
-Task(subagent_type="webapp-master", prompt="HeaderComponent を実装...")
-Task(subagent_type="webapp-master", prompt="SidebarComponent を実装...")
-Task(subagent_type="webapp-master", prompt="FooterComponent を実装...")
+# Launch 3 independent component implementations in parallel
+Task(subagent_type="webapp-master", prompt="Implement HeaderComponent...")
+Task(subagent_type="webapp-master", prompt="Implement SidebarComponent...")
+Task(subagent_type="webapp-master", prompt="Implement FooterComponent...")
 ```
 
-**サブエージェントの選択基準：**
+**Subagent Selection Criteria:**
 
-| タスク種別 | subagent_type | 備考 |
+| Task Type | subagent_type | Notes |
 |-----------|---------------|------|
-| Web UI 実装 | `webapp-master` | フロントエンド全般 |
-| Expo/RN 実装 | `expo-app-maker` | モバイルアプリ |
-| コード調査 | `Explore` | 既存コードの理解 |
-| 設計レビュー | `Plan` | アーキテクチャ検討 |
-| 動作確認 | `general-purpose` + webapp-testing skill | 検証フェーズ |
-| エビデンス収集 | `general-purpose` + artifact-proof skill | 完了報告準備 |
+| Web UI Implementation | `webapp-master` | General frontend |
+| Expo/RN Implementation | `expo-app-maker` | Mobile apps |
+| Code Investigation | `Explore` | Understanding existing code |
+| Design Review | `Plan` | Architecture review |
+| Operation Verification | `general-purpose` + webapp-testing skill | Verification phase |
+| Evidence Collection | `general-purpose` + artifact-proof skill | Completion report preparation |
 
-### 7. 成果を意識した行動指針の確認
+### 7. Confirm Action Guidelines Focused on Deliverables
 
-**重要な注意事項を表示：**
+**Display important notes:**
 
 ```
 +---------------------------------------------------------------+
-|  タスク開始                                                    |
+|  Task Start                                                   |
 +---------------------------------------------------------------+
 |                                                               |
-|  現在地: $WORKTREE_PATH                                       |
-|  ブランチ: <branch-name>                                      |
+|  Current location: $WORKTREE_PATH                             |
+|  Branch: <branch-name>                                        |
 |                                                               |
-|  実装完了は作業の 1/3 に過ぎません                            |
+|  Implementation completion is only 1/3 of the work            |
 |                                                               |
-|  完了基準：                                                   |
-|    1/3: 実装完了                                              |
-|    2/3: ビルド・起動・動作確認完了                            |
-|    3/3: reviw でレビュー → ユーザー承認                       |
+|  Completion criteria:                                         |
+|    1/3: Implementation complete                               |
+|    2/3: Build, start, and operation verification complete     |
+|    3/3: Review in reviw → User approval                       |
 |                                                               |
-|  使用ツール：                                                 |
-|    - reviw: ブラウザベースのレビューツール                    |
-|    - webapp-testing: ブラウザ操作・動作確認                   |
-|    - artifact-proof: エビデンス収集                           |
+|  Tools to use:                                                |
+|    - reviw: Browser-based review tool                         |
+|    - webapp-testing: Browser operation and verification       |
+|    - artifact-proof: Evidence collection                      |
 |                                                               |
-|  作業完了時は /done を実行してレビューを開始                  |
+|  Execute /done when work is complete to start review          |
 |                                                               |
 +---------------------------------------------------------------+
 ```
 
-## 禁止事項
+## Prohibited Actions
 
-- **main ブランチでの直接作業を禁止** - 必ず worktree を作成してから作業を開始すること
-- 計画なしに実装を始めること
-- worktree を作成せずにメインブランチで作業すること
-- エビデンス収集を忘れること
-- /done を実行せずに完了報告すること
-- メインスレッドで直接コードを書くこと（コンテキスト枯渇の原因）
-- サブエージェントを起動せず「実装します」と宣言だけすること
-- 並列可能なタスクを順次実行すること（効率低下）
+- **Direct work on main branch prohibited** - Always create a worktree before starting work
+- Starting implementation without a plan
+- Working on main branch without creating a worktree
+- Forgetting to collect evidence
+- Reporting completion without executing /done
+- Writing code directly in the main thread (causes context exhaustion)
+- Only declaring "will implement" without launching subagents
+- Executing parallelizable tasks sequentially (reduced efficiency)
 
-## PR 作成フロー（参考）
+## PR Creation Flow (Reference)
 
-PR の作成先（develop / main）はプロジェクトの CLAUDE.md に従う。
+Follow the project's CLAUDE.md for PR creation target (develop / main).
 
 ```bash
-# 1. worktree で作業完了後
-cd .worktree/<機能名>
+# 1. After completing work in worktree
+cd .worktree/<feature-name>
 
-# 2. コミット（/done 実行後）
+# 2. Commit (after executing /done)
 git add .
-git commit -m "feat: <内容>"
+git commit -m "feat: <content>"
 
-# 3. プッシュ
+# 3. Push
 git push -u origin <branch-name>
 
-# 4. PR 作成（プロジェクト設定に従う）
+# 4. Create PR (follow project settings)
 gh pr create --base <target-branch> --head <branch-name>
 
-# 5. マージ後、worktree 削除
+# 5. After merge, remove worktree
 cd ../..
-git worktree remove .worktree/<機能名>
+git worktree remove .worktree/<feature-name>
 ```
 
-**注意**: main への直接 PR 作成は AI 禁止のプロジェクトもある。プロジェクトの CLAUDE.md を確認すること。
+**Note**: Some projects prohibit AI from creating PRs directly to main. Check the project's CLAUDE.md.
 
-## 例
+## Example
 
 ```
-/do ログインボタンを追加して、クリックしたら /login に遷移するようにする
+/do Add a login button that navigates to /login when clicked
 ```
 
-これにより：
-1. `feature/add-login-button` ブランチで worktree が作成される
-2. `.worktree/add-login-button/.artifacts/add-login-button/REPORT.md` に計画が書き出される
-3. TodoWrite に TODO が登録される
-4. 成果志向の行動指針が表示される
+This will:
+1. Create a worktree with `feature/add-login-button` branch
+2. Write the plan to `.worktree/add-login-button/.artifacts/add-login-button/REPORT.md`
+3. Register TODOs in TodoWrite
+4. Display deliverable-focused action guidelines

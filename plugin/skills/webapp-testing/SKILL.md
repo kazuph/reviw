@@ -82,7 +82,7 @@ with sync_playwright() as p:
 
 ## Best Practices
 
-- **Use bundled scripts as black boxes** - To accomplish a task, consider whether one of the scripts available in `scripts/` can help. These scripts handle common, complex workflows reliably without cluttering the context window. Use `--help` to see usage, then invoke directly. 
+- **Use bundled scripts as black boxes** - To accomplish a task, consider whether one of the scripts available in `scripts/` can help. These scripts handle common, complex workflows reliably without cluttering the context window. Use `--help` to see usage, then invoke directly.
 - Use `sync_playwright()` for synchronous scripts
 - Always close the browser when done
 - Use descriptive selectors: `text=`, `role=`, CSS selectors, or IDs
@@ -94,15 +94,15 @@ with sync_playwright() as p:
   - `element_discovery.py` - Discovering buttons, links, and inputs on a page
   - `static_html_automation.py` - Using file:// URLs for local HTML
   - `console_logging.py` - Capturing console logs during automation
-  - `node_site_diagnostics.js` - Node版の簡易診断（コンソールエラー/HTTP失敗収集＋スクショ）
+  - `node_site_diagnostics.js` - Simple Node diagnostics (console errors/HTTP failures collection + screenshots)
 
 ---
 
 ## Node Playwright Addendum (local extensions)
 
-Node版の運用で便利だった手筋を追記しておく。公式本文はPython基盤のまま保持し、ここだけローカル拡張として参照する。
+Documenting useful patterns from Node operations. The official content above remains Python-based; this section serves as a local extension for reference.
 
-- **即席ワンライナー**: `/tmp`を汚さない一発実行が最速。`networkidle`待機とフルページスクショの最小例:
+- **Quick one-liner**: Fastest approach without cluttering `/tmp`. Minimal example for `networkidle` wait and full-page screenshot:
   ```bash
   node -e "const { chromium } = require('playwright');
   (async () => {
@@ -115,7 +115,7 @@ Node版の運用で便利だった手筋を追記しておく。公式本文はP
   })();"
   ```
 
-- **証跡セット（スクリプト/動画/スクショ/trace）**: 証跡が必要なときは`.artifacts/<feature>/`にまとめる。**Playwrightスクリプト自体も`scripts/`に保存**し、何を実行したか再現可能にする。動画は`recordVideo`、traceはPlaywright Testで`--trace=retain-on-failure`が手軽。
+- **Evidence collection (scripts/videos/screenshots/traces)**: When evidence is required, consolidate in `.artifacts/<feature>/`. **Save the Playwright script itself in `scripts/`** to make execution reproducible. Videos use `recordVideo`, traces use `--trace=retain-on-failure` in Playwright Test for convenience.
   ```bash
   FEATURE=${FEATURE:-feature}
   mkdir -p .artifacts/$FEATURE/{scripts,images,videos}
@@ -131,24 +131,24 @@ Node版の運用で便利だった手筋を追記しておく。公式本文はP
     await page.screenshot({ path: `.artifacts/${FEATURE}/images/${Date.now()}-step.png`, fullPage: true });
     await browser.close();
   })();"
-  # Playwright Testでtraceを残す場合
+  # When keeping traces with Playwright Test
   # BASE_URL=http://localhost:3000 npx playwright test tests/e2e/<spec>.spec.ts --headed --output=.artifacts/$FEATURE/images --trace=retain-on-failure --reporter=line
   ```
 
-- **Chrome DevTools MCPの併用判断**: スクショだけで原因が読みにくいレイアウト/フォント/重ね順/パフォーマンスは、まずPlaywrightで再現と証跡取得 → それでも不明ならDevTools MCPでStyles/Computed/Box model/Performanceをピンポイント確認。
+- **Decision on Chrome DevTools MCP usage**: For layout/font/stacking/performance issues hard to diagnose from screenshots alone, first reproduce and capture evidence with Playwright → if still unclear, pinpoint with DevTools MCP for Styles/Computed/Box model/Performance.
 
-- **Lighthouseによる性能スナップショット**: ざっくり性能を測りたいときの最小実行。出力は`/tmp`に集約。
+- **Performance snapshot with Lighthouse**: Minimal execution for rough performance measurement. Output consolidated in `/tmp`.
   ```bash
   npx lighthouse ${BASE_URL:-http://localhost:3000} --output=json --output-path=/tmp/lh.json --chrome-flags="--headless" --only-categories=performance
   node -e "const data = require('/tmp/lh.json'); const perf = data.categories.performance; console.log('Performance Score', Math.round(perf.score*100));"
   ```
 
-運用ポリシー: 基本はheadless、証跡が要るときだけheadedに切り替え。プロジェクト直下を汚さず`/tmp`か`.artifacts/`配下に書き出し、終了後は不要ファイルを削除する。
+Operation policy: Default to headless, switch to headed only when evidence is needed. Write to `/tmp` or `.artifacts/` subdirectory without cluttering the project root, and delete unnecessary files after completion.
 
-## DevTools MCP不要でPlaywrightだけでやる方法メモ
-Chrome DevTools MCPの中身はPuppeteer+CDP。Playwrightも同じCDPを叩けるので、以下の手順で代替する。
+## Notes on Playwright-only approach without DevTools MCP
+Chrome DevTools MCP internally uses Puppeteer + CDP. Playwright can also use CDP, so substitute with the following steps.
 
-- **Performanceトレース（Performanceパネル相当）**: Playwright標準のトレースを使う。
+- **Performance trace (equivalent to Performance panel)**: Use Playwright's standard tracing.
   ```python
   with sync_playwright() as p:
       browser = p.chromium.launch(headless=True)
@@ -156,55 +156,55 @@ Chrome DevTools MCPの中身はPuppeteer+CDP。Playwrightも同じCDPを叩け�
       context.tracing.start(screenshots=True, snapshots=True)
       page = context.new_page()
       page.goto("http://localhost:3000", wait_until="networkidle")
-      # ここで操作
+      # Perform operations here
       context.tracing.stop(path=".artifacts/feature/traces/trace.zip")
       browser.close()
   ```
-  DevToolsの`Performance`ビューに近い詳細が欲しければCDPセッションで`Tracing.start`/`end`し、出力JSONを`chrome://tracing`や`perfetto.dev`で読む。
+  For detailed output similar to DevTools `Performance` view, use a CDP session with `Tracing.start`/`end` and read the output JSON with `chrome://tracing` or `perfetto.dev`.
 
-- **Coverage（Coverageパネル相当）**: CDP経由で取得。
+- **Coverage (equivalent to Coverage panel)**: Retrieve via CDP.
   ```python
   cdp = page.context.new_cdp_session(page)
   cdp.send("Profiler.enable")
   cdp.send("Profiler.startPreciseCoverage", {"callCount": True, "detailed": True})
-  # ここで操作
+  # Perform operations here
   result = cdp.send("Profiler.takePreciseCoverage")
   cdp.send("Profiler.stopPreciseCoverage"); cdp.send("Profiler.disable")
-  # result["result"] にファイルごとの使用率が入る
+  # result["result"] contains usage per file
   ```
 
-- **Styles/Box Model/Computed値の確認**: DevTools UIでなく値だけ取る。
+- **Checking Styles/Box Model/Computed values**: Retrieve values without DevTools UI.
   ```python
   box = page.locator("selector").evaluate("el => el.getBoundingClientRect()")
   styles = page.locator("selector").evaluate("el => getComputedStyle(el)")
   ```
 
-- **Networkボディ取得**: `page.on('request')`でメタは取れるが、レスポンス本文はCDPで。
+- **Network body retrieval**: `page.on('request')` captures metadata, but response body needs CDP.
   ```python
   cdp = page.context.new_cdp_session(page)
   resp = cdp.send("Network.getResponseBody", {"requestId": "<target requestId>"})
   ```
-  `requestId`は`page.on("requestfinished", ...)`で`request.timing()`と一緒にログして紐付ける。
+  Get `requestId` by logging with `page.on("requestfinished", ...)` along with `request.timing()` for correlation.
 
-- **コンソール/エラー収集**: Playwrightのイベントで足りる。
+- **Console/error collection**: Playwright events are sufficient.
   ```python
   page.on("console", lambda msg: print("console:", msg.type, msg.text))
   page.on("pageerror", lambda err: print("pageerror:", err))
   page.on("requestfailed", lambda req: print("requestfailed:", req.url))
   ```
 
-## ファイル配置規約
+## File placement conventions
 
-検証時に生成するファイルは以下の構成で `.artifacts/<feature>/` に集約する：
+Consolidate verification-generated files in `.artifacts/<feature>/` with the following structure:
 
 ```
 .artifacts/<feature>/
-├── scripts/      # Playwrightスクリプト（.py / .js / .ts）
-├── images/       # スクリーンショット
-├── videos/       # 録画ファイル
-└── traces/       # Playwright trace（.zip）
+├── scripts/      # Playwright scripts (.py / .js / .ts)
+├── images/       # Screenshots
+├── videos/       # Recorded videos
+└── traces/       # Playwright traces (.zip)
 ```
 
-- **スクリプトも証跡の一部**: 何を実行したか再現可能にするため、使い捨てでも `scripts/` に保存
-- **命名規則**: `<timestamp>-<step>.png`、`verify-<feature>.py` など意図が分かる名前を推奨
-- **即席検証のみ `/tmp`**: 証跡不要の一発確認は `/tmp` でOK、ただし後から参照できない前提
+- **Scripts are also part of evidence**: Save in `scripts/` even if disposable, to make execution reproducible
+- **Naming convention**: Use descriptive names like `<timestamp>-<step>.png`, `verify-<feature>.py` that convey intent
+- **Quick validation only in `/tmp`**: OK for one-off checks without evidence, but assume no future reference

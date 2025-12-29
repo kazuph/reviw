@@ -7,47 +7,47 @@ allowed-tools:
 
 # Artifact Proof
 
-開発過程の証拠（スクショ・動画・ログ）を `.artifacts/<feature>/` に残し、PR本文へ転用するための運用フロー。  
-ヒューマンインザループのビジュアルリグレッションを前提とし、コミット前・PR push前に必ずスクショを撮り直して確認する。
+An operational workflow for preserving development evidence (screenshots, videos, logs) in `.artifacts/<feature>/` and reusing it for PR descriptions.
+Assumes human-in-the-loop visual regression, requiring screenshots to be retaken and verified before commits and PR pushes.
 
-## トリガー
-- PR用の作業証跡を求められたとき
-- 画面改修でビジュアル差分チェックが必要なとき
-- E2E/Playwright実行結果を残したいとき
+## Triggers
+- When asked for work evidence for a PR
+- When visual diff checking is needed for UI changes
+- When E2E/Playwright execution results need to be preserved
 
-## 事前原則
-- `.artifacts/`（md）と `.artifacts/media/`（画像・動画）を使用し、リポジトリを汚さない。
-- スクショは半自動ヒューマンインザループなビジュアルリグレッションとして扱う。修正を加えたら **コミット前・PR push前に全スクショを撮り直して差し替える**。人が目視で意図した変更か確認してからコミットする。
-- ブラウザは原則Playwright同梱Chromiumを使う。Chrome系は最後の手段。
-- 編集は `apply_patch` のみ。他人の変更を壊す操作（`git reset` 等）は禁止。
+## Core Principles
+- Use `.artifacts/` (md) and `.artifacts/media/` (images/videos) to avoid polluting the repository.
+- Treat screenshots as semi-automated human-in-the-loop visual regression. After making changes, **retake all screenshots before commits and PR pushes to replace them**. Human verification ensures the changes are intentional before committing.
+- Browsers should primarily use Playwright's bundled Chromium. Chrome-based browsers are a last resort.
+- Editing should use `apply_patch` only. Operations that break others' changes (like `git reset`) are prohibited.
 
-## ディレクトリと命名
-- FEATURE を決めて以下を作成:
+## Directory and Naming
+- Decide on a FEATURE and create the following:
   - `.artifacts/<feature>/RESULT.md`
   - `.artifacts/<feature>/images/`
   - `.artifacts/<feature>/videos/`
-- 命名例: `20251130-login-before.png`, `20251130-login-after.png`, `20251130-login-run.webm`
-- **動画ファイル（.webm, .mp4等）は必ずGit LFSで管理する**（後述）
+- Naming examples: `20251130-login-before.png`, `20251130-login-after.png`, `20251130-login-run.webm`
+- **Video files (.webm, .mp4, etc.) must be managed with Git LFS** (details below)
 
-## Artifactテンプレ（RESULT.md）
+## Artifact Template (RESULT.md)
 ```markdown
 # <feature> / <ticket>
 
 ## Context
-- 背景・依頼内容
-- スコープ外
+- Background and requirements
+- Out of scope
 
 ## What I did
-- 作業ログ（時系列で短く）
-- 実行コマンドは ```bash ``` ブロックで記録
+- Work log (brief, chronological)
+- Record executed commands in ```bash ``` blocks
 
 ## Evidence
-- テスト: `npx playwright test --reporter=line ...`
-- 画像: `![state](./images/20251130-login-after.png)`
-- 動画: `./videos/20251130-login-run.webm`
-- trace: `./images/trace.zip` など
+- Tests: `npx playwright test --reporter=line ...`
+- Images: `![state](./images/20251130-login-after.png)`
+- Videos: `./videos/20251130-login-run.webm`
+- trace: `./images/trace.zip`, etc.
 
-上記のエビデンスは以下を実行することで再取得可能です。
+The above evidence can be re-obtained by running:
 
 ```
 pnpm run ...
@@ -56,10 +56,10 @@ pnpm run ...
 ```
 
 ## Next
-- 残課題・要確認事項
+- Remaining tasks and items to confirm
 ```
 
-## Playwrightで証跡を取る例（スクショ+動画）
+## Example of Capturing Evidence with Playwright (Screenshots + Videos)
 ```bash
 FEATURE=${FEATURE:-feature}
 mkdir -p .artifacts/$FEATURE/{images,videos}
@@ -70,14 +70,14 @@ node -e "const { chromium } = require('playwright');
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, recordVideo: { dir: `.artifacts/${feature}/videos` } });
   const page = await context.newPage();
   await page.goto(process.env.BASE_URL || 'http://localhost:3000', { waitUntil: 'networkidle' });
-  // TODO: シナリオ操作をここに記述
+  // TODO: Describe scenario operations here
   const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
   await page.screenshot({ path: `.artifacts/${feature}/images/${stamp}-step.png`, fullPage: true });
   await browser.close();
 })();" \
 FEATURE=$FEATURE
 ```
-- trace付きPlaywright test例:
+- Playwright test example with trace:
 ```bash
 FEATURE=${FEATURE:-feature}
 BASE_URL=http://localhost:3000 \
@@ -87,138 +87,138 @@ npx playwright test tests/e2e/<spec>.spec.ts \
   --trace=retain-on-failure \
   --reporter=line
 ```
-  実行後、動画やtrace出力が別ディレクトリに散らばる場合は`.artifacts/$FEATURE/videos/`へ `mv` して整理。
+  After execution, if videos or trace outputs are scattered in different directories, organize them by moving to `.artifacts/$FEATURE/videos/`.
 
-## 運用フロー
-1) 作業開始時に対象タスクのArtifact mdを作成。Contextと予定を書く。
-2) 実行コマンドやログを逐次追記。
-3) 画面変更後、全スクショを撮り直し `.artifacts/<feature>/images/` へ保存（動画は `videos/`）。
-4) 目視で差分を確認（ヒューマンインザループ）。意図通りならREADMEに貼り付け。
-5) **reviw でレビュー開始**（後述の「reviw によるレビュー」セクション参照）
-6) 却下を受けたら再度実装し、修正がある限りスクショと動画を取り直し、必要があればRESULT.mdを修正し、再度5を実行、承認されるまでループ
-7) ユーザーからの承認後に初めてコミット、PRがある場合は、PR本文もここまでの修正を反映する
+## Operational Flow
+1) Create an Artifact md for the target task when starting work. Write Context and plans.
+2) Continuously append executed commands and logs.
+3) After UI changes, retake all screenshots and save to `.artifacts/<feature>/images/` (videos to `videos/`).
+4) Verify differences visually (human-in-the-loop). If intentional, paste into README.
+5) **Start review with reviw** (see "Review with reviw" section below)
+6) If rejected, re-implement, retake screenshots and videos as long as there are changes, update RESULT.md if necessary, execute step 5 again, and loop until approved
+7) Only commit after user approval; if there's a PR, reflect all modifications in the PR description
 
-## reviw によるレビュー
+## Review with reviw
 
-reviw は CSV/TSV/Markdown/Diff/テキストファイルをブラウザでレビューし、コメントを YAML 形式で出力する CLI ツール。
+reviw is a CLI tool that reviews CSV/TSV/Markdown/Diff/text files in a browser and outputs comments in YAML format.
 
-### 基本コマンド
+### Basic Commands
 
 ```bash
-# 報告書を開く（必ずフォアグラウンドで実行）
+# Open a report (must run in foreground)
 npx reviw .artifacts/<feature>/RESULT.md
 
-# 動画があれば先に開いておく
+# If there's a video, open it first
 open .artifacts/<feature>/videos/demo.webm
 npx reviw .artifacts/<feature>/RESULT.md
 
-# git diff をレビュー
+# Review git diff
 git diff HEAD | npx reviw
 
-# 複数ファイルを同時に開く
+# Open multiple files simultaneously
 npx reviw file1.md file2.csv data.tsv
 ```
 
-### オプション
+### Options
 
-| オプション | 説明 |
-|-----------|------|
-| `--port <number>` | ポート番号指定（デフォルト: 4989） |
-| `--encoding <enc>` | 文字エンコーディング指定（shift_jis, euc-jp 等） |
-| `--no-open` | ブラウザ自動起動を無効化 |
+| Option | Description |
+|--------|-------------|
+| `--port <number>` | Specify port number (default: 4989) |
+| `--encoding <enc>` | Specify character encoding (shift_jis, euc-jp, etc.) |
+| `--no-open` | Disable automatic browser launch |
 
-### reviw の UI 機能
+### reviw UI Features
 
-- **Markdown**: サイドバイサイドプレビュー、スクロール同期、Mermaid 図レンダリング
-- **CSV/TSV**: 固定ヘッダー、列固定、フィルタリング
-- **Diff**: GitHub 風表示、シンタックスハイライト
-- **テーマ**: ライト/ダークモード切替
-- **コメント**: セル/行クリックでコメント追加、Cmd/Ctrl+Enter で送信
+- **Markdown**: Side-by-side preview, scroll sync, Mermaid diagram rendering
+- **CSV/TSV**: Fixed header, column pinning, filtering
+- **Diff**: GitHub-style display, syntax highlighting
+- **Theme**: Light/dark mode toggle
+- **Comments**: Click cells/rows to add comments, Cmd/Ctrl+Enter to submit
 
-### レビューワークフロー
+### Review Workflow
 
 ```
-npx reviw .artifacts/<feature>/RESULT.md  # フォアグラウンドで起動
+npx reviw .artifacts/<feature>/RESULT.md  # Launch in foreground
     ↓
-ブラウザが開く
+Browser opens
     ↓
-ユーザーが内容を確認しコメントを追加
+User reviews content and adds comments
     ↓
-「Submit & Exit」をクリック
+Click "Submit & Exit"
     ↓
-YAML 形式でフィードバックが出力される
+Feedback is output in YAML format
     ↓
-フィードバックを TodoWrite に登録（詳細に、要約禁止）
+Register feedback in TodoWrite (detailed, no summarizing)
     ↓
-修正 → 再度 reviw でレビュー → 承認まで繰り返し
+Fix → Review again with reviw → Repeat until approved
 ```
 
-### 重要：フォアグラウンド起動必須
+### Important: Foreground Launch Required
 
 ```bash
-# 正しい（フィードバックを受け取れる）
+# Correct (can receive feedback)
 npx reviw report.md
 
-# 間違い（フィードバックを受け取れない）
+# Wrong (cannot receive feedback)
 npx reviw report.md &
 ```
 
-バックグラウンドで起動するとユーザーのコメントを受け取れないため、**必ずフォアグラウンドで起動**すること。
+Launching in the background prevents receiving user comments, so **always launch in foreground**.
 
-### 出力形式（YAML）
+### Output Format (YAML)
 
 ```yaml
 file: report.md
 mode: markdown
 comments:
   - line: 15
-    content: "この部分の説明を追加してください"
+    content: "Please add an explanation for this part"
   - line: 23
-    content: "エラーハンドリングが必要です"
-summary: "全体的に良いですが、上記の点を修正してください"
+    content: "Error handling is needed"
+summary: "Overall good, but please fix the above points"
 ```
 
-## PR本文へのスクショ貼り付け
+## Pasting Screenshots in PR Descriptions
 
-### ⚠️ 重要：ブランチ削除後も画像が残るURLを使う
+### ⚠️ Important: Use URLs that persist after branch deletion
 
-PRのブランチはマージ後に削除されることが多い。ブランチ名ベースのURLは削除後に404になるため、**必ずコミットハッシュを使ったblob URLを使用する**。
+PR branches are often deleted after merging. Branch-name-based URLs become 404 after deletion, so **always use blob URLs with commit hashes**.
 
 ```bash
-# 現在のコミットハッシュを取得
+# Get current commit hash
 COMMIT_HASH=$(git rev-parse HEAD)
-# または短縮形
+# Or short form
 COMMIT_HASH=$(git rev-parse --short HEAD)
 ```
 
-**正しいURL形式（コミットハッシュ使用）:**
+**Correct URL format (using commit hash):**
 ```
 ![alt](https://github.com/<org>/<repo>/blob/<commit-hash>/.artifacts/<feature>/images/screenshot.png?raw=true)
 ```
 
-**間違ったURL形式（ブランチ名使用 - 削除後に404）:**
+**Wrong URL format (using branch name - 404 after deletion):**
 ```
 ![alt](https://github.com/<org>/<repo>/blob/<branch-name>/.artifacts/<feature>/images/screenshot.png?raw=true)
 ```
 
-### スクショのレイアウト（縦長防止）
+### Screenshot Layout (Preventing Vertical Stacking)
 
-スクショが縦長に並ぶと見づらい。**HTMLテーブルを使って横方向にも配置**する：
+Vertically stacked screenshots are hard to read. **Use HTML tables to arrange them horizontally as well**:
 
 ```html
-<!-- 2列レイアウト -->
+<!-- 2-column layout -->
 <table>
   <tr>
     <td><img src="https://github.com/.../blob/<hash>/.artifacts/feature/images/before.png?raw=true" width="400"/></td>
     <td><img src="https://github.com/.../blob/<hash>/.artifacts/feature/images/after.png?raw=true" width="400"/></td>
   </tr>
   <tr>
-    <td align="center">変更前</td>
-    <td align="center">変更後</td>
+    <td align="center">Before</td>
+    <td align="center">After</td>
   </tr>
 </table>
 
-<!-- 3列レイアウト（複数画面の比較） -->
+<!-- 3-column layout (comparing multiple screens) -->
 <table>
   <tr>
     <td><img src=".../step1.png?raw=true" width="280"/></td>
@@ -226,14 +226,14 @@ COMMIT_HASH=$(git rev-parse --short HEAD)
     <td><img src=".../step3.png?raw=true" width="280"/></td>
   </tr>
   <tr>
-    <td align="center">1. ログイン画面</td>
-    <td align="center">2. 入力後</td>
-    <td align="center">3. 完了画面</td>
+    <td align="center">1. Login Screen</td>
+    <td align="center">2. After Input</td>
+    <td align="center">3. Completion Screen</td>
   </tr>
 </table>
 ```
 
-### PR本文へ貼り付けるスクリプト例
+### Example Script for Pasting in PR Description
 
 ```bash
 FEATURE=${FEATURE:-feature}
@@ -241,14 +241,14 @@ ORG=$(gh repo view --json owner -q .owner.login)
 REPO=$(gh repo view --json name -q .name)
 COMMIT=$(git rev-parse HEAD)
 
-# 画像一覧からMarkdownテーブルを生成
+# Generate Markdown table from image list
 echo "<table><tr>"
 count=0
 for img in .artifacts/$FEATURE/images/*.png; do
   filename=$(basename "$img")
   echo "<td><img src=\"https://github.com/$ORG/$REPO/blob/$COMMIT/$img?raw=true\" width=\"400\"/></td>"
   count=$((count + 1))
-  # 2列ごとに改行
+  # New row every 2 columns
   if [ $((count % 2)) -eq 0 ]; then
     echo "</tr><tr>"
   fi
@@ -256,71 +256,71 @@ done
 echo "</tr></table>"
 ```
 
-### GitHub CLIでPR本文を更新
+### Update PR Description with GitHub CLI
 
 ```bash
 gh api --method PATCH repos/<org>/<repo>/pulls/<num> -f body="$(cat /tmp/new-body.md)"
 ```
 
-## 動画のGit LFS管理
+## Managing Videos with Git LFS
 
-動画ファイルはサイズが大きいため、**必ずGit LFSで管理する**。
+Video files are large, so **they must be managed with Git LFS**.
 
-### 初回セットアップ
+### Initial Setup
 ```bash
-# LFSがインストールされていない場合
+# If LFS is not installed
 brew install git-lfs  # macOS
 git lfs install
 
-# 動画ファイルをLFS追跡対象に追加
+# Add video files to LFS tracking
 git lfs track "*.webm"
 git lfs track "*.mp4"
 git lfs track "*.mov"
 git lfs track ".artifacts/**/*.webm"
 git lfs track ".artifacts/**/*.mp4"
 
-# .gitattributesをコミット
+# Commit .gitattributes
 git add .gitattributes
 git commit -m "chore: add video files to Git LFS"
 ```
 
-### 動画追加時のフロー
+### Flow for Adding Videos
 ```bash
-# 1. 動画を配置
+# 1. Place the video
 mv recording.webm .artifacts/$FEATURE/videos/
 
-# 2. LFSで追跡されているか確認
+# 2. Verify LFS tracking
 git lfs status
 
-# 3. 通常通りadd/commit
+# 3. Add/commit normally
 git add .artifacts/$FEATURE/videos/
 git commit -m "docs: add demo video for $FEATURE"
 ```
 
-### PR本文での動画リンク
-動画はGitHub上で直接再生できないため、リンクで提供：
+### Video Links in PR Description
+Videos cannot be played directly on GitHub, so provide them as links:
 ```markdown
-📹 [デモ動画を見る](./.artifacts/feature/videos/demo.webm)
+📹 [View demo video](./.artifacts/feature/videos/demo.webm)
 ```
 
-または、GIFに変換して埋め込み：
+Or convert to GIF for embedding:
 ```bash
-# webm → gif 変換（ffmpeg使用）
+# webm → gif conversion (using ffmpeg)
 ffmpeg -i demo.webm -vf "fps=10,scale=600:-1" demo.gif
 ```
 
-## ベストプラクティス
-- スクショ/動画はファイル名に画面や状態が分かる単語を入れる（例: `login-success.png`）。
-- 差分確認はフルページと要素単位の両方を使うと精度が上がる。
-- テスト失敗時もスクショを残し、原因追跡に活用する。
-- PR作成時はArtifact本文をそのまま貼り付け、レビュー指摘に合わせてArtifactを更新する。
-- **スクショは縦長に並べず、2〜3列のテーブルレイアウトで横方向も活用する**。
-- **画像URLは必ずコミットハッシュを使い、ブランチ削除後も表示されるようにする**。
-- **動画は必ずGit LFSで管理し、リポジトリを肥大化させない**。
+## Best Practices
+- Include screen or state-descriptive words in screenshot/video filenames (e.g., `login-success.png`).
+- Use both full-page and element-level captures for better diff accuracy.
+- Preserve screenshots even for test failures to aid in debugging.
+- When creating PRs, paste Artifact content directly; update Artifacts based on review feedback.
+- **Don't stack screenshots vertically; use 2-3 column table layouts for horizontal utilization**.
+- **Always use commit hashes in image URLs so they display even after branch deletion**.
+- **Always manage videos with Git LFS to avoid repository bloat**.
 
-## 期待アウトプット
-- `.artifacts/<feature>/` にタスク単位のREADMEがあり、証跡（スクショ・動画・ログ）が紐付いている。
-- コミット前・PR push前に最新スクショへ更新済みで、ビジュアル差分が人の目で確認されている。
-- ArtifactをそのままPR本文として流用できる。
-- PRの画像はコミットハッシュベースのblob URLで、マージ後にブランチが削除されても表示される。
-- 動画ファイルはGit LFSで管理され、clone時の負荷を軽減している。
+## Expected Outputs
+- `.artifacts/<feature>/` contains task-specific READMEs with linked evidence (screenshots, videos, logs).
+- Screenshots are updated to the latest before commits and PR pushes, with visual diffs verified by human eyes.
+- Artifacts can be directly reused as PR descriptions.
+- PR images use commit hash-based blob URLs that remain visible after branch deletion post-merge.
+- Video files are managed with Git LFS, reducing clone overhead.

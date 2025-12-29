@@ -1,3 +1,24 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kazuph/reviw/main/assets/logo.svg" alt="reviw - Human-in-the-loop Review" width="600">
+</p>
+
+<p align="center">
+  <strong>Human-in-the-loop review interface for AI coding workflows</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/reviw"><img src="https://img.shields.io/npm/v/reviw.svg" alt="npm version"></a>
+  <a href="https://github.com/kazuph/reviw/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/reviw.svg" alt="license"></a>
+  <a href="./README.ja.md">日本語</a>
+</p>
+
+---
+
+> [!WARNING]
+> **Alpha Software**: This project is in active development. Expect breaking changes, API instability, and incomplete features. Use at your own risk in production environments.
+
+---
+
 # reviw
 
 A lightweight browser-based tool for reviewing and annotating tabular data, text, Markdown, and diff files. Supports CSV, TSV, plain text, Markdown, and unified diff formats. Comments are output as YAML to stdout.
@@ -120,29 +141,187 @@ This repository also serves as a Claude Code plugin marketplace. The plugin inte
 /plugin install reviw-plugin@reviw-marketplace
 ```
 
-### Plugin Features
+### Plugin Directory Structure
 
-| Component | Name | Description |
-|-----------|------|-------------|
+```
+plugin/
+├── .claude-plugin/
+│   └── plugin.json          # Plugin metadata (name, version, description)
+├── commands/
+│   ├── do.md                 # /reviw:do command definition
+│   └── done.md               # /reviw:done command definition
+├── agents/
+│   └── report-builder.md     # Report generation agent
+├── skills/
+│   ├── artifact-proof/
+│   │   └── SKILL.md          # Evidence collection skill
+│   └── webapp-testing/
+│       ├── SKILL.md          # Web testing skill
+│       ├── scripts/          # Helper scripts
+│       └── examples/         # Usage examples
+├── hooks/
+│   └── hooks.json            # Hook definitions
+├── hooks-handlers/
+│   └── completion-checklist.sh  # UserPromptSubmit handler
+└── README.md
+```
+
+### Components Overview
+
+| Type | Name | Description |
+|------|------|-------------|
 | **Command** | `/reviw:do` | Start a task - create worktree, plan, register todos |
-| **Command** | `/reviw:done` | Complete checklist - collect evidence, start review with reviw |
+| **Command** | `/reviw:done` | Complete checklist - collect evidence, start review |
 | **Agent** | `report-builder` | Prepare reports and evidence for user review |
-| **Skill** | `artifact-proof` | Collect evidence (screenshots, videos, logs) + reviw review workflow |
+| **Skill** | `artifact-proof` | Collect evidence (screenshots, videos, logs) |
+| **Skill** | `webapp-testing` | Browser automation and verification with Playwright |
 | **Hook** | PreToolUse | Remind to review before git commit/push |
-| **Hook** | Stop | Warn if task is still in progress |
+| **Hook** | UserPromptSubmit | Inject completion checklist into AI context |
+
+---
+
+### Commands
+
+#### `/reviw:do <task description>`
+
+Starts a new task with proper environment setup.
+
+**What it does:**
+1. Creates a git worktree for isolated development (`feature/<name>`, `fix/<name>`, etc.)
+2. Sets up `.artifacts/<feature>/` directory for evidence
+3. Creates `REPORT.md` with plan and TODO checklist
+4. Registers todos in TodoWrite for progress tracking
+
+**Directory structure created:**
+```
+.worktree/<feature>/
+└── .artifacts/
+    └── <feature>/
+        ├── REPORT.md     # Plan, progress, evidence links
+        ├── images/       # Screenshots
+        └── videos/       # Video recordings
+```
+
+**Task resumption:** When a session starts or after context compaction, the command checks for existing worktrees and resumes from `REPORT.md`.
+
+#### `/reviw:done`
+
+Validates completion criteria before allowing task completion.
+
+**Checklist enforced:**
+- [ ] Build succeeded (no type/lint errors)
+- [ ] Development server started and working
+- [ ] Verified with `webapp-testing` skill
+- [ ] Evidence collected in `.artifacts/<feature>/`
+- [ ] Report created with `artifact-proof` skill
+- [ ] Reviewed with reviw (foreground mode)
+- [ ] User approval received
+
+**Prohibited:**
+- Saying "implementation complete" without verification
+- Committing/pushing before reviw review
+- Reports without evidence
+
+---
+
+### Agent
+
+#### `report-builder`
+
+Specialized agent for preparing review materials.
+
+**Role:**
+- Organize implementation into a structured report
+- Collect and arrange evidence (screenshots, videos)
+- Prepare `REPORT.md` for reviw review
+- Parse reviw feedback and register as todos
+
+**Invocation:**
+```
+Task tool with subagent_type: "report-builder"
+```
+
+**Skills auto-loaded:** `artifact-proof`
+
+---
+
+### Skills
+
+#### `artifact-proof`
+
+Manages evidence collection for visual regression and PR documentation.
+
+**Features:**
+- Screenshots and videos under `.artifacts/<feature>/`
+- Playwright integration for automated capture
+- Git LFS setup for video files
+- PR image URLs with commit hashes (persist after branch deletion)
+
+**reviw integration:**
+```bash
+# Open report in reviw (foreground required)
+npx reviw .artifacts/<feature>/REPORT.md
+
+# With video preview
+open .artifacts/<feature>/videos/demo.webm
+npx reviw .artifacts/<feature>/REPORT.md
+```
+
+#### `webapp-testing`
+
+Browser automation toolkit using Playwright.
+
+**Features:**
+- Python and Node.js Playwright scripts
+- Server lifecycle management (`scripts/with_server.py`)
+- Screenshot and video capture
+- Console log and network request monitoring
+- CDP integration for advanced debugging
+
+**Quick verification:**
+```bash
+node -e "const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+  await page.screenshot({ path: '/tmp/webapp.png', fullPage: true });
+  await browser.close();
+})();"
+```
+
+---
+
+### Hooks
+
+#### PreToolUse (Bash matcher)
+
+Triggers when `git commit` or `git push` is detected.
+
+**Message:** Reminds to run `/reviw:done` and review with reviw before committing.
+
+#### UserPromptSubmit
+
+Injects completion checklist into every AI response context.
+
+**Purpose:** Prevents "implementation complete" claims without proper verification. The checklist is always visible to the AI, ensuring consistent enforcement of completion criteria.
+
+---
 
 ### Workflow
 
 ```
 /reviw:do <task description>
     ↓
-Create worktree + Plan
+Create worktree + Plan + TodoWrite
     ↓
-Implementation
+Implementation (via subagents)
+    ↓
+Build & Verify (webapp-testing)
     ↓
 /reviw:done
     ↓
-Collect evidence + Create report
+Collect evidence (artifact-proof)
     ↓
 npx reviw opens report (foreground)
     ↓
@@ -151,15 +330,63 @@ User comments → Submit & Exit
 Register feedback to Todo
     ↓
 Fix → Re-review until approved
+    ↓
+Commit & PR (only after approval)
 ```
 
 ### Completion Criteria
 
-| Stage | Content |
-|-------|---------|
-| 1/3 | Implementation complete |
-| 2/3 | Build, start, verification complete |
-| 3/3 | Review with reviw → User approval |
+| Stage | Content | Status |
+|-------|---------|--------|
+| 1/3 | Implementation complete | Do not report yet |
+| 2/3 | Build, start, verification complete | Do not report yet |
+| 3/3 | Review with reviw → User approval | Now complete |
+
+### Design Philosophy
+
+The plugin enforces **human-in-the-loop** development:
+
+1. **No shortcuts:** Mocks, bypasses, and skipped verifications are prohibited
+2. **Evidence required:** Every completion claim must have screenshots/videos
+3. **User approval:** Only the user can mark a task as complete
+4. **Context preservation:** Heavy operations run in subagents to prevent context exhaustion
+
+### `.artifacts` Directory Policy
+
+The `.artifacts/` directory stores screenshots, videos, and reports generated during development. **By default, this directory should be added to `.gitignore`** to prevent repository bloat from large media files.
+
+```bash
+# Add to .gitignore (recommended)
+echo ".artifacts" >> .gitignore
+```
+
+**Why ignore by default:**
+- Screenshots and videos can be large (especially screen recordings)
+- Evidence is primarily for the review process, not permanent documentation
+- Keeps repository size manageable
+
+**If you need to commit specific evidence:**
+
+Use `git add --force` to explicitly add files you want to preserve:
+
+```bash
+# Force add specific evidence files
+git add --force .artifacts/feature/images/final-screenshot.png
+git add --force .artifacts/feature/REPORT.md
+
+# Or force add an entire feature's evidence
+git add --force .artifacts/feature/
+```
+
+**For video files**, use Git LFS to avoid bloating the repository:
+
+```bash
+git lfs track "*.mp4" "*.webm" "*.mov"
+git add .gitattributes
+git add --force .artifacts/feature/videos/demo.mp4
+```
+
+This approach gives you full control: ignore by default, commit only what matters.
 
 ## Development
 
