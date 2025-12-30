@@ -109,16 +109,27 @@ On rejection, display:
    - Use `webapp-testing` skill to actually operate in browser
    - Verify expected behavior
 
-### 4. Report Creation/Evidence Organization
+### 4. Report Creation/Evidence Organization + E2E Health Review
 
-**Use report-builder agent:**
+**Use report-builder and e2e-health-reviewer agents in parallel:**
 
 ```
-Specify subagent_type: "report-builder" with Task tool
-→ artifact-proof skill auto-loads
-→ Execute report creation/evidence organization
-→ Ready to start reviw review
+Launch TWO agents simultaneously with Task tool:
+
+1. subagent_type: "report-builder"
+   → artifact-proof skill auto-loads
+   → Execute report creation/evidence organization
+   → Ready to start reviw review
+
+2. subagent_type: "e2e-health-reviewer"
+   → Check goto restrictions
+   → Verify record change assertions
+   → Detect hardcoded values/environment locks
+   → Detect unnecessary mocks/stubs
+   → Append health review section to REPORT.md
 ```
+
+**Important: Execute both agents in a single Task tool call for parallel execution.**
 
 ### 5. Start reviw Review
 

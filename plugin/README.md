@@ -24,10 +24,13 @@ reviw CLI ツールを Claude Code と連携させるプラグインです。タ
 | エージェント | 説明 |
 |-------------|------|
 | `report-builder` | レビューしてもらうための報告書・エビデンス整理専門 |
+| `e2e-health-reviewer` | E2Eテストの健全性レビュー（goto制限、レコードアサーション、ハードコード検出） |
 
 使用方法:
 ```
 Task ツールで subagent_type: "report-builder" を指定
+Task ツールで subagent_type: "e2e-health-reviewer" を指定
+（/done時は両方を並列実行）
 ```
 
 ### Skills（自動参照スキル）
