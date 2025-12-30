@@ -139,8 +139,8 @@ Launch TWO agents simultaneously with Task tool:
 # Open video file first (if exists)
 open .artifacts/<feature>/demo.mp4
 
-# Open report with reviw (foreground)
-npx reviw .artifacts/<feature>/REPORT.md
+# Open both reports with reviw (foreground)
+npx reviw .artifacts/<feature>/REPORT.md .artifacts/<feature>/E2E_HEALTH_REVIEW.md
 ```
 
 When reviw review starts:
