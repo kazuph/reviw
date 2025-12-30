@@ -23,13 +23,13 @@ Assumes human-in-the-loop visual regression, requiring screenshots to be retaken
 
 ## Directory and Naming
 - Decide on a FEATURE and create the following:
-  - `.artifacts/<feature>/RESULT.md`
+  - `.artifacts/<feature>/REPORT.md`
   - `.artifacts/<feature>/images/`
   - `.artifacts/<feature>/videos/`
 - Naming examples: `20251130-login-before.png`, `20251130-login-after.png`, `20251130-login-run.webm`
 - **Video files (.webm, .mp4, etc.) must be managed with Git LFS** (details below)
 
-## Artifact Template (RESULT.md)
+## Artifact Template (REPORT.md)
 ```markdown
 # <feature> / <ticket>
 
@@ -95,7 +95,7 @@ npx playwright test tests/e2e/<spec>.spec.ts \
 3) After UI changes, retake all screenshots and save to `.artifacts/<feature>/images/` (videos to `videos/`).
 4) Verify differences visually (human-in-the-loop). If intentional, paste into README.
 5) **Start review with reviw** (see "Review with reviw" section below)
-6) If rejected, re-implement, retake screenshots and videos as long as there are changes, update RESULT.md if necessary, execute step 5 again, and loop until approved
+6) If rejected, re-implement, retake screenshots and videos as long as there are changes, update REPORT.md if necessary, execute step 5 again, and loop until approved
 7) Only commit after user approval; if there's a PR, reflect all modifications in the PR description
 
 ## Review with reviw
@@ -106,11 +106,11 @@ reviw is a CLI tool that reviews CSV/TSV/Markdown/Diff/text files in a browser a
 
 ```bash
 # Open a report (must run in foreground)
-npx reviw .artifacts/<feature>/RESULT.md
+npx reviw .artifacts/<feature>/REPORT.md
 
 # If there's a video, open it first
 open .artifacts/<feature>/videos/demo.webm
-npx reviw .artifacts/<feature>/RESULT.md
+npx reviw .artifacts/<feature>/REPORT.md
 
 # Review git diff
 git diff HEAD | npx reviw
@@ -138,7 +138,7 @@ npx reviw file1.md file2.csv data.tsv
 ### Review Workflow
 
 ```
-npx reviw .artifacts/<feature>/RESULT.md  # Launch in foreground
+npx reviw .artifacts/<feature>/REPORT.md  # Launch in foreground
     ↓
 Browser opens
     ↓

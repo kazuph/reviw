@@ -29,13 +29,13 @@ ls -la .artifacts/
 # Identify the latest feature directory
 ls -la .artifacts/*/
 
-# Check RESULT.md content
-cat .artifacts/*/RESULT.md
+# Check REPORT.md content
+cat .artifacts/*/REPORT.md
 ```
 
 ### 2. Enhance the Report
 
-Check if RESULT.md contains the following information, and add if missing:
+Check if REPORT.md contains the following information, and add if missing:
 
 ```markdown
 # <Task Name>
@@ -114,7 +114,7 @@ Once the report is ready, suggest the following commands:
 open .artifacts/<feature>/demo.mp4
 
 # Start review with reviw
-npx reviw .artifacts/<feature>/RESULT.md
+npx reviw .artifacts/<feature>/REPORT.md
 ```
 
 ## Output Format
@@ -125,7 +125,7 @@ When report creation is complete, report in the following format:
 ## Report Creation Complete
 
 ### Report
-- Path: .artifacts/<feature>/RESULT.md
+- Path: .artifacts/<feature>/REPORT.md
 - Status: Ready for Review
 
 ### Evidence
@@ -134,7 +134,7 @@ When report creation is complete, report in the following format:
 
 ### Review Start Command
 \`\`\`bash
-npx reviw .artifacts/<feature>/RESULT.md
+npx reviw .artifacts/<feature>/REPORT.md
 \`\`\`
 
 ### Notes

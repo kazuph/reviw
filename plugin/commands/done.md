@@ -39,12 +39,12 @@ Good pattern (execution via subagent):
 
 ## Handoff from /do
 
-Tasks started with `/do` have their PLAN recorded in `.artifacts/<feature>/RESULT.md`.
+Tasks started with `/do` have their PLAN recorded in `.artifacts/<feature>/REPORT.md`.
 First, verify the TODO status:
 
 ```bash
-# Check RESULT.md in .artifacts directory
-cat .artifacts/*/RESULT.md | grep -A 50 "## PLAN"
+# Check REPORT.md in .artifacts directory
+cat .artifacts/*/REPORT.md | grep -A 50 "## PLAN"
 ```
 
 **What does checking a TODO mean?**
@@ -129,7 +129,7 @@ Specify subagent_type: "report-builder" with Task tool
 open .artifacts/<feature>/demo.mp4
 
 # Open report with reviw (foreground)
-npx reviw .artifacts/<feature>/RESULT.md
+npx reviw .artifacts/<feature>/REPORT.md
 ```
 
 When reviw review starts:
