@@ -126,7 +126,7 @@ Launch TWO agents simultaneously with Task tool:
    → Verify record change assertions
    → Detect hardcoded values/environment locks
    → Detect unnecessary mocks/stubs
-   → Append health review section to REPORT.md
+   → Output to E2E_HEALTH_REVIEW.md (separate file)
 ```
 
 **Important: Execute both agents in a single Task tool call for parallel execution.**
