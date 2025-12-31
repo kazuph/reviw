@@ -247,6 +247,8 @@ npx reviw report.md &
 
 Launching in the background prevents receiving user comments, so **always launch in foreground**.
 
+> **Note for Claude Code users**: Claude Code can detect when background processes exit and capture their output, so you may use `run_in_background: true` with the Bash tool. The foreground requirement applies to other AI environments that cannot monitor background process completion.
+
 ### Output Format (YAML)
 
 ```yaml
