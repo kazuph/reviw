@@ -1,6 +1,6 @@
 ---
 name: e2e-health-reviewer
-description: E2Eテストの健全性をレビューする専門エージェント。/done時にreport-builderと並列実行され、E2Eテストコードの品質問題を検出してREPORT.mdに追記する。
+description: E2Eテストの健全性をレビューする専門エージェント。/done時にreport-builderと並列実行され、E2Eテストコードの品質問題を検出してE2E_HEALTH_REVIEW.mdに出力する。
 tools: Read, Grep, Glob, Bash
 model: opus
 ---
