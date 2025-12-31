@@ -80,6 +80,26 @@ pnpm dev
 # Then navigate to http://localhost:3000/feature
 ```
 
+## E2E Health Review (自動追記)
+<!-- このセクションは e2e-health-reviewer エージェントが自動追記します -->
+
+### goto制限チェック
+| ファイル | 行 | コード | 判定 |
+|---------|-----|--------|------|
+
+### レコード変化アサーション
+- 状態: ✅ / ⚠️ / ❌
+
+### ハードコード検出
+| ファイル | 行 | コード | 問題 |
+|---------|-----|--------|------|
+
+### モック・スタブ検出
+- 状態: ✅ / ❌
+
+### 総合判定
+- スコア: X/5
+
 ## Notes
 - Items for user to confirm
 - Known limitations

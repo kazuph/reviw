@@ -47,9 +47,8 @@ Check if REPORT.md follows the template defined in **artifact-proof skill**.
    - Test results with commands
    - Verification checklist
    - How to reproduce
-4. **Notes** - Items for user confirmation
-
-**Note**: E2E Health Review is a separate file (`E2E_HEALTH_REVIEW.md`) maintained by e2e-health-reviewer agent.
+4. **E2E Health Review (自動追記)** - e2e-health-reviewer agent が並列で追記
+5. **Notes** - Items for user confirmation
 
 **If Evidence section is empty or incomplete, DO NOT proceed to reviw review.**
 
@@ -79,8 +78,8 @@ Once the report is ready, suggest the following commands:
 # Open videos first if they exist
 open .artifacts/<feature>/demo.mp4
 
-# Start review with reviw (open both reports)
-npx reviw .artifacts/<feature>/REPORT.md .artifacts/<feature>/E2E_HEALTH_REVIEW.md
+# Start review with reviw
+npx reviw .artifacts/<feature>/REPORT.md
 ```
 
 ## Output Format
@@ -100,7 +99,7 @@ When report creation is complete, report in the following format:
 
 ### Review Start Command
 \`\`\`bash
-npx reviw .artifacts/<feature>/REPORT.md .artifacts/<feature>/E2E_HEALTH_REVIEW.md
+npx reviw .artifacts/<feature>/REPORT.md
 \`\`\`
 
 ### Notes

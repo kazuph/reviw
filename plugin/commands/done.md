@@ -126,7 +126,7 @@ Launch TWO agents simultaneously with Task tool:
    → Verify record change assertions
    → Detect hardcoded values/environment locks
    → Detect unnecessary mocks/stubs
-   → Output to E2E_HEALTH_REVIEW.md (separate file)
+   → Append "E2E Health Review" section to REPORT.md
 ```
 
 **Important: Execute both agents in a single Task tool call for parallel execution.**
@@ -139,8 +139,8 @@ Launch TWO agents simultaneously with Task tool:
 # Open video file first (if exists)
 open .artifacts/<feature>/demo.mp4
 
-# Open both reports with reviw (foreground)
-npx reviw .artifacts/<feature>/REPORT.md .artifacts/<feature>/E2E_HEALTH_REVIEW.md
+# Open report with reviw (foreground)
+npx reviw .artifacts/<feature>/REPORT.md
 ```
 
 When reviw review starts:

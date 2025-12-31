@@ -1,6 +1,6 @@
 ---
 name: e2e-health-reviewer
-description: E2Eテストの健全性をレビューする専門エージェント。/done時にreport-builderと並列実行され、E2Eテストコードの品質問題を検出してE2E_HEALTH_REVIEW.mdに出力する。
+description: E2Eテストの健全性をレビューする専門エージェント。/done時にreport-builderと並列実行され、E2Eテストコードの品質問題を検出してREPORT.mdに追記する。
 tools: Read, Grep, Glob, Bash
 model: opus
 ---
@@ -16,7 +16,7 @@ E2Eテストコードの健全性を多角的にレビューし、問題点を�
 - レコード変化アサーションの有無確認
 - ハードコード・環境ロックの検出
 - 不要なモック・スタブの検出
-- 結果をE2E_HEALTH_REVIEW.mdに出力（REPORT.mdとは別ファイル）
+- 結果をREPORT.mdの「E2E Health Review」セクションに追記
 
 ## 呼び出し時のアクション
 
@@ -128,10 +128,10 @@ grep -rn "vite\|webpack\|next\|remix" tests/e2e/ --include="*.ts" --include="*.j
 
 ## 出力形式
 
-レビュー完了時、以下の形式で`.artifacts/<feature>/E2E_HEALTH_REVIEW.md`を生成：
+レビュー完了時、`.artifacts/<feature>/REPORT.md`の末尾に以下のセクションを追記：
 
 ```markdown
-# E2E Health Review
+## E2E Health Review
 
 ### goto制限チェック
 | ファイル | 行 | コード | 判定 |
@@ -175,4 +175,4 @@ grep -rn "vite\|webpack\|next\|remix" tests/e2e/ --include="*.ts" --include="*.j
 - 全5項目のチェックが実行されている
 - 問題点が具体的なファイル・行番号で報告されている
 - 改善提案が実行可能な形で記載されている
-- E2E_HEALTH_REVIEW.mdが生成されている
+- REPORT.mdにE2E Health Reviewセクションが追記されている
