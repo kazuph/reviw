@@ -10,6 +10,17 @@ reviw CLI ツールを Claude Code と連携させるプラグインです。タ
 /plugin install reviw-plugin@reviw-marketplace
 ```
 
+## 更新
+
+プラグインを最新版に更新するには、一度アンインストールしてから再インストールしてください：
+
+```bash
+claude plugin uninstall reviw-plugin@reviw-marketplace
+claude plugin install reviw-plugin@reviw-marketplace
+```
+
+※ 新しいエージェントや機能を反映するには、Claude Code の再起動も必要です。
+
 ## 機能一覧
 
 ### Commands（スラッシュコマンド）
