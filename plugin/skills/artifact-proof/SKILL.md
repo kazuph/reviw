@@ -10,6 +10,11 @@ allowed-tools:
 An operational workflow for preserving development evidence (screenshots, videos, logs) in `.artifacts/<feature>/` and reusing it for PR descriptions.
 Assumes human-in-the-loop visual regression, requiring screenshots to be retaken and verified before commits and PR pushes.
 
+## Language Policy
+
+- **Skill instructions**: Written in English for universal understanding
+- **REPORT.md content**: Write in the user's native language to ensure clear communication with stakeholders. Match the language used by the user in their requests.
+
 ## Triggers
 - When asked for work evidence for a PR
 - When visual diff checking is needed for UI changes
@@ -30,6 +35,7 @@ Assumes human-in-the-loop visual regression, requiring screenshots to be retaken
 - **Video files (.webm, .mp4, etc.) must be managed with Git LFS** (details below)
 
 ## Artifact Template (REPORT.md)
+
 ```markdown
 # <feature> / <ticket>
 
@@ -37,25 +43,34 @@ Created: YYYY-MM-DD
 Branch: <branch-name>
 Status: Awaiting Review
 
-## Context (依頼内容)
+## Context
 - Background and requirements
 - Out of scope
 - Acceptance criteria
 
-## Plan (計画)
+## Plan
 - [ ] Task 1
 - [ ] Task 2
 - [ ] Task 3
 
-## Evidence (証拠) ⭐ MOST IMPORTANT
+## Evidence
 
-### Screenshots
+### Screenshots (table layout recommended)
 | Before | After |
 |--------|-------|
 | ![Before](./images/YYYYMMDD-feature-before.png) | ![After](./images/YYYYMMDD-feature-after.png) |
 
-### Videos
-- 📹 [Demo video](./videos/YYYYMMDD-feature-demo.webm)
+### Videos (image syntax for thumbnails, with flow column)
+Use image syntax `![](video.mp4)` to display video with thumbnail and controls.
+**Include a Flow column with arrow notation** to show what the video demonstrates at a glance.
+
+| Video | Flow | Description |
+|-------|------|-------------|
+| ![Login](./videos/YYYYMMDD-login.webm) | Top → Email → Password → Submit → Dashboard | Login flow demo |
+| ![Settings](./videos/YYYYMMDD-settings.webm) | Menu → Settings → Toggle → Save → Toast | Settings update demo |
+
+Link-only format (no thumbnail):
+- [Login demo](./videos/YYYYMMDD-login.webm): Top → Email → Password → Submit → Dashboard
 
 ### Test Results
 ```bash
@@ -72,6 +87,21 @@ npx playwright test tests/e2e/feature.spec.ts --reporter=line
 - [ ] Manual verification: Feature works as expected
 - [ ] E2E tests: All passing
 
+<details>
+<summary>Detailed verification logs (collapsed)</summary>
+
+#### Build Log
+```bash
+# Build output here
+```
+
+#### Test Output
+```bash
+# Test output here
+```
+
+</details>
+
 ### How to Reproduce
 ```bash
 # Steps to reproduce the evidence above
@@ -80,25 +110,30 @@ pnpm dev
 # Then navigate to http://localhost:3000/feature
 ```
 
-## E2E Health Review (自動追記)
-<!-- このセクションは e2e-health-reviewer エージェントが自動追記します -->
+## E2E Health Review (auto-appended)
+<!-- This section is auto-appended by e2e-health-reviewer agent -->
 
-### goto制限チェック
-| ファイル | 行 | コード | 判定 |
-|---------|-----|--------|------|
+<details>
+<summary>E2E Health Review Details</summary>
 
-### レコード変化アサーション
-- 状態: ✅ / ⚠️ / ❌
+### goto Restriction Check
+| File | Line | Code | Status |
+|------|------|------|--------|
 
-### ハードコード検出
-| ファイル | 行 | コード | 問題 |
-|---------|-----|--------|------|
+### Record Change Assertions
+- Status: ✅ / ⚠️ / ❌
 
-### モック・スタブ検出
-- 状態: ✅ / ❌
+### Hardcode Detection
+| File | Line | Code | Issue |
+|------|------|------|-------|
 
-### 総合判定
-- スコア: X/5
+### Mock/Stub Detection
+- Status: ✅ / ❌
+
+</details>
+
+### Overall Score
+- Score: X/5
 
 ## Notes
 - Items for user to confirm
@@ -114,12 +149,12 @@ node -e "const { chromium } = require('playwright');
 (async () => {
   const feature = process.env.FEATURE || 'feature';
   const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, recordVideo: { dir: `.artifacts/${feature}/videos` } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, recordVideo: { dir: \`.artifacts/\${feature}/videos\` } });
   const page = await context.newPage();
   await page.goto(process.env.BASE_URL || 'http://localhost:3000', { waitUntil: 'networkidle' });
   // TODO: Describe scenario operations here
   const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  await page.screenshot({ path: `.artifacts/${feature}/images/${stamp}-step.png`, fullPage: true });
+  await page.screenshot({ path: \`.artifacts/\${feature}/images/\${stamp}-step.png\`, fullPage: true });
   await browser.close();
 })();" \
 FEATURE=$FEATURE
@@ -227,7 +262,7 @@ summary: "Overall good, but please fix the above points"
 
 ## Pasting Screenshots in PR Descriptions
 
-### ⚠️ Important: Use URLs that persist after branch deletion
+### Important: Use URLs that persist after branch deletion
 
 PR branches are often deleted after merging. Branch-name-based URLs become 404 after deletion, so **always use blob URLs with commit hashes**.
 
@@ -347,7 +382,7 @@ git commit -m "docs: add demo video for $FEATURE"
 ### Video Links in PR Description
 Videos cannot be played directly on GitHub, so provide them as links:
 ```markdown
-📹 [View demo video](./.artifacts/feature/videos/demo.webm)
+[View demo video](./.artifacts/feature/videos/demo.webm)
 ```
 
 Or convert to GIF for embedding:
@@ -355,6 +390,74 @@ Or convert to GIF for embedding:
 # webm → gif conversion (using ffmpeg)
 ffmpeg -i demo.webm -vf "fps=10,scale=600:-1" demo.gif
 ```
+
+## reviw-Specific Features
+
+### Collapsible Sections (details/summary)
+Use collapsible sections for long logs or detailed information:
+```markdown
+<details>
+<summary>Click to expand: Detailed logs</summary>
+
+Long logs or detailed information here.
+Code blocks can be included.
+
+</details>
+```
+
+### Video Thumbnails (Image Syntax)
+**Recommended: Use image syntax for thumbnail display with flow column**
+```markdown
+| Video | Flow | Description |
+|-------|------|-------------|
+| ![Demo](./videos/demo.webm) | Home → Click → Modal → Submit → Success | Feature demo |
+```
+
+The Flow column uses arrow notation (`→`) to show what steps the video demonstrates at a glance. Since Mermaid cannot be used inside tables, this is the recommended alternative.
+
+**Link syntax (no thumbnail):**
+```markdown
+[Play video](./videos/demo.webm): Home → Click → Modal → Submit → Success
+```
+
+### Images in Tables
+Images can be placed inside table cells:
+```markdown
+| Before | After |
+|--------|-------|
+| ![Before](./images/before.png) | ![After](./images/after.png) |
+```
+
+### Code Fences in Tables are NOT Supported
+**Putting code fences (```) inside table cells breaks the parser**:
+```markdown
+<!-- This does NOT work -->
+| Code | Diagram |
+|------|---------|
+| sample | ```mermaid
+flowchart TD
+``` |
+
+<!-- Place Mermaid outside tables instead -->
+| Code | Diagram |
+|------|---------|
+| sample | See below |
+
+```mermaid
+flowchart TD
+    A --> B
+```
+```
+
+### Mermaid Diagrams
+reviw auto-renders Mermaid diagrams:
+```markdown
+```mermaid
+flowchart LR
+    A[Start] --> B[Process] --> C[End]
+```
+```
+Note: Place Mermaid blocks outside tables, not inside table cells.
 
 ## Best Practices
 - Include screen or state-descriptive words in screenshot/video filenames (e.g., `login-success.png`).
@@ -364,6 +467,10 @@ ffmpeg -i demo.webm -vf "fps=10,scale=600:-1" demo.gif
 - **Don't stack screenshots vertically; use 2-3 column table layouts for horizontal utilization**.
 - **Always use commit hashes in image URLs so they display even after branch deletion**.
 - **Always manage videos with Git LFS to avoid repository bloat**.
+- **Use `![](video.mp4)` syntax for video thumbnails in reviw**.
+- **Include a Flow column with arrow notation** to describe video content at a glance.
+- **Use `<details>` for collapsible sections to keep reports clean**.
+- **Never put code fences inside table cells - it breaks the parser**.
 
 ## Expected Outputs
 - `.artifacts/<feature>/` contains task-specific READMEs with linked evidence (screenshots, videos, logs).

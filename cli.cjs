@@ -29,21 +29,25 @@ const allowedTags = new Set([
   'ul', 'ol', 'li',
   'blockquote', 'pre', 'code',
   'em', 'strong', 'del', 's',
-  'a', 'img',
+  'a', 'img', 'video',
   'table', 'thead', 'tbody', 'tr', 'th', 'td',
   'div', 'span', // Markdown拡張用
+  'details', 'summary', // 折りたたみ用
 ]);
 
 // 許可属性リスト（タグごとに定義）
 const allowedAttributes = {
   'a': ['href', 'title', 'target', 'rel'],
   'img': ['src', 'alt', 'title', 'width', 'height'],
+  'video': ['src', 'controls', 'width', 'height', 'poster', 'preload', 'muted', 'loop'],
   'code': ['class'], // 言語ハイライト用
   'pre': ['class'],
   'div': ['class'],
   'span': ['class'],
   'th': ['align'],
   'td': ['align'],
+  'details': ['open'],
+  'summary': [],
 };
 
 // HTMLエスケープ関数（XSS対策用）
@@ -149,12 +153,13 @@ marked.use({
       }
       var titleAttr = title ? ' title="' + escapeHtmlForXss(title) + '"' : "";
       var altAttr = text ? ' alt="' + escapeHtmlForXss(text) + '"' : "";
-      // Check if this is a video file - wrap in <a> tag for video player functionality
+      // Check if this is a video file - render as video element with thumbnail
       var videoExtensions = /\.(mp4|mov|webm|avi|mkv|m4v|ogv)$/i;
       if (videoExtensions.test(href)) {
-        // For videos, return a clickable link with video icon
+        // For videos, render as video element with controls and thumbnail preview
         var displayText = text || href.split('/').pop();
-        return '<a href="' + escapeHtmlForXss(href) + '"' + titleAttr + ' class="video-link">📹' + escapeHtmlForXss(displayText) + '</a>';
+        return '<video src="' + escapeHtmlForXss(href) + '" controls preload="metadata" class="video-preview"' + titleAttr + '>' +
+               '<a href="' + escapeHtmlForXss(href) + '">📹' + escapeHtmlForXss(displayText) + '</a></video>';
       }
       return '<img src="' + escapeHtmlForXss(href) + '"' + altAttr + titleAttr + '>';
     }
@@ -719,8 +724,28 @@ function loadMarkdown(filePath) {
   }
 
   // Parse markdown content (without frontmatter)
-  const contentText = lines.slice(contentStart).join("\n");
-  const preview = frontmatterHtml + marked.parse(contentText, { breaks: true });
+  let contentText = lines.slice(contentStart).join("\n");
+
+  // Preprocess <details> blocks to preserve their content
+  // marked splits HTML blocks on blank lines, so we need to handle details specially
+  const detailsBlocks = [];
+  contentText = contentText.replace(/<details>([\s\S]*?)<\/details>/gi, function(match, inner) {
+    const placeholder = `<!--DETAILS_PLACEHOLDER_${detailsBlocks.length}-->`;
+    // Parse the inner content as markdown, preserving the details structure
+    const summaryMatch = inner.match(/<summary>([\s\S]*?)<\/summary>/i);
+    const summary = summaryMatch ? summaryMatch[1] : '';
+    const content = summaryMatch ? inner.replace(/<summary>[\s\S]*?<\/summary>/i, '').trim() : inner.trim();
+    const parsedContent = marked.parse(content, { breaks: true });
+    detailsBlocks.push(`<details><summary>${summary}</summary>${parsedContent}</details>`);
+    return placeholder;
+  });
+
+  let preview = frontmatterHtml + marked.parse(contentText, { breaks: true });
+
+  // Restore details blocks
+  detailsBlocks.forEach((block, i) => {
+    preview = preview.replace(`<!--DETAILS_PLACEHOLDER_${i}-->`, block);
+  });
 
   return {
     rows: lines.map((line) => [line]),
@@ -2224,6 +2249,8 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     }
     .md-preview p { margin: 0.3em 0; line-height: 1.5; }
     .md-preview img { max-width: 100%; height: auto; border-radius: 8px; }
+    .md-preview video.video-preview { max-width: 100%; height: auto; border-radius: 8px; background: #000; }
+    .md-preview table video.video-preview { max-width: 300px; }
     .md-preview code { background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px; }
     .md-preview pre {
       background: var(--code-bg);
