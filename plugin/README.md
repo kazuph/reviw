@@ -29,8 +29,9 @@ claude plugin install reviw-plugin@reviw-plugins
 # 旧プラグインのアンインストール
 claude plugin uninstall reviw-plugin@reviw-marketplace
 
-# 旧マーケットプレイスの削除
-/plugin marketplace remove reviw-marketplace
+# 旧マーケットプレイスの削除（どちらか一方を実行）
+/plugin marketplace remove reviw-marketplace          # Claude Code内で実行
+claude plugin marketplace remove reviw-marketplace    # ターミナルで実行
 ```
 
 その後、上記の「インストール」セクションの手順で再インストールしてください。
