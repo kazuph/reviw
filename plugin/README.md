@@ -7,7 +7,7 @@ reviw CLI ツールを Claude Code と連携させるプラグインです。タ
 ```bash
 # Claude Code で実行
 /plugin marketplace add kazuph/reviw
-/plugin install reviw-plugin@reviw-marketplace
+/plugin install reviw-plugin@reviw-plugins
 ```
 
 ## 更新
@@ -15,11 +15,25 @@ reviw CLI ツールを Claude Code と連携させるプラグインです。タ
 プラグインを最新版に更新するには、一度アンインストールしてから再インストールしてください：
 
 ```bash
-claude plugin uninstall reviw-plugin@reviw-marketplace
-claude plugin install reviw-plugin@reviw-marketplace
+claude plugin uninstall reviw-plugin@reviw-plugins
+claude plugin install reviw-plugin@reviw-plugins
 ```
 
 ※ 新しいエージェントや機能を反映するには、Claude Code の再起動も必要です。
+
+## 旧マーケットプレイス名からの移行
+
+`reviw-marketplace`（旧名）を使用していた場合は、以下で削除してください：
+
+```bash
+# 旧プラグインのアンインストール
+claude plugin uninstall reviw-plugin@reviw-marketplace
+
+# 旧マーケットプレイスの削除
+/plugin marketplace remove reviw-marketplace
+```
+
+その後、上記の「インストール」セクションの手順で再インストールしてください。
 
 ## 機能一覧
 
