@@ -1283,11 +1283,11 @@ function diffHtmlTemplate(diffData) {
       <label for="global-comment">Overall comment (optional)</label>
       <textarea id="global-comment" placeholder="Add a summary or overall feedback..."></textarea>
       <div class="modal-checkboxes">
-        <label><input type="checkbox" id="prompt-subagents" checked /> All implementation, verification, and report creation will be done by the sub-agents.</label>
-        <label><input type="checkbox" id="prompt-reviw" checked /> Open in REVIW next time.</label>
-        <label><input type="checkbox" id="prompt-screenshots" checked /> Update all screenshots and videos.</label>
-        <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> Add the user's feedback to the Todo list, and do not check it off without the user's approval.</label>
-        <label><input type="checkbox" id="prompt-deep-dive" checked /> Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs.</label>
+        <label><input type="checkbox" id="prompt-subagents" checked /> 🤖 Delegate to sub-agents (implement, verify, report)</label>
+        <label><input type="checkbox" id="prompt-reviw" checked /> 👁️ Open in REVIW next time</label>
+        <label><input type="checkbox" id="prompt-screenshots" checked /> 📸 Update all screenshots/videos</label>
+        <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> ✅ Add feedback to Todo (require approval)</label>
+        <label><input type="checkbox" id="prompt-deep-dive" checked /> 🔍 Probe requirements before implementing</label>
       </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
@@ -1657,13 +1657,13 @@ function diffHtmlTemplate(diffData) {
     const modalSummary = document.getElementById('modal-summary');
     const globalCommentInput = document.getElementById('global-comment');
 
-    // Prompt checkboxes
+    // Prompt checkboxes - text is the strong enforcement prompt for YAML output
     const promptCheckboxes = [
-      { id: 'prompt-subagents', text: 'All implementation, verification, and report creation will be done by the sub-agents.' },
-      { id: 'prompt-reviw', text: 'Open in REVIW next time.' },
-      { id: 'prompt-screenshots', text: 'Update all screenshots and videos.' },
-      { id: 'prompt-user-feedback-todo', text: "Add the user's feedback to the Todo list, and do not check it off without the user's approval." },
-      { id: 'prompt-deep-dive', text: "Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs." }
+      { id: 'prompt-subagents', text: 'MANDATORY: You MUST delegate ALL implementation, verification, and report creation to sub-agents. Direct execution on the main thread is PROHIBITED.' },
+      { id: 'prompt-reviw', text: 'REQUIRED: Before reporting completion, you MUST open the result in REVIW for user review. Skipping this step is NOT allowed.' },
+      { id: 'prompt-screenshots', text: 'MANDATORY: You MUST update ALL screenshots and videos as evidence. Reports without visual proof are REJECTED.' },
+      { id: 'prompt-user-feedback-todo', text: "STRICT RULE: Add ALL user feedback to the Todo list. You are FORBIDDEN from marking any item complete without explicit user approval." },
+      { id: 'prompt-deep-dive', text: "REQUIRED: Before ANY implementation, you MUST deeply probe the user's requirements using AskUserQuestion and EnterPlanMode. Starting implementation without thorough requirement analysis is PROHIBITED." }
     ];
     const PROMPT_STORAGE_KEY = 'reviw-prompt-prefs';
 
@@ -1710,7 +1710,7 @@ function diffHtmlTemplate(diffData) {
     }
 
     function payload(reason) {
-      const data = { file: FILE_NAME, mode: MODE, reason, at: new Date().toISOString(), comments: Object.values(comments) };
+      const data = { file: FILE_NAME, mode: MODE, submittedBy: reason, submittedAt: new Date().toISOString(), comments: Object.values(comments) };
       if (globalComment.trim()) data.summary = globalComment.trim();
       const prompts = getSelectedPrompts();
       if (prompts.length > 0) data.prompts = prompts;
@@ -3216,11 +3216,11 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       <label for="global-comment">Overall comment (optional)</label>
       <textarea id="global-comment" placeholder="Add a summary or overall feedback..."></textarea>
       <div class="modal-checkboxes">
-        <label><input type="checkbox" id="prompt-subagents" checked /> All implementation, verification, and report creation will be done by the sub-agents.</label>
-        <label><input type="checkbox" id="prompt-reviw" checked /> Open in REVIW next time.</label>
-        <label><input type="checkbox" id="prompt-screenshots" checked /> Update all screenshots and videos.</label>
-        <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> Add the user's feedback to the Todo list, and do not check it off without the user's approval.</label>
-        <label><input type="checkbox" id="prompt-deep-dive" checked /> Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs.</label>
+        <label><input type="checkbox" id="prompt-subagents" checked /> 🤖 Delegate to sub-agents (implement, verify, report)</label>
+        <label><input type="checkbox" id="prompt-reviw" checked /> 👁️ Open in REVIW next time</label>
+        <label><input type="checkbox" id="prompt-screenshots" checked /> 📸 Update all screenshots/videos</label>
+        <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> ✅ Add feedback to Todo (require approval)</label>
+        <label><input type="checkbox" id="prompt-deep-dive" checked /> 🔍 Probe requirements before implementing</label>
       </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
@@ -4217,13 +4217,13 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     const modalCancel = document.getElementById('modal-cancel');
     const modalSubmit = document.getElementById('modal-submit');
 
-    // Prompt checkboxes
+    // Prompt checkboxes - text is the strong enforcement prompt for YAML output
     const promptCheckboxes = [
-      { id: 'prompt-subagents', text: 'All implementation, verification, and report creation will be done by the sub-agents.' },
-      { id: 'prompt-reviw', text: 'Open in REVIW next time.' },
-      { id: 'prompt-screenshots', text: 'Update all screenshots and videos.' },
-      { id: 'prompt-user-feedback-todo', text: "Add the user's feedback to the Todo list, and do not check it off without the user's approval." },
-      { id: 'prompt-deep-dive', text: "Before implementing, deeply probe the user's request. If using Claude Code, start with AskUserQuestion and EnterPlanMode; otherwise achieve the same depth through interactive questions and planning, even if the UI differs." }
+      { id: 'prompt-subagents', text: 'MANDATORY: You MUST delegate ALL implementation, verification, and report creation to sub-agents. Direct execution on the main thread is PROHIBITED.' },
+      { id: 'prompt-reviw', text: 'REQUIRED: Before reporting completion, you MUST open the result in REVIW for user review. Skipping this step is NOT allowed.' },
+      { id: 'prompt-screenshots', text: 'MANDATORY: You MUST update ALL screenshots and videos as evidence. Reports without visual proof are REJECTED.' },
+      { id: 'prompt-user-feedback-todo', text: "STRICT RULE: Add ALL user feedback to the Todo list. You are FORBIDDEN from marking any item complete without explicit user approval." },
+      { id: 'prompt-deep-dive', text: "REQUIRED: Before ANY implementation, you MUST deeply probe the user's requirements using AskUserQuestion and EnterPlanMode. Starting implementation without thorough requirement analysis is PROHIBITED." }
     ];
     const PROMPT_STORAGE_KEY = 'reviw-prompt-prefs';
 
@@ -4269,13 +4269,75 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       return prompts;
     }
 
+    // Find nearest heading for a given line number (markdown context)
+    function findNearestHeading(lineNum) {
+      let nearestHeading = null;
+      for (let i = lineNum - 1; i >= 0; i--) {
+        const line = DATA[i] ? DATA[i][0] : '';
+        const match = line.match(/^(#{1,6})\\s+(.+)/);
+        if (match) {
+          nearestHeading = match[2].trim();
+          break;
+        }
+      }
+      return nearestHeading;
+    }
+
+    // Check if line is inside a table
+    function getTableContext(lineNum) {
+      const line = DATA[lineNum] ? DATA[lineNum][0] : '';
+      if (!line.includes('|')) return null;
+      // Find table header (look backwards for header row)
+      for (let i = lineNum; i >= 0; i--) {
+        const l = DATA[i] ? DATA[i][0] : '';
+        if (!l.includes('|')) break;
+        // Check if next line is separator (---|---)
+        const nextLine = DATA[i + 1] ? DATA[i + 1][0] : '';
+        if (nextLine && nextLine.match(/^\\|?[\\s-:|]+\\|/)) {
+          // This is the header row
+          return l.replace(/^\\|\\s*/, '').replace(/\\s*\\|$/, '').split('|').map(h => h.trim()).slice(0, 3).join(' | ') + (l.split('|').length > 4 ? ' ...' : '');
+        }
+      }
+      return null;
+    }
+
+    // Transform comments for markdown mode
+    function transformMarkdownComments(rawComments) {
+      return rawComments.map(c => {
+        const lineNum = c.row || c.startRow || 0;
+        const section = findNearestHeading(lineNum);
+        const tableHeader = getTableContext(lineNum);
+        const content = c.content || c.value || '';
+        const truncatedContent = content.length > 60 ? content.substring(0, 60) + '...' : content;
+
+        const transformed = {
+          line: lineNum + 1,
+          context: {}
+        };
+        if (section) transformed.context.section = section;
+        if (tableHeader) transformed.context.table = tableHeader;
+        if (truncatedContent) transformed.context.content = truncatedContent;
+        transformed.comment = c.text;
+
+        if (c.isRange) {
+          transformed.lineEnd = (c.endRow || c.startRow) + 1;
+        }
+        return transformed;
+      });
+    }
+
     function payload(reason) {
+      const rawComments = Object.values(comments);
+      const transformedComments = MODE === 'markdown'
+        ? transformMarkdownComments(rawComments)
+        : rawComments;
+
       const data = {
         file: FILE_NAME,
         mode: MODE,
-        reason,
-        at: new Date().toISOString(),
-        comments: Object.values(comments)
+        submittedBy: reason,
+        submittedAt: new Date().toISOString(),
+        comments: transformedComments
       };
       if (globalComment.trim()) {
         data.summary = globalComment.trim();
