@@ -151,7 +151,14 @@ plugin/
 │   ├── do.md                 # /reviw:doコマンド定義
 │   └── done.md               # /reviw:doneコマンド定義
 ├── agents/
-│   └── report-builder.md     # レポート生成エージェント
+│   ├── report-builder.md     # レポート生成エージェント
+│   ├── e2e-health-reviewer.md    # E2Eテスト健全性チェック
+│   ├── review-code-quality.md    # コード品質レビュー
+│   ├── review-security.md        # セキュリティ監査
+│   ├── review-a11y-ux.md         # アクセシビリティ & UX
+│   ├── review-figma-fidelity.md  # デザイン忠実度
+│   ├── review-copy-consistency.md # テキスト整合性
+│   └── review-e2e-integrity.md   # E2Eテスト整合性
 ├── skills/
 │   ├── artifact-proof/
 │   │   └── SKILL.md          # エビデンス収集スキル
@@ -171,8 +178,15 @@ plugin/
 | 種類 | 名前 | 説明 |
 |------|------|------|
 | **コマンド** | `/reviw:do` | タスク開始 - worktree作成、計画、todo登録 |
-| **コマンド** | `/reviw:done` | 完了チェックリスト - エビデンス収集、レビュー開始 |
+| **コマンド** | `/reviw:done` | 完了チェックリスト - 7レビューエージェント実行、エビデンス収集、レビュー開始 |
 | **エージェント** | `report-builder` | ユーザーレビュー用レポート準備 |
+| **エージェント** | `review-code-quality` | コード品質: 可読性、DRY、型安全性、エラーハンドリング |
+| **エージェント** | `review-security` | セキュリティ: XSS、インジェクション、OWASP Top 10、秘密情報検出 |
+| **エージェント** | `review-a11y-ux` | アクセシビリティ: WCAG 2.2 AA、キーボード操作、UXフロー |
+| **エージェント** | `review-figma-fidelity` | デザイン: トークン準拠、視覚的一貫性 |
+| **エージェント** | `review-copy-consistency` | コピー: テキスト整合性、トーン&マナー、i18n |
+| **エージェント** | `review-e2e-integrity` | E2E: ユーザーフロー再現、モック汚染検出 |
+| **エージェント** | `e2e-health-reviewer` | E2E: goto制限、レコードアサーション、ハードコード検出 |
 | **スキル** | `artifact-proof` | エビデンス収集（スクリーンショット、動画、ログ） |
 | **スキル** | `webapp-testing` | Playwrightによるブラウザ自動化と検証 |
 | **フック** | PreToolUse | git commit/push前にレビューを促すリマインダー |

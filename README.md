@@ -51,6 +51,9 @@ A lightweight browser-based tool for reviewing and annotating tabular data, text
 - **Real-time updates**: Hot reload on file changes via SSE
 - **Comment persistence**: Auto-save comments to localStorage with recovery modal
 - **Keyboard shortcuts**: Cmd/Ctrl+Enter to open submit modal
+- **Multi-tab sync**: Submit from any tab closes all tabs for the same file
+- **Server detection**: Reuse existing server instead of starting a new one (via lock files)
+- **Tab activation (macOS)**: Automatically activates existing browser tab via AppleScript
 
 ### Output
 - YAML format with file, mode, row, col, value, and comment text
@@ -151,7 +154,14 @@ plugin/
 │   ├── do.md                 # /reviw:do command definition
 │   └── done.md               # /reviw:done command definition
 ├── agents/
-│   └── report-builder.md     # Report generation agent
+│   ├── report-builder.md     # Report generation agent
+│   ├── e2e-health-reviewer.md    # E2E test health check
+│   ├── review-code-quality.md    # Code quality review
+│   ├── review-security.md        # Security audit
+│   ├── review-a11y-ux.md         # Accessibility & UX
+│   ├── review-figma-fidelity.md  # Design fidelity
+│   ├── review-copy-consistency.md # Text consistency
+│   └── review-e2e-integrity.md   # E2E test integrity
 ├── skills/
 │   ├── artifact-proof/
 │   │   └── SKILL.md          # Evidence collection skill
@@ -171,8 +181,15 @@ plugin/
 | Type | Name | Description |
 |------|------|-------------|
 | **Command** | `/reviw:do` | Start a task - create worktree, plan, register todos |
-| **Command** | `/reviw:done` | Complete checklist - collect evidence, start review |
+| **Command** | `/reviw:done` | Complete checklist - run 7 review agents, collect evidence, start review |
 | **Agent** | `report-builder` | Prepare reports and evidence for user review |
+| **Agent** | `review-code-quality` | Code quality: readability, DRY, type safety, error handling |
+| **Agent** | `review-security` | Security: XSS, injection, OWASP Top 10, secrets detection |
+| **Agent** | `review-a11y-ux` | Accessibility: WCAG 2.2 AA, keyboard nav, UX flow |
+| **Agent** | `review-figma-fidelity` | Design: token compliance, visual consistency |
+| **Agent** | `review-copy-consistency` | Copy: text consistency, tone & manner, i18n |
+| **Agent** | `review-e2e-integrity` | E2E: user flow reproduction, mock contamination |
+| **Agent** | `e2e-health-reviewer` | E2E: goto restrictions, record assertions, hardcoding |
 | **Skill** | `artifact-proof` | Collect evidence (screenshots, videos, logs) |
 | **Skill** | `webapp-testing` | Browser automation and verification with Playwright |
 | **Hook** | PreToolUse | Remind to review before git commit/push |
@@ -224,14 +241,43 @@ Validates completion criteria before allowing task completion.
 
 ---
 
-### Agent
+### Agents
+
+#### Review Agents (7 agents run in parallel)
+
+When `/reviw:done` is executed, 7 review agents run simultaneously and append their findings to `REPORT.md`:
+
+| Agent | Focus | Output Section |
+|-------|-------|----------------|
+| `review-code-quality` | Readability, DRY, type safety, error handling | Code Quality Review |
+| `review-security` | XSS, injection, OWASP Top 10, secrets | Security Review |
+| `review-a11y-ux` | WCAG 2.2 AA, keyboard nav, focus management | A11y & UX Review |
+| `review-figma-fidelity` | Design tokens, visual consistency | Figma Fidelity Review |
+| `review-copy-consistency` | Text consistency, i18n, tone & manner | Copy Consistency Review |
+| `review-e2e-integrity` | User flow reproduction, mock contamination | E2E Integrity Review |
+| `e2e-health-reviewer` | goto restrictions, record assertions | E2E Health Review |
+
+**Total score:** Each agent scores X/5, combined for X/35 total.
+
+**Invocation (parallel):**
+```
+Task tool with 7 parallel calls:
+  subagent_type: "review-code-quality"
+  subagent_type: "review-security"
+  subagent_type: "review-a11y-ux"
+  subagent_type: "review-figma-fidelity"
+  subagent_type: "review-copy-consistency"
+  subagent_type: "review-e2e-integrity"
+  subagent_type: "e2e-health-reviewer"
+```
 
 #### `report-builder`
 
-Specialized agent for preparing review materials.
+Specialized agent for preparing review materials (runs after review agents).
 
 **Role:**
 - Organize implementation into a structured report
+- Calculate total review score (X/35)
 - Collect and arrange evidence (screenshots, videos)
 - Prepare `REPORT.md` for reviw review
 - Parse reviw feedback and register as todos
@@ -320,6 +366,20 @@ Implementation (via subagents)
 Build & Verify (webapp-testing)
     ↓
 /reviw:done
+    ↓
+┌─────────────────────────────────────────────┐
+│  7 Review Agents (parallel execution)       │
+│                                             │
+│  review-code-quality ──┐                    │
+│  review-security ──────┤                    │
+│  review-a11y-ux ───────┼──→ REPORT.md      │
+│  review-figma-fidelity ┤    (append)        │
+│  review-copy-consistency                    │
+│  review-e2e-integrity ─┤                    │
+│  e2e-health-reviewer ──┘                    │
+└─────────────────────────────────────────────┘
+    ↓
+report-builder (organize + score)
     ↓
 Collect evidence (artifact-proof)
     ↓

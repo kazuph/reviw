@@ -15,7 +15,8 @@ const fs = require("fs");
 const http = require("http");
 const os = require("os");
 const path = require("path");
-const { spawn } = require("child_process");
+const crypto = require("crypto");
+const { spawn, execSync, spawnSync } = require("child_process");
 const chardet = require("chardet");
 const iconv = require("iconv-lite");
 const marked = require("marked");
@@ -1764,7 +1765,17 @@ function diffHtmlTemplate(diffData) {
       let es = null;
       const connect = () => {
         es = new EventSource('/sse');
-        es.onmessage = ev => { if (ev.data === 'reload') location.reload(); };
+        es.onmessage = ev => {
+          if (ev.data === 'reload') location.reload();
+          if (ev.data === 'submitted') {
+            // Another tab submitted - try to close this tab
+            window.close();
+            // If window.close() didn't work, show completion message
+            setTimeout(() => {
+              document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:var(--bg,#1a1a2e);color:var(--text,#e0e0e0);font-family:system-ui,sans-serif;"><h1 style="font-size:2rem;margin-bottom:1rem;">✅ Review Submitted</h1><p style="color:var(--muted,#888);">Submitted from another tab. You can close this tab now.</p></div>';
+            }, 100);
+          }
+        };
         es.onerror = () => { es.close(); setTimeout(connect, 1500); };
       };
       connect();
@@ -2397,10 +2408,15 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       border-bottom: 1px solid var(--border);
       vertical-align: top;
     }
+    .md-preview table:not(.frontmatter-table table) th:first-child,
+    .md-preview table:not(.frontmatter-table table) td:first-child {
+      min-width: 200px;
+    }
     .md-preview table:not(.frontmatter-table table) td:has(video),
     .md-preview table:not(.frontmatter-table table) td:has(img) {
       padding: 4px;
       min-width: 150px;
+      max-width: 300px;
       white-space: nowrap;
       line-height: 0;
     }
@@ -3361,6 +3377,14 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         es.onmessage = (ev) => {
           if (ev.data === 'reload') {
             location.reload();
+          }
+          if (ev.data === 'submitted') {
+            // Another tab submitted - try to close this tab
+            window.close();
+            // If window.close() didn't work, show completion message
+            setTimeout(() => {
+              document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:var(--bg,#1a1a2e);color:var(--text,#e0e0e0);font-family:system-ui,sans-serif;"><h1 style="font-size:2rem;margin-bottom:1rem;">✅ Review Submitted</h1><p style="color:var(--muted,#888);">Submitted from another tab. You can close this tab now.</p></div>';
+            }, 100);
           }
         };
         es.onerror = () => {
@@ -5612,6 +5636,229 @@ function readBody(req) {
 const MAX_PORT_ATTEMPTS = 100;
 const activeServers = new Map();
 
+// --- Lock File Management (for detecting existing servers) ---
+const LOCK_DIR = path.join(os.homedir(), '.reviw', 'locks');
+
+function getLockFilePath(filePath) {
+  // Use SHA256 hash of absolute path to prevent path traversal attacks
+  const hash = crypto.createHash('sha256').update(path.resolve(filePath)).digest('hex').slice(0, 16);
+  return path.join(LOCK_DIR, hash + '.lock');
+}
+
+function ensureLockDir() {
+  try {
+    if (!fs.existsSync(LOCK_DIR)) {
+      fs.mkdirSync(LOCK_DIR, { recursive: true, mode: 0o700 });
+    }
+  } catch (err) {
+    // Ignore errors - locks are optional optimization
+  }
+}
+
+function writeLockFile(filePath, port) {
+  try {
+    ensureLockDir();
+    const lockPath = getLockFilePath(filePath);
+    const lockData = {
+      pid: process.pid,
+      port: port,
+      file: path.resolve(filePath),
+      created: Date.now()
+    };
+    fs.writeFileSync(lockPath, JSON.stringify(lockData), { mode: 0o600 });
+  } catch (err) {
+    // Ignore errors - locks are optional
+  }
+}
+
+function removeLockFile(filePath) {
+  try {
+    const lockPath = getLockFilePath(filePath);
+    if (fs.existsSync(lockPath)) {
+      fs.unlinkSync(lockPath);
+    }
+  } catch (err) {
+    // Ignore errors
+  }
+}
+
+function checkExistingServer(filePath) {
+  try {
+    const lockPath = getLockFilePath(filePath);
+    if (!fs.existsSync(lockPath)) {
+      return null;
+    }
+
+    const lockData = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+
+    // Verify the process is still alive
+    try {
+      process.kill(lockData.pid, 0); // Signal 0 just checks if process exists
+    } catch (err) {
+      // Process doesn't exist - stale lock
+      fs.unlinkSync(lockPath);
+      return null;
+    }
+
+    // Verify the server is actually responding
+    return new Promise((resolve) => {
+      const req = http.request({
+        hostname: 'localhost',
+        port: lockData.port,
+        path: '/healthz',
+        method: 'GET',
+        timeout: 1000
+      }, (res) => {
+        if (res.statusCode === 200) {
+          resolve(lockData);
+        } else {
+          // Server not healthy - remove stale lock
+          try { fs.unlinkSync(lockPath); } catch (e) {}
+          resolve(null);
+        }
+      });
+      req.on('error', () => {
+        // Server not responding - remove stale lock
+        try { fs.unlinkSync(lockPath); } catch (e) {}
+        resolve(null);
+      });
+      req.on('timeout', () => {
+        req.destroy();
+        try { fs.unlinkSync(lockPath); } catch (e) {}
+        resolve(null);
+      });
+      req.end();
+    });
+  } catch (err) {
+    return null;
+  }
+}
+
+// Try to activate an existing browser tab with the given URL (macOS only)
+// Returns true if a tab was activated, false otherwise
+function tryActivateExistingTab(url) {
+  if (process.platform !== "darwin") {
+    return false;
+  }
+
+  try {
+    // AppleScript to find and activate Chrome tab with URL
+    // Uses "found" variable instead of return (AppleScript doesn't allow return at top level)
+    const chromeScript = [
+      'set found to false',
+      'tell application "System Events"',
+      '  if exists process "Google Chrome" then',
+      '    tell application "Google Chrome"',
+      '      set targetUrl to "' + url + '"',
+      '      repeat with w in windows',
+      '        set tabIndex to 1',
+      '        repeat with t in tabs of w',
+      '          if URL of t starts with targetUrl then',
+      '            set active tab index of w to tabIndex',
+      '            set index of w to 1',
+      '            activate',
+      '            set found to true',
+      '            exit repeat',
+      '          end if',
+      '          set tabIndex to tabIndex + 1',
+      '        end repeat',
+      '        if found then exit repeat',
+      '      end repeat',
+      '    end tell',
+      '  end if',
+      'end tell',
+      'found'
+    ].join('\n');
+
+    const chromeResult = spawnSync('osascript', ['-e', chromeScript], {
+      encoding: "utf8",
+      timeout: 3000
+    });
+
+    if (chromeResult.stdout && chromeResult.stdout.trim() === "true") {
+      console.log("Activated existing Chrome tab: " + url);
+      return true;
+    }
+
+    // Try Safari as fallback
+    const safariScript = [
+      'set found to false',
+      'tell application "System Events"',
+      '  if exists process "Safari" then',
+      '    tell application "Safari"',
+      '      set targetUrl to "' + url + '"',
+      '      repeat with w in windows',
+      '        repeat with t in tabs of w',
+      '          if URL of t starts with targetUrl then',
+      '            set current tab of w to t',
+      '            set index of w to 1',
+      '            activate',
+      '            set found to true',
+      '            exit repeat',
+      '          end if',
+      '        end repeat',
+      '        if found then exit repeat',
+      '      end repeat',
+      '    end tell',
+      '  end if',
+      'end tell',
+      'found'
+    ].join('\n');
+
+    const safariResult = spawnSync('osascript', ['-e', safariScript], {
+      encoding: "utf8",
+      timeout: 3000
+    });
+
+    if (safariResult.stdout && safariResult.stdout.trim() === "true") {
+      console.log("Activated existing Safari tab: " + url);
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    // AppleScript failed (not macOS, Chrome/Safari not installed, etc.)
+    return false;
+  }
+}
+
+// Open browser with the given URL, trying to reuse existing tab first (macOS)
+function openBrowser(url, delay = 0) {
+  const opener =
+    process.platform === "darwin"
+      ? "open"
+      : process.platform === "win32"
+        ? "start"
+        : "xdg-open";
+
+  setTimeout(function() {
+    // On macOS, try to activate existing tab first
+    if (process.platform === "darwin") {
+      var activated = tryActivateExistingTab(url);
+      if (activated) {
+        return;  // Successfully activated existing tab
+      }
+      // If activation failed, fall through to open new tab
+    }
+
+    try {
+      var child = spawn(opener, [url], { stdio: "ignore", detached: true });
+      child.on('error', function(err) {
+        console.warn(
+          "Failed to open browser automatically. Please open this URL manually:",
+          url
+        );
+      });
+      child.unref();
+    } catch (err) {
+      console.warn(
+        "Failed to open browser automatically. Please open this URL manually:",
+        url
+      );
+    }
+  }, delay);
+}
+
 function outputAllResults() {
   console.log("=== All comments received ===");
   if (allResults.length === 1) {
@@ -5723,6 +5970,7 @@ function createFileServer(filePath, fileIndex = 0) {
         ctx.server = null;
       }
       activeServers.delete(filePath);
+      removeLockFile(filePath);  // Clean up lock file
       if (result) allResults.push(result);
       serversRunning--;
       console.log(`Server for ${baseName} closed. (${serversRunning} remaining)`);
@@ -5763,12 +6011,15 @@ function createFileServer(filePath, fileIndex = 0) {
           }
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("bye");
-          shutdownServer(payload);
+          // Notify all tabs to close before shutting down
+          broadcast("submitted");
+          setTimeout(() => shutdownServer(payload), 300);
         } catch (err) {
           console.error("payload parse error", err);
           res.writeHead(400, { "Content-Type": "text/plain" });
           res.end("bad request");
-          shutdownServer(null);
+          broadcast("submitted");
+          setTimeout(() => shutdownServer(null), 300);
         }
         return;
       }
@@ -5930,33 +6181,12 @@ function createFileServer(filePath, fileIndex = 0) {
         nextPort = attemptPort + 1;
         activeServers.set(filePath, ctx);
         console.log(`Viewer started: http://localhost:${attemptPort}  (file: ${baseName})`);
+        writeLockFile(filePath, attemptPort);  // Write lock file for server detection
         if (!noOpen) {
           const url = `http://localhost:${attemptPort}`;
-          const opener =
-            process.platform === "darwin"
-              ? "open"
-              : process.platform === "win32"
-                ? "start"
-                : "xdg-open";
           // Add delay for multiple files to avoid browser ignoring rapid open commands
           const delay = fileIndex * 300;
-          setTimeout(() => {
-            try {
-              const child = spawn(opener, [url], { stdio: "ignore", detached: true });
-              child.on('error', (err) => {
-                console.warn(
-                  "Failed to open browser automatically. Please open this URL manually:",
-                  url,
-                );
-              });
-              child.unref();
-            } catch (err) {
-              console.warn(
-                "Failed to open browser automatically. Please open this URL manually:",
-                url,
-              );
-            }
-          }, delay);
+          openBrowser(url, delay);
         }
         startWatcher();
         resolve(ctx);
@@ -6043,12 +6273,15 @@ function createDiffServer(diffContent) {
           }
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("bye");
-          shutdownServer(payload);
+          // Notify all tabs to close before shutting down
+          broadcast("submitted");
+          setTimeout(() => shutdownServer(payload), 300);
         } catch (err) {
           console.error("payload parse error", err);
           res.writeHead(400, { "Content-Type": "text/plain" });
           res.end("bad request");
-          shutdownServer(null);
+          broadcast("submitted");
+          setTimeout(() => shutdownServer(null), 300);
         }
         return;
       }
@@ -6110,27 +6343,7 @@ function createDiffServer(diffContent) {
         console.log(`Diff viewer started: http://localhost:${attemptPort}`);
         if (!noOpen) {
           const url = `http://localhost:${attemptPort}`;
-          const opener =
-            process.platform === "darwin"
-              ? "open"
-              : process.platform === "win32"
-                ? "start"
-                : "xdg-open";
-          try {
-            const child = spawn(opener, [url], { stdio: "ignore", detached: true });
-            child.on('error', (err) => {
-              console.warn(
-                "Failed to open browser automatically. Please open this URL manually:",
-                url,
-              );
-            });
-            child.unref();
-          } catch (err) {
-            console.warn(
-              "Failed to open browser automatically. Please open this URL manually:",
-              url,
-            );
-          }
+          openBrowser(url, 0);
         }
         resolve(ctx);
       });
@@ -6181,10 +6394,32 @@ if (require.main === module) {
     }
   } else if (resolvedPaths.length > 0) {
     // File mode: files specified
-    console.log(`Starting servers for ${resolvedPaths.length} file(s)...`);
-    serversRunning = resolvedPaths.length;
-    for (let i = 0; i < resolvedPaths.length; i++) {
-      await createFileServer(resolvedPaths[i], i);
+    // Check for existing servers first
+    let filesToStart = [];
+    for (const fp of resolvedPaths) {
+      const existing = await checkExistingServer(fp);
+      if (existing) {
+        console.log(`Server already running for ${path.basename(fp)} on port ${existing.port}`);
+        const url = `http://localhost:${existing.port}`;
+        if (!noOpen) {
+          openBrowser(url, 0);
+        }
+      } else {
+        filesToStart.push(fp);
+      }
+    }
+
+    if (filesToStart.length === 0) {
+      console.log("All files already have running servers. Activating existing tabs.");
+      // Wait a moment for browser activation to complete before exiting
+      setTimeout(() => process.exit(0), 500);
+      return;
+    }
+
+    console.log(`Starting servers for ${filesToStart.length} file(s)...`);
+    serversRunning = filesToStart.length;
+    for (let i = 0; i < filesToStart.length; i++) {
+      await createFileServer(filesToStart[i], i);
     }
     console.log("Close all browser tabs or Submit & Exit to finish.");
   } else {
