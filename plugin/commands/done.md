@@ -109,19 +109,44 @@ On rejection, display:
    - Use `webapp-testing` skill to actually operate in browser
    - Verify expected behavior
 
-### 4. Report Creation/Evidence Organization + E2E Health Review
+### 4. Comprehensive Review (7 Review Agents in Parallel)
 
-**Use report-builder and e2e-health-reviewer agents in parallel:**
+**Launch all 7 review agents simultaneously with Task tool:**
 
 ```
-Launch TWO agents simultaneously with Task tool:
+Launch SEVEN agents simultaneously with Task tool:
 
-1. subagent_type: "report-builder"
-   → artifact-proof skill auto-loads
-   → Execute report creation/evidence organization
-   → Ready to start reviw review
+1. subagent_type: "review-code-quality"
+   → Check readability, maintainability, DRY principle
+   → Verify type safety and error handling
+   → Append "Code Quality Review" section to REPORT.md
 
-2. subagent_type: "e2e-health-reviewer"
+2. subagent_type: "review-security"
+   → Check XSS, injection, OWASP Top 10
+   → Detect hardcoded secrets, auth issues
+   → Append "Security Review" section to REPORT.md
+
+3. subagent_type: "review-a11y-ux"
+   → Check WCAG 2.2 AA compliance
+   → Verify keyboard navigation, focus management
+   → Append "A11y & UX Review" section to REPORT.md
+
+4. subagent_type: "review-figma-fidelity"
+   → Check design token compliance
+   → Detect hardcoded colors/spacing
+   → Append "Figma Fidelity Review" section to REPORT.md
+
+5. subagent_type: "review-copy-consistency"
+   → Detect text inconsistencies
+   → Check i18n coverage
+   → Append "Copy Consistency Review" section to REPORT.md
+
+6. subagent_type: "review-e2e-integrity"
+   → Verify user flow reproduction
+   → Detect shortcuts, mock contamination
+   → Append "E2E Integrity Review" section to REPORT.md
+
+7. subagent_type: "e2e-health-reviewer"
    → Check goto restrictions
    → Verify record change assertions
    → Detect hardcoded values/environment locks
@@ -129,9 +154,24 @@ Launch TWO agents simultaneously with Task tool:
    → Append "E2E Health Review" section to REPORT.md
 ```
 
-**Important: Execute both agents in a single Task tool call for parallel execution.**
+**Important: Execute all 7 agents in a single Task tool call for parallel execution.**
 
-### 5. Start reviw Review
+### 5. Report Creation/Evidence Organization
+
+**After reviews complete, launch report-builder:**
+
+```
+Launch ONE agent with Task tool:
+
+subagent_type: "report-builder"
+   → artifact-proof skill auto-loads
+   → Calculate total review score (X/35)
+   → Organize priority action items
+   → Execute report creation/evidence organization
+   → Ready to start reviw review
+```
+
+### 6. Start reviw Review
 
 **Important: Launch reviw in foreground**
 
@@ -153,7 +193,7 @@ When reviw review starts:
 - To receive user review comments
 - Feedback won't be conveyed in background
 
-### 6. Feedback Response
+### 7. Feedback Response
 
 After receiving feedback:
 1. **MUST register in TodoWrite before starting work**
