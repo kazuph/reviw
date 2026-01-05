@@ -2250,7 +2250,13 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     .md-preview p { margin: 0.3em 0; line-height: 1.5; }
     .md-preview img { max-width: 100%; height: auto; border-radius: 8px; }
     .md-preview video.video-preview { max-width: 100%; height: auto; border-radius: 8px; background: #000; }
-    .md-preview table video.video-preview { max-width: 300px; }
+    .md-preview table video.video-preview {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 200px;
+      max-height: 300px;
+    }
     .md-preview code { background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px; }
     .md-preview pre {
       background: var(--code-bg);
@@ -2377,19 +2383,27 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     }
     /* Markdown tables in preview */
     .md-preview table:not(.frontmatter-table table) {
-      width: 100%;
+      width: max-content;
       border-collapse: collapse;
+      table-layout: auto;
       margin: 16px 0;
       border: 1px solid var(--border);
       border-radius: 8px;
-      overflow: hidden;
     }
     .md-preview table:not(.frontmatter-table table) th,
     .md-preview table:not(.frontmatter-table table) td {
-      width: 50%;
       padding: 10px 16px;
       text-align: left;
       border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    .md-preview table:not(.frontmatter-table table) td:has(video),
+    .md-preview table:not(.frontmatter-table table) td:has(img) {
+      padding: 0;
+      width: 1%;
+      white-space: nowrap;
+      line-height: 0;
     }
     .md-preview table:not(.frontmatter-table table) th {
       background: var(--panel);
