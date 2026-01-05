@@ -2396,7 +2396,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     .md-preview table:not(.frontmatter-table table) {
       width: 100%;
       border-collapse: collapse;
-      table-layout: auto;
+      table-layout: fixed;
       margin: 16px 0;
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -2407,18 +2407,30 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       text-align: left;
       border-bottom: 1px solid var(--border);
       vertical-align: top;
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     .md-preview table:not(.frontmatter-table table) th:first-child,
     .md-preview table:not(.frontmatter-table table) td:first-child {
+      width: 30%;
       min-width: 200px;
+    }
+    .md-preview table:not(.frontmatter-table table) th:last-child,
+    .md-preview table:not(.frontmatter-table table) td:last-child {
+      width: 180px;
+      min-width: 180px;
+      max-width: 180px;
     }
     .md-preview table:not(.frontmatter-table table) td:has(video),
     .md-preview table:not(.frontmatter-table table) td:has(img) {
       padding: 4px;
-      min-width: 150px;
-      max-width: 300px;
-      white-space: nowrap;
       line-height: 0;
+    }
+    .md-preview table:not(.frontmatter-table table) td video,
+    .md-preview table:not(.frontmatter-table table) td img {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
     }
     .md-preview table:not(.frontmatter-table table) th {
       background: var(--panel);
