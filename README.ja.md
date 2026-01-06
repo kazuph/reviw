@@ -286,8 +286,8 @@ npx reviw .artifacts/<feature>/REPORT.md
 Playwrightを使用したブラウザ自動化ツールキット。
 
 **機能:**
-- PythonとNode.js Playwrightスクリプト
-- サーバーライフサイクル管理（`scripts/with_server.py`）
+- TypeScript Playwright Test (`@playwright/test`)
+- webServerサポート付きPlaywright設定
 - スクリーンショットと動画キャプチャ
 - コンソールログとネットワークリクエスト監視
 - 高度なデバッグ用CDP統合

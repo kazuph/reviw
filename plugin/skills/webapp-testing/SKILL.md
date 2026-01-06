@@ -6,24 +6,24 @@ license: Complete terms in LICENSE.txt
 
 # Web Application Testing
 
-To test local web applications, write native Python Playwright scripts.
+To test local web applications, write TypeScript E2E tests using **Playwright Test** (`@playwright/test`).
 
-**Helper Scripts Available**:
-- `scripts/with_server.py` - Manages server lifecycle (supports multiple servers)
-
-**Always run scripts with `--help` first** to see usage. DO NOT read the source until you try running the script first and find that a customized solution is abslutely necessary. These scripts can be very large and thus pollute your context window. They exist to be called directly as black-box scripts rather than ingested into your context window.
+**CRITICAL: E2E Test File Placement**
+- **ALWAYS** place E2E test files in `tests/e2e/` or `e2e/` directory at the project root
+- **NEVER** place test scripts in `.artifacts/` - that's for evidence only (screenshots, videos)
+- E2E tests should be permanent project assets, not disposable artifacts
 
 ## Decision Tree: Choosing Your Approach
 
 ```
 User task → Is it static HTML?
     ├─ Yes → Read HTML file directly to identify selectors
-    │         ├─ Success → Write Playwright script using selectors
+    │         ├─ Success → Write Playwright test using selectors
     │         └─ Fails/Incomplete → Treat as dynamic (below)
     │
     └─ No (dynamic webapp) → Is the server already running?
-        ├─ No → Run: python scripts/with_server.py --help
-        │        Then use the helper + write simplified Playwright script
+        ├─ No → Use webServer config in playwright.config.ts
+        │        to auto-start the dev server
         │
         └─ Yes → Reconnaissance-then-action:
             1. Navigate and wait for networkidle
@@ -32,179 +32,256 @@ User task → Is it static HTML?
             4. Execute actions with discovered selectors
 ```
 
-## Example: Using with_server.py
+## Playwright Test Setup
 
-To start a server, run `--help` first, then use the helper:
+### playwright.config.ts
+```typescript
+import { defineConfig, devices } from '@playwright/test';
 
-**Single server:**
-```bash
-python scripts/with_server.py --server "npm run dev" --port 5173 -- python your_automation.py
+export default defineConfig({
+  testDir: './tests/e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120 * 1000,
+  },
+});
 ```
 
-**Multiple servers (e.g., backend + frontend):**
-```bash
-python scripts/with_server.py \
-  --server "cd backend && python server.py" --port 3000 \
-  --server "cd frontend && npm run dev" --port 5173 \
-  -- python your_automation.py
+### Example Test: tests/e2e/login.spec.ts
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Login Flow', () => {
+  test('should login successfully with valid credentials', async ({ page }) => {
+    await page.goto('/login');
+    await page.waitForLoadState('networkidle');
+
+    await page.getByLabel('Email').fill('test@example.com');
+    await page.getByLabel('Password').fill('password123');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await expect(page).toHaveURL('/dashboard');
+    await expect(page.getByRole('heading', { name: 'Welcome' })).toBeVisible();
+  });
+
+  test('should show error for invalid credentials', async ({ page }) => {
+    await page.goto('/login');
+
+    await page.getByLabel('Email').fill('invalid@example.com');
+    await page.getByLabel('Password').fill('wrong');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await expect(page.getByText('Invalid credentials')).toBeVisible();
+  });
+});
 ```
 
-To create an automation script, include only Playwright logic (servers are managed automatically):
-```python
-from playwright.sync_api import sync_playwright
+## Running Tests
 
-with sync_playwright() as p:
-    browser = p.chromium.launch(headless=True) # Always launch chromium in headless mode
-    page = browser.new_page()
-    page.goto('http://localhost:5173') # Server already running and ready
-    page.wait_for_load_state('networkidle') # CRITICAL: Wait for JS to execute
-    # ... your automation logic
-    browser.close()
+```bash
+# Run all E2E tests
+npx playwright test
+
+# Run specific test file
+npx playwright test tests/e2e/login.spec.ts
+
+# Run with UI mode (interactive debugging)
+npx playwright test --ui
+
+# Run headed (visible browser)
+npx playwright test --headed
+
+# Generate test code interactively
+npx playwright codegen http://localhost:3000
 ```
 
 ## Reconnaissance-Then-Action Pattern
 
-1. **Inspect rendered DOM**:
-   ```python
-   page.screenshot(path='/tmp/inspect.png', full_page=True)
-   content = page.content()
-   page.locator('button').all()
-   ```
+When you don't know the page structure:
 
-2. **Identify selectors** from inspection results
+```typescript
+import { test, expect } from '@playwright/test';
 
-3. **Execute actions** using discovered selectors
+test('discover and interact with page elements', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
 
-## Common Pitfall
+  // 1. Take screenshot for reconnaissance
+  await page.screenshot({ path: '/tmp/inspect.png', fullPage: true });
+
+  // 2. Log all buttons for analysis
+  const buttons = await page.getByRole('button').all();
+  for (const button of buttons) {
+    console.log('Button:', await button.textContent());
+  }
+
+  // 3. Get page content for selector discovery
+  const content = await page.content();
+  console.log(content);
+});
+```
+
+## Evidence Collection for PR Reviews
+
+When collecting evidence (screenshots/videos) for PR reviews, use this pattern:
+
+```bash
+# Run tests with evidence collection
+FEATURE=${FEATURE:-feature}
+mkdir -p .artifacts/$FEATURE/{images,videos}
+
+npx playwright test tests/e2e/your-feature.spec.ts \
+  --headed \
+  --output=.artifacts/$FEATURE \
+  --trace=retain-on-failure \
+  --reporter=line
+```
+
+### Test with Built-in Evidence Collection
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Feature Demo', () => {
+  test('demonstrate feature workflow', async ({ page }, testInfo) => {
+    const feature = process.env.FEATURE || 'feature';
+    const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+    await page.goto('/feature');
+    await page.waitForLoadState('networkidle');
+
+    // Capture before state
+    await page.screenshot({
+      path: `.artifacts/${feature}/images/${timestamp}-before.png`,
+      fullPage: true
+    });
+
+    // Perform actions
+    await page.getByRole('button', { name: 'Enable Feature' }).click();
+    await expect(page.getByText('Feature Enabled')).toBeVisible();
+
+    // Capture after state
+    await page.screenshot({
+      path: `.artifacts/${feature}/images/${timestamp}-after.png`,
+      fullPage: true
+    });
+  });
+});
+```
+
+## Quick One-liner for Ad-hoc Verification
+
+For quick checks without writing a full test file (use TypeScript via tsx):
+
+```bash
+npx tsx -e "
+import { chromium } from 'playwright';
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+await page.goto(process.env.BASE_URL || 'http://localhost:3000', { waitUntil: 'networkidle' });
+await page.screenshot({ path: '/tmp/webapp.png', fullPage: true });
+await browser.close();
+console.log('saved: /tmp/webapp.png');
+"
+```
+
+## Common Pitfalls
 
 ❌ **Don't** inspect the DOM before waiting for `networkidle` on dynamic apps
-✅ **Do** wait for `page.wait_for_load_state('networkidle')` before inspection
+✅ **Do** wait for `page.waitForLoadState('networkidle')` before inspection
+
+❌ **Don't** place E2E test files in `.artifacts/`
+✅ **Do** place E2E tests in `tests/e2e/` as permanent project assets
+
+❌ **Don't** write tests in Python
+✅ **Do** write tests in TypeScript using `@playwright/test`
+
+❌ **Don't** use Vitest for E2E tests
+✅ **Do** use Playwright Test for E2E, Vitest for unit/integration tests
 
 ## Best Practices
 
-- **Use bundled scripts as black boxes** - To accomplish a task, consider whether one of the scripts available in `scripts/` can help. These scripts handle common, complex workflows reliably without cluttering the context window. Use `--help` to see usage, then invoke directly.
-- Use `sync_playwright()` for synchronous scripts
-- Always close the browser when done
-- Use descriptive selectors: `text=`, `role=`, CSS selectors, or IDs
-- Add appropriate waits: `page.wait_for_selector()` or `page.wait_for_timeout()`
+- **Use Playwright Test runner** - Not Vitest or other runners for E2E
+- **Always use TypeScript** - Never Python for Playwright tests
+- **Place tests in `tests/e2e/`** - Permanent project assets, not disposable
+- **Use role-based selectors** - `getByRole`, `getByLabel`, `getByText` over CSS
+- **Always close browser** - Playwright Test handles this automatically
+- **Add appropriate waits** - `waitForLoadState`, `waitForSelector`, `expect().toBeVisible()`
+- **Use `webServer` config** - Auto-start dev server in `playwright.config.ts`
 
-## Reference Files
-
-- **examples/** - Examples showing common patterns:
-  - `element_discovery.py` - Discovering buttons, links, and inputs on a page
-  - `static_html_automation.py` - Using file:// URLs for local HTML
-  - `console_logging.py` - Capturing console logs during automation
-  - `node_site_diagnostics.js` - Simple Node diagnostics (console errors/HTTP failures collection + screenshots)
-
----
-
-## Node Playwright Addendum (local extensions)
-
-Documenting useful patterns from Node operations. The official content above remains Python-based; this section serves as a local extension for reference.
-
-- **Quick one-liner**: Fastest approach without cluttering `/tmp`. Minimal example for `networkidle` wait and full-page screenshot:
-  ```bash
-  node -e "const { chromium } = require('playwright');
-  (async () => {
-    const browser = await chromium.launch();
-    const page = await browser.newPage();
-    await page.goto(process.env.BASE_URL || 'http://localhost:3000', { waitUntil: 'networkidle' });
-    await page.screenshot({ path: '/tmp/webapp.png', fullPage: true });
-    await browser.close();
-    console.log('saved: /tmp/webapp.png');
-  })();"
-  ```
-
-- **Evidence collection (scripts/videos/screenshots/traces)**: When evidence is required, consolidate in `.artifacts/<feature>/`. **Save the Playwright script itself in `scripts/`** to make execution reproducible. Videos use `recordVideo`, traces use `--trace=retain-on-failure` in Playwright Test for convenience.
-  ```bash
-  FEATURE=${FEATURE:-feature}
-  mkdir -p .artifacts/$FEATURE/{scripts,images,videos}
-  node -e "const { chromium } = require('playwright');
-  (async () => {
-    const browser = await chromium.launch({ headless: false });
-    const context = await browser.newContext({
-      viewport: { width: 1440, height: 900 },
-      recordVideo: { dir: `.artifacts/${FEATURE}/videos` }
-    });
-    const page = await context.newPage();
-    await page.goto(process.env.BASE_URL || 'http://localhost:3000', { waitUntil: 'networkidle' });
-    await page.screenshot({ path: `.artifacts/${FEATURE}/images/${Date.now()}-step.png`, fullPage: true });
-    await browser.close();
-  })();"
-  # When keeping traces with Playwright Test
-  # BASE_URL=http://localhost:3000 npx playwright test tests/e2e/<spec>.spec.ts --headed --output=.artifacts/$FEATURE/images --trace=retain-on-failure --reporter=line
-  ```
-
-- **Decision on Chrome DevTools MCP usage**: For layout/font/stacking/performance issues hard to diagnose from screenshots alone, first reproduce and capture evidence with Playwright → if still unclear, pinpoint with DevTools MCP for Styles/Computed/Box model/Performance.
-
-- **Performance snapshot with Lighthouse**: Minimal execution for rough performance measurement. Output consolidated in `/tmp`.
-  ```bash
-  npx lighthouse ${BASE_URL:-http://localhost:3000} --output=json --output-path=/tmp/lh.json --chrome-flags="--headless" --only-categories=performance
-  node -e "const data = require('/tmp/lh.json'); const perf = data.categories.performance; console.log('Performance Score', Math.round(perf.score*100));"
-  ```
-
-Operation policy: Default to headless, switch to headed only when evidence is needed. Write to `/tmp` or `.artifacts/` subdirectory without cluttering the project root, and delete unnecessary files after completion.
-
-## Notes on Playwright-only approach without DevTools MCP
-Chrome DevTools MCP internally uses Puppeteer + CDP. Playwright can also use CDP, so substitute with the following steps.
-
-- **Performance trace (equivalent to Performance panel)**: Use Playwright's standard tracing.
-  ```python
-  with sync_playwright() as p:
-      browser = p.chromium.launch(headless=True)
-      context = browser.new_context(record_video_dir=None)
-      context.tracing.start(screenshots=True, snapshots=True)
-      page = context.new_page()
-      page.goto("http://localhost:3000", wait_until="networkidle")
-      # Perform operations here
-      context.tracing.stop(path=".artifacts/feature/traces/trace.zip")
-      browser.close()
-  ```
-  For detailed output similar to DevTools `Performance` view, use a CDP session with `Tracing.start`/`end` and read the output JSON with `chrome://tracing` or `perfetto.dev`.
-
-- **Coverage (equivalent to Coverage panel)**: Retrieve via CDP.
-  ```python
-  cdp = page.context.new_cdp_session(page)
-  cdp.send("Profiler.enable")
-  cdp.send("Profiler.startPreciseCoverage", {"callCount": True, "detailed": True})
-  # Perform operations here
-  result = cdp.send("Profiler.takePreciseCoverage")
-  cdp.send("Profiler.stopPreciseCoverage"); cdp.send("Profiler.disable")
-  # result["result"] contains usage per file
-  ```
-
-- **Checking Styles/Box Model/Computed values**: Retrieve values without DevTools UI.
-  ```python
-  box = page.locator("selector").evaluate("el => el.getBoundingClientRect()")
-  styles = page.locator("selector").evaluate("el => getComputedStyle(el)")
-  ```
-
-- **Network body retrieval**: `page.on('request')` captures metadata, but response body needs CDP.
-  ```python
-  cdp = page.context.new_cdp_session(page)
-  resp = cdp.send("Network.getResponseBody", {"requestId": "<target requestId>"})
-  ```
-  Get `requestId` by logging with `page.on("requestfinished", ...)` along with `request.timing()` for correlation.
-
-- **Console/error collection**: Playwright events are sufficient.
-  ```python
-  page.on("console", lambda msg: print("console:", msg.type, msg.text))
-  page.on("pageerror", lambda err: print("pageerror:", err))
-  page.on("requestfailed", lambda req: print("requestfailed:", req.url))
-  ```
-
-## File placement conventions
-
-Consolidate verification-generated files in `.artifacts/<feature>/` with the following structure:
+## File Structure Convention
 
 ```
-.artifacts/<feature>/
-├── scripts/      # Playwright scripts (.py / .js / .ts)
-├── images/       # Screenshots
-├── videos/       # Recorded videos
-└── traces/       # Playwright traces (.zip)
+project/
+├── playwright.config.ts      # Playwright configuration
+├── tests/
+│   └── e2e/                  # E2E tests (permanent)
+│       ├── login.spec.ts
+│       ├── checkout.spec.ts
+│       └── settings.spec.ts
+├── .artifacts/               # Evidence only (temporary)
+│   └── <feature>/
+│       ├── images/           # Screenshots
+│       ├── videos/           # Recorded videos
+│       └── REPORT.md         # Review report
+└── test-results/             # Playwright auto-generated (gitignored)
 ```
 
-- **Scripts are also part of evidence**: Save in `scripts/` even if disposable, to make execution reproducible
-- **Naming convention**: Use descriptive names like `<timestamp>-<step>.png`, `verify-<feature>.py` that convey intent
-- **Quick validation only in `/tmp`**: OK for one-off checks without evidence, but assume no future reference
+**Key distinction:**
+- `tests/e2e/` = Permanent E2E test code (committed to repo)
+- `.artifacts/` = Temporary evidence for PR review (gitignored or LFS)
+- `test-results/` = Playwright's auto-generated output (gitignored)
+
+## Console/Error Collection
+
+```typescript
+test('collect console logs', async ({ page }) => {
+  const consoleLogs: string[] = [];
+  const errors: string[] = [];
+
+  page.on('console', msg => consoleLogs.push(`${msg.type()}: ${msg.text()}`));
+  page.on('pageerror', err => errors.push(err.message));
+  page.on('requestfailed', req => errors.push(`Request failed: ${req.url()}`));
+
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+
+  console.log('Console logs:', consoleLogs);
+  if (errors.length > 0) {
+    console.error('Errors:', errors);
+  }
+});
+```
+
+## Vitest vs Playwright Test: When to Use Each
+
+| Test Type | Tool | Reason |
+|-----------|------|--------|
+| Unit tests | Vitest | Fast, no browser needed |
+| Integration tests | Vitest | Fast, mock external deps |
+| Component tests | Vitest + browser mode | or Storybook |
+| **E2E tests** | **Playwright Test** | Full browser, real flows |
+
+**Do NOT use Vitest for E2E tests.** Playwright Test has:
+- Built-in parallelization for browser tests
+- Automatic retries and trace collection
+- Screenshot/video on failure
+- Web server management
+- Test generator (`codegen`)

@@ -21,7 +21,8 @@ Assumes human-in-the-loop visual regression, requiring screenshots to be retaken
 - When E2E/Playwright execution results need to be preserved
 
 ## Core Principles
-- Use `.artifacts/` (md) and `.artifacts/media/` (images/videos) to avoid polluting the repository.
+- Use `.artifacts/<feature>/` for evidence (screenshots, videos, REPORT.md) to avoid polluting the repository.
+- **IMPORTANT**: E2E test scripts belong in `tests/e2e/` (permanent project assets), NOT in `.artifacts/` (temporary evidence only).
 - Treat screenshots as semi-automated human-in-the-loop visual regression. After making changes, **retake all screenshots before commits and PR pushes to replace them**. Human verification ensures the changes are intentional before committing.
 - Browsers should primarily use Playwright's bundled Chromium. Chrome-based browsers are a last resort.
 - Editing should use `apply_patch` only. Operations that break others' changes (like `git reset`) are prohibited.
@@ -142,22 +143,35 @@ pnpm dev
 ```
 
 ## Example of Capturing Evidence with Playwright (Screenshots + Videos)
+
+**Note**: E2E test code should be in `tests/e2e/`, not here. Use this for quick evidence capture only.
+
 ```bash
 FEATURE=${FEATURE:-feature}
 mkdir -p .artifacts/$FEATURE/{images,videos}
-node -e "const { chromium } = require('playwright');
-(async () => {
-  const feature = process.env.FEATURE || 'feature';
-  const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, recordVideo: { dir: \`.artifacts/\${feature}/videos\` } });
-  const page = await context.newPage();
-  await page.goto(process.env.BASE_URL || 'http://localhost:3000', { waitUntil: 'networkidle' });
-  // TODO: Describe scenario operations here
-  const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  await page.screenshot({ path: \`.artifacts/\${feature}/images/\${stamp}-step.png\`, fullPage: true });
-  await browser.close();
-})();" \
-FEATURE=$FEATURE
+
+# Run existing E2E test with evidence collection
+npx playwright test tests/e2e/your-feature.spec.ts \
+  --headed \
+  --output=.artifacts/$FEATURE \
+  --trace=retain-on-failure
+
+# Or quick one-liner for ad-hoc screenshot (TypeScript via tsx)
+npx tsx -e "
+import { chromium } from 'playwright';
+
+const feature = process.env.FEATURE || 'feature';
+const browser = await chromium.launch({ headless: false });
+const context = await browser.newContext({
+  viewport: { width: 1440, height: 900 },
+  recordVideo: { dir: \\\`.artifacts/\\\${feature}/videos\\\` }
+});
+const page = await context.newPage();
+await page.goto(process.env.BASE_URL || 'http://localhost:3000', { waitUntil: 'networkidle' });
+const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
+await page.screenshot({ path: \\\`.artifacts/\\\${feature}/images/\\\${stamp}-step.png\\\`, fullPage: true });
+await browser.close();
+"
 ```
 - Playwright test example with trace:
 ```bash
