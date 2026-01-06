@@ -825,9 +825,10 @@ function serializeForScript(value) {
     .replace(/\$\{/g, "\\${");
 }
 
-function diffHtmlTemplate(diffData) {
+function diffHtmlTemplate(diffData, history = []) {
   const { rows, projectRoot, relativePath } = diffData;
   const serialized = serializeForScript(rows);
+  const historyJson = serializeForScript(history);
   const fileCount = rows.filter((r) => r.type === "file").length;
 
   return `<!doctype html>
@@ -1235,6 +1236,221 @@ function diffHtmlTemplate(diffData) {
     }
     .no-diff h2 { font-size: 20px; margin: 0 0 8px; color: var(--text); }
     .no-diff p { font-size: 14px; margin: 0; }
+
+    /* History Panel - Push layout */
+    body { transition: margin-right 0.25s ease; }
+    body.history-open { margin-right: 320px; }
+    body.history-open header { right: 320px; }
+    header { transition: right 0.25s ease; right: 0; }
+
+    .history-toggle {
+      background: var(--selected-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .history-toggle:hover { background: var(--border); }
+    .history-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100vh;
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      z-index: 90;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .history-panel.open { transform: translateX(0); }
+    .history-panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .history-panel-header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+    .history-panel-close {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px;
+    }
+    .history-panel-close:hover { color: var(--text); }
+    .history-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .history-empty {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .history-date-group {
+      margin-bottom: 16px;
+    }
+    .history-date {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .history-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .history-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      background: var(--selected-bg);
+      cursor: pointer;
+    }
+    .history-item-header:hover { background: var(--border); }
+    .history-item-file {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .history-item-time {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .history-item-body {
+      display: none;
+      padding: 10px;
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .history-item.expanded .history-item-body { display: block; }
+    .history-summary {
+      color: var(--text);
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-summary-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .history-summary-text {
+      white-space: pre-wrap;
+      line-height: 1.4;
+    }
+    .history-comments-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .history-comment {
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-comment:last-child { border-bottom: none; }
+    .history-comment-line {
+      font-size: 10px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .history-comment-quote {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 2px solid var(--accent);
+      padding: 4px 8px;
+      margin: 4px 0;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+    .history-comment-text {
+      color: var(--text);
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .history-badge {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--text-inverse);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
+
+    /* Past comment indicator on lines */
+    .diff-line[data-has-history]::before {
+      content: '💬';
+      position: absolute;
+      left: 4px;
+      font-size: 10px;
+      opacity: 0.6;
+    }
+    .diff-line { position: relative; }
+    .past-comment-overlay {
+      background: var(--selected-bg);
+      border-left: 3px solid var(--muted);
+      margin: 0;
+      padding: 8px 12px;
+      font-size: 11px;
+      color: var(--muted);
+      display: none;
+    }
+    .past-comment-overlay.visible { display: block; }
+    .past-comment-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .past-comment-date {
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .past-comment-toggle {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 10px;
+      padding: 2px 4px;
+    }
+    .past-comment-toggle:hover { color: var(--text); }
+    .past-comment-text {
+      color: var(--text);
+      white-space: pre-wrap;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -1245,10 +1461,22 @@ function diffHtmlTemplate(diffData) {
       <span class="pill">Comments <strong id="comment-count">0</strong></span>
     </div>
     <div class="actions">
+      <button class="history-toggle" id="history-toggle" title="Review History">☰</button>
       <button class="theme-toggle" id="theme-toggle" title="Toggle theme"><span id="theme-icon">🌙</span></button>
       <button id="send-and-exit">Submit & Exit</button>
     </div>
   </header>
+
+  <!-- History Panel -->
+  <aside class="history-panel" id="history-panel">
+    <div class="history-panel-header">
+      <h3>📜 Review History</h3>
+      <button class="history-panel-close" id="history-panel-close">✕</button>
+    </div>
+    <div class="history-panel-body" id="history-panel-body">
+      <div class="history-empty">No review history yet.</div>
+    </div>
+  </aside>
 
   <div class="wrap">
     ${rows.length === 0 ? '<div class="no-diff"><h2>No changes</h2><p>Working tree is clean</p></div>' : '<div class="diff-container" id="diff-container"></div>'}
@@ -1298,8 +1526,9 @@ function diffHtmlTemplate(diffData) {
 
   <script>
     const DATA = ${serialized};
-    const FILE_NAME = ${serializeForScript(title)};
+    const FILE_NAME = ${serializeForScript(relativePath)};
     const MODE = 'diff';
+    const HISTORY_DATA = ${historyJson};
 
     // Theme
     (function initTheme() {
@@ -1316,6 +1545,166 @@ function diffHtmlTemplate(diffData) {
       toggle.addEventListener('click', () => {
         const cur = document.documentElement.getAttribute('data-theme');
         set(cur === 'light' ? 'dark' : 'light');
+      });
+    })();
+
+    // --- History Management ---
+    // History is now server-side (file-based), HISTORY_DATA is provided by server
+
+    function loadHistory() {
+      // Return server-provided history data
+      return Array.isArray(HISTORY_DATA) ? HISTORY_DATA : [];
+    }
+
+    // saveToHistory is handled server-side via /exit endpoint
+    function saveToHistory(payload) {
+      // No-op on client - server saves history when receiving /exit
+    }
+
+    function formatDate(isoString) {
+      const d = new Date(isoString);
+      return d.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    }
+
+    function formatTime(isoString) {
+      const d = new Date(isoString);
+      return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function getBasename(filepath) {
+      return filepath.split('/').pop() || filepath;
+    }
+
+    function renderHistoryPanel() {
+      const body = document.getElementById('history-panel-body');
+      const history = loadHistory();
+      if (history.length === 0) {
+        body.innerHTML = '<div class="history-empty">No review history yet.</div>';
+        return;
+      }
+
+      const grouped = {};
+      history.forEach((item, idx) => {
+        const date = formatDate(item.submittedAt);
+        if (!grouped[date]) grouped[date] = [];
+        grouped[date].push({ ...item, _idx: idx });
+      });
+
+      let html = '';
+      for (const date of Object.keys(grouped)) {
+        html += \`<div class="history-date-group">
+          <div class="history-date">\${date}</div>\`;
+        for (const item of grouped[date]) {
+          const commentCount = item.comments?.length || 0;
+          html += \`<div class="history-item" data-idx="\${item._idx}">
+            <div class="history-item-header">
+              <span class="history-item-file">\${getBasename(item.file)}</span>
+              <span class="history-item-time">\${formatTime(item.submittedAt)}<span class="history-badge">\${commentCount}</span></span>
+            </div>
+            <div class="history-item-body">\`;
+          if (item.summary) {
+            html += \`<div class="history-summary">
+              <div class="history-summary-label">Summary</div>
+              <div class="history-summary-text">\${escapeHtmlForHistory(item.summary)}</div>
+            </div>\`;
+          }
+          if (commentCount > 0) {
+            html += \`<div class="history-comments-label">Line Comments (\${commentCount})</div>\`;
+            for (const c of item.comments) {
+              const lineLabel = c.line ? \`L\${c.line}\${c.lineEnd ? '-' + c.lineEnd : ''}\` : (c.row != null ? \`L\${c.row}\` : '');
+              const text = c.comment || c.text || '';
+              // Support both direct content and context.content structures
+              const content = c.content || c.context?.content || '';
+              html += \`<div class="history-comment">
+                <div class="history-comment-line">\${lineLabel}</div>\`;
+              if (content) {
+                html += \`<div class="history-comment-quote">\${escapeHtmlForHistory(content)}</div>\`;
+              }
+              html += \`<div class="history-comment-text">\${escapeHtmlForHistory(text)}</div>
+              </div>\`;
+            }
+          }
+          html += \`</div></div>\`;
+        }
+        html += \`</div>\`;
+      }
+      body.innerHTML = html;
+
+      body.querySelectorAll('.history-item-header').forEach(header => {
+        header.addEventListener('click', () => {
+          header.parentElement.classList.toggle('expanded');
+        });
+      });
+    }
+
+    function escapeHtmlForHistory(s) {
+      if (!s) return '';
+      return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] || c));
+    }
+
+    function getHistoryForFile(filename) {
+      const history = loadHistory();
+      return history.filter(h => h.file === filename || getBasename(h.file) === getBasename(filename));
+    }
+
+    function renderPastCommentsOnLines() {
+      const fileHistory = getHistoryForFile(FILE_NAME);
+      if (fileHistory.length === 0) return;
+
+      const lineComments = {};
+      fileHistory.forEach(h => {
+        if (!h.comments) return;
+        h.comments.forEach(c => {
+          const line = c.line || c.row;
+          if (!line) return;
+          if (!lineComments[line]) lineComments[line] = [];
+          lineComments[line].push({
+            date: formatDate(h.submittedAt),
+            text: c.comment || c.text || ''
+          });
+        });
+      });
+
+      Object.entries(lineComments).forEach(([line, comments]) => {
+        const lineEl = document.querySelector('[data-row="' + line + '"]');
+        if (lineEl && !lineEl.dataset.hasHistory) {
+          lineEl.dataset.hasHistory = 'true';
+          lineEl.title = comments.length + ' past comment(s) - click to view in History panel';
+        }
+      });
+    }
+
+    // History Panel Toggle
+    (function initHistoryPanel() {
+      const toggle = document.getElementById('history-toggle');
+      const panel = document.getElementById('history-panel');
+      const closeBtn = document.getElementById('history-panel-close');
+
+      function openPanel() {
+        panel.classList.add('open');
+        document.body.classList.add('history-open');
+        renderHistoryPanel();
+      }
+
+      function closePanel() {
+        panel.classList.remove('open');
+        document.body.classList.remove('history-open');
+      }
+
+      toggle?.addEventListener('click', () => {
+        if (panel.classList.contains('open')) {
+          closePanel();
+        } else {
+          openPanel();
+        }
+      });
+
+      closeBtn?.addEventListener('click', closePanel);
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && panel.classList.contains('open')) {
+          closePanel();
+        }
       });
     })();
 
@@ -1628,7 +2017,18 @@ function diffHtmlTemplate(diffData) {
     document.getElementById('clear-comment').addEventListener('click', clearCurrent);
     document.getElementById('close-card').addEventListener('click', closeCard);
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeCard();
+      if (e.key === 'Escape') {
+        // Don't close card if any fullscreen overlay is open
+        const imageOverlay = document.getElementById('image-fullscreen');
+        const videoOverlay = document.getElementById('video-fullscreen');
+        const mermaidOverlay = document.getElementById('mermaid-fullscreen');
+        if (imageOverlay?.classList.contains('visible') ||
+            videoOverlay?.classList.contains('visible') ||
+            mermaidOverlay?.classList.contains('visible')) {
+          return; // Let the fullscreen handlers handle ESC
+        }
+        closeCard();
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveCurrent();
     });
 
@@ -1720,7 +2120,9 @@ function diffHtmlTemplate(diffData) {
       if (sent) return;
       sent = true;
       clearStorage();
-      navigator.sendBeacon('/exit', new Blob([JSON.stringify(payload(reason))], { type: 'application/json' }));
+      const p = payload(reason);
+      saveToHistory(p);
+      navigator.sendBeacon('/exit', new Blob([JSON.stringify(p)], { type: 'application/json' }));
     }
     function showSubmitModal() {
       const count = Object.keys(comments).length;
@@ -1783,6 +2185,7 @@ function diffHtmlTemplate(diffData) {
 
     renderDiff();
     refreshList();
+    renderPastCommentsOnLines();
 
     // Recovery
     (function checkRecovery() {
@@ -1802,11 +2205,12 @@ function diffHtmlTemplate(diffData) {
 }
 
 // --- HTML template ---------------------------------------------------------
-function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHtml, reviwQuestions = []) {
+function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHtml, reviwQuestions = [], history = []) {
   const serialized = serializeForScript(dataRows);
   const modeJson = serializeForScript(mode);
   const titleJson = serializeForScript(relativePath); // Use relativePath as file identifier
   const questionsJson = serializeForScript(reviwQuestions || []);
+  const historyJson = serializeForScript(history);
   const hasPreview = !!previewHtml;
   return `<!doctype html>
 <html lang="ja">
@@ -1979,7 +2383,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       position: sticky;
       top: 0;
       z-index: 3;
-      background: var(--panel-solid);
+      background: var(--panel-solid) !important;
       color: var(--muted);
       font-size: 12px;
       text-align: center;
@@ -1988,6 +2392,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       border-right: 1px solid var(--border);
       white-space: nowrap;
       transition: background 200ms ease;
+    }
+    thead th:not(.selected) {
+      background: var(--panel-solid) !important;
     }
     thead th:first-child,
     tbody th {
@@ -2093,7 +2500,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     tr:nth-child(even) td:not(.selected):not(.has-comment) { background: var(--row-even); }
     td:hover:not(.selected) { background: var(--hover-bg); box-shadow: inset 0 0 0 1px rgba(96,165,250,0.25); }
     td.has-comment { background: rgba(34,197,94,0.12); box-shadow: inset 0 0 0 1px rgba(34,197,94,0.35); }
-    td.selected, th.selected, thead th.selected { background: rgba(99,102,241,0.22) !important; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.45); }
+    td.selected, tbody th.selected { background: rgba(99,102,241,0.22) !important; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.45); }
+    thead th.selected { background: #c7d2fe !important; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.45); }
+    [data-theme="dark"] thead th.selected { background: #3730a3 !important; }
     body.dragging { user-select: none; cursor: crosshair; }
     body.dragging td, body.dragging tbody th { cursor: crosshair; }
     tbody th { cursor: pointer; }
@@ -2254,6 +2663,19 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       min-width: 0;
       max-height: none;
       overflow: visible;
+    }
+    /* Ensure thead is opaque in md-right to prevent content showing through */
+    .md-right thead th {
+      background: var(--panel-solid) !important;
+    }
+    .md-right thead th.selected {
+      background: #c7d2fe !important;
+    }
+    [data-theme="dark"] .md-right thead th {
+      background: var(--panel-solid) !important;
+    }
+    [data-theme="dark"] .md-right thead th.selected {
+      background: #3730a3 !important;
     }
     .md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4 {
       margin: 0.4em 0 0.2em;
@@ -3090,6 +3512,169 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       font-family: monospace;
     }
     .mermaid-error-toast.visible { display: block; }
+
+    /* History Panel - Push layout */
+    body { transition: margin-right 0.25s ease; }
+    body.history-open { margin-right: 320px; }
+    body.history-open header { right: 320px; }
+    header { transition: right 0.25s ease; right: 0; }
+
+    .history-toggle {
+      background: var(--selected-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 14px;
+      cursor: pointer;
+      width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .history-toggle:hover { background: var(--border); }
+    .history-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100vh;
+      background: var(--panel-solid);
+      border-left: 1px solid var(--border);
+      z-index: 90;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .history-panel.open { transform: translateX(0); }
+    .history-panel-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .history-panel-header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+    .history-panel-close {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px;
+    }
+    .history-panel-close:hover { color: var(--text); }
+    .history-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .history-empty {
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    .history-date-group { margin-bottom: 16px; }
+    .history-date {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .history-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 8px;
+      overflow: hidden;
+    }
+    .history-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      background: var(--selected-bg);
+      cursor: pointer;
+    }
+    .history-item-header:hover { background: var(--hover-bg); }
+    .history-item-file {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .history-item-time { font-size: 10px; color: var(--muted); }
+    .history-item-body {
+      display: none;
+      padding: 10px;
+      font-size: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .history-item.expanded .history-item-body { display: block; }
+    .history-summary {
+      color: var(--text);
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-summary-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .history-summary-text { white-space: pre-wrap; line-height: 1.4; }
+    .history-comments-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .history-comment {
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-comment:last-child { border-bottom: none; }
+    .history-comment-line {
+      font-size: 10px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .history-comment-quote {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 2px solid var(--accent);
+      padding: 4px 8px;
+      margin: 4px 0;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 80px;
+      overflow-y: auto;
+    }
+    .history-comment-text {
+      color: var(--text);
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .history-badge {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--text-inverse);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css" id="hljs-theme-dark">
@@ -3104,12 +3689,24 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       <span class="pill">Comments <strong id="comment-count">0</strong></span>
     </div>
     <div class="actions">
+      <button class="history-toggle" id="history-toggle" title="Review History">☰</button>
       <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
         <span id="theme-icon">🌙</span>
       </button>
       <button id="send-and-exit">Submit & Exit</button>
     </div>
   </header>
+
+  <!-- History Panel -->
+  <aside class="history-panel" id="history-panel">
+    <div class="history-panel-header">
+      <h3>📜 Review History</h3>
+      <button class="history-panel-close" id="history-panel-close">✕</button>
+    </div>
+    <div class="history-panel-body" id="history-panel-body">
+      <div class="history-empty">No review history yet.</div>
+    </div>
+  </aside>
 
   <div class="wrap">
     ${
@@ -3285,6 +3882,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     const FILE_NAME = ${titleJson};
     const MODE = ${modeJson};
     const REVIW_QUESTIONS = ${questionsJson};
+    const HISTORY_DATA = ${historyJson};
 
   // --- Theme Management ---
   (function initTheme() {
@@ -3335,6 +3933,134 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     });
 
     themeToggle.addEventListener('click', toggleTheme);
+  })();
+
+  // --- History Management ---
+  // History is now server-side (file-based), HISTORY_DATA is provided by server
+
+  function loadHistory() {
+    // Return server-provided history data
+    return Array.isArray(HISTORY_DATA) ? HISTORY_DATA : [];
+  }
+
+  // saveToHistory is handled server-side via /exit endpoint
+  function saveToHistory(payload) {
+    // No-op on client - server saves history when receiving /exit
+  }
+
+  function formatDate(isoString) {
+    const d = new Date(isoString);
+    return d.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  }
+
+  function formatTime(isoString) {
+    const d = new Date(isoString);
+    return d.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function getBasename(filepath) {
+    return filepath.split('/').pop() || filepath;
+  }
+
+  function escapeHtmlForHistory(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c] || c));
+  }
+
+  function renderHistoryPanel() {
+    const body = document.getElementById('history-panel-body');
+    const history = loadHistory();
+    if (history.length === 0) {
+      body.innerHTML = '<div class="history-empty">No review history yet.</div>';
+      return;
+    }
+
+    const grouped = {};
+    history.forEach((item, idx) => {
+      const date = formatDate(item.submittedAt);
+      if (!grouped[date]) grouped[date] = [];
+      grouped[date].push({ ...item, _idx: idx });
+    });
+
+    let html = '';
+    for (const date of Object.keys(grouped)) {
+      html += \`<div class="history-date-group">
+        <div class="history-date">\${date}</div>\`;
+      for (const item of grouped[date]) {
+        const commentCount = item.comments?.length || 0;
+        html += \`<div class="history-item" data-idx="\${item._idx}">
+          <div class="history-item-header">
+            <span class="history-item-file">\${escapeHtmlForHistory(getBasename(item.file))}</span>
+            <span class="history-item-time">\${formatTime(item.submittedAt)}<span class="history-badge">\${commentCount}</span></span>
+          </div>
+          <div class="history-item-body">\`;
+        if (item.summary) {
+          html += \`<div class="history-summary">
+            <div class="history-summary-label">Summary</div>
+            <div class="history-summary-text">\${escapeHtmlForHistory(item.summary)}</div>
+          </div>\`;
+        }
+        if (commentCount > 0) {
+          html += \`<div class="history-comments-label">Line Comments (\${commentCount})</div>\`;
+          for (const c of item.comments) {
+            const lineLabel = c.line ? \`L\${c.line}\${c.lineEnd ? '-' + c.lineEnd : ''}\` : (c.row != null ? \`L\${c.row}\` : '');
+            const text = c.comment || c.text || '';
+            // Support both direct content and context.content structures
+            const content = c.content || c.context?.content || c.value || '';
+            html += \`<div class="history-comment">
+              <div class="history-comment-line">\${lineLabel}</div>\`;
+            if (content) {
+              html += \`<div class="history-comment-quote">\${escapeHtmlForHistory(content)}</div>\`;
+            }
+            html += \`<div class="history-comment-text">\${escapeHtmlForHistory(text)}</div>
+            </div>\`;
+          }
+        }
+        html += \`</div></div>\`;
+      }
+      html += \`</div>\`;
+    }
+    body.innerHTML = html;
+
+    body.querySelectorAll('.history-item-header').forEach(header => {
+      header.addEventListener('click', () => {
+        header.parentElement.classList.toggle('expanded');
+      });
+    });
+  }
+
+  // History Panel Toggle
+  (function initHistoryPanel() {
+    const toggle = document.getElementById('history-toggle');
+    const panel = document.getElementById('history-panel');
+    const closeBtn = document.getElementById('history-panel-close');
+
+    function openPanel() {
+      panel.classList.add('open');
+      document.body.classList.add('history-open');
+      renderHistoryPanel();
+    }
+
+    function closePanel() {
+      panel.classList.remove('open');
+      document.body.classList.remove('history-open');
+    }
+
+    toggle?.addEventListener('click', () => {
+      if (panel.classList.contains('open')) {
+        closePanel();
+      } else {
+        openPanel();
+      }
+    });
+
+    closeBtn?.addEventListener('click', closePanel);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && panel.classList.contains('open')) {
+        closePanel();
+      }
+    });
   })();
 
   const tbody = document.getElementById('tbody');
@@ -4083,7 +4809,18 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     document.getElementById('clear-comment').addEventListener('click', clearCurrent);
     document.getElementById('close-card').addEventListener('click', closeCard);
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeCard();
+      if (e.key === 'Escape') {
+        // Don't close card if any fullscreen overlay is open
+        const imageOverlay = document.getElementById('image-fullscreen');
+        const videoOverlay = document.getElementById('video-fullscreen');
+        const mermaidOverlay = document.getElementById('mermaid-fullscreen');
+        if (imageOverlay?.classList.contains('visible') ||
+            videoOverlay?.classList.contains('visible') ||
+            mermaidOverlay?.classList.contains('visible')) {
+          return; // Let the fullscreen handlers handle ESC
+        }
+        closeCard();
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') saveCurrent();
     });
 
@@ -4366,7 +5103,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       if (sent) return;
       sent = true;
       clearCommentsFromStorage();
-      const blob = new Blob([JSON.stringify(payload(reason))], { type: 'application/json' });
+      const p = payload(reason);
+      saveToHistory(p);
+      const blob = new Blob([JSON.stringify(p)], { type: 'application/json' });
       navigator.sendBeacon('/exit', blob);
     }
     function showSubmitModal() {
@@ -5684,11 +6423,12 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
 function buildHtml(filePath) {
   const data = loadData(filePath);
+  const history = loadHistoryFromFile(filePath);
   if (data.mode === "diff") {
-    return diffHtmlTemplate(data);
+    return diffHtmlTemplate(data, history);
   }
   const { rows, cols, projectRoot, relativePath, mode, preview, reviwQuestions } = data;
-  return htmlTemplate(rows, cols, projectRoot, relativePath, mode, preview, reviwQuestions);
+  return htmlTemplate(rows, cols, projectRoot, relativePath, mode, preview, reviwQuestions, history);
 }
 
 // --- HTTP Server -----------------------------------------------------------
@@ -5805,6 +6545,54 @@ function checkExistingServer(filePath) {
     });
   } catch (err) {
     return null;
+  }
+}
+
+// --- History File Management ---
+const HISTORY_DIR = path.join(os.homedir(), '.reviw', 'history');
+const HISTORY_MAX = 50;
+
+function getHistoryFilePath(filePath) {
+  // Use SHA256 hash of absolute path (same as lock files)
+  const hash = crypto.createHash('sha256').update(path.resolve(filePath)).digest('hex').slice(0, 16);
+  return path.join(HISTORY_DIR, hash + '.json');
+}
+
+function ensureHistoryDir() {
+  try {
+    if (!fs.existsSync(HISTORY_DIR)) {
+      fs.mkdirSync(HISTORY_DIR, { recursive: true, mode: 0o700 });
+    }
+  } catch (err) {
+    // Ignore errors
+  }
+}
+
+function loadHistoryFromFile(filePath) {
+  try {
+    const historyPath = getHistoryFilePath(filePath);
+    if (!fs.existsSync(historyPath)) {
+      return [];
+    }
+    const data = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function saveHistoryToFile(filePath, historyEntry) {
+  try {
+    ensureHistoryDir();
+    const historyPath = getHistoryFilePath(filePath);
+    let history = loadHistoryFromFile(filePath);
+    history.unshift(historyEntry);
+    if (history.length > HISTORY_MAX) {
+      history = history.slice(0, HISTORY_MAX);
+    }
+    fs.writeFileSync(historyPath, JSON.stringify(history, null, 2), { mode: 0o600 });
+  } catch (err) {
+    // Ignore errors - history is optional
   }
 }
 
@@ -6083,6 +6871,10 @@ function createFileServer(filePath, fileIndex = 0) {
           if (raw && raw.trim()) {
             payload = JSON.parse(raw);
           }
+          // Save to file-based history (only if there are comments)
+          if (payload && (payload.comments?.length > 0 || payload.submitComment)) {
+            saveHistoryToFile(ctx.filePath, payload);
+          }
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("bye");
           // Notify all tabs to close before shutting down
@@ -6344,6 +7136,12 @@ function createDiffServer(diffContent) {
           let payload = {};
           if (raw && raw.trim()) {
             payload = JSON.parse(raw);
+          }
+          // Save to file-based history (only if there are comments)
+          // For diff mode, use relativePath as identifier
+          if (payload && (payload.comments?.length > 0 || payload.submitComment)) {
+            const filePath = ctx.diffData?.relativePath || 'stdin-diff';
+            saveHistoryToFile(filePath, payload);
           }
           res.writeHead(200, { "Content-Type": "text/plain" });
           res.end("bye");
