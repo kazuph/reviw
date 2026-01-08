@@ -946,7 +946,7 @@ function diffHtmlTemplate(diffData, history = []) {
     }
     .theme-toggle:hover { background: var(--border); }
 
-    .wrap { padding: 16px 20px 60px; max-width: 1200px; margin: 0 auto; }
+    .wrap { padding: 16px 20px 16px; max-width: 1200px; margin: 0 auto; }
     .diff-container {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -1140,19 +1140,8 @@ function diffHtmlTemplate(diffData, history = []) {
     .comment-list li:hover { color: var(--accent); }
     .comment-list .hint { color: var(--muted); font-size: 11px; margin-top: 8px; }
     .comment-list.collapsed { opacity: 0; pointer-events: none; transform: translateY(8px); }
-    .comment-toggle {
-      position: fixed;
-      right: 16px;
-      bottom: 16px;
-      padding: 8px 12px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--panel-alpha);
-      color: var(--text);
-      cursor: pointer;
-      font-size: 12px;
-    }
-    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--selected-bg); border: 1px solid var(--border); font-size: 12px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--selected-bg); border: 1px solid var(--border); font-size: 12px; cursor: pointer; transition: background 150ms ease, border-color 150ms ease; }
+    .pill:hover { background: var(--hover-bg); border-color: var(--accent); }
     .pill strong { font-weight: 700; }
 
     .modal-overlay {
@@ -1458,7 +1447,7 @@ function diffHtmlTemplate(diffData, history = []) {
     <div class="meta">
       <h1>${projectRoot ? `<span class="title-path">${projectRoot}</span>` : ""}<span class="title-file">${relativePath}</span></h1>
       <span class="badge">${fileCount} file${fileCount !== 1 ? "s" : ""} changed</span>
-      <span class="pill">Comments <strong id="comment-count">0</strong></span>
+      <button class="pill" id="pill-comments" title="Toggle comment panel">Comments <strong id="comment-count">0</strong></button>
     </div>
     <div class="actions">
       <button class="history-toggle" id="history-toggle" title="Review History">☰</button>
@@ -1497,12 +1486,11 @@ function diffHtmlTemplate(diffData, history = []) {
     </div>
   </div>
 
-  <aside class="comment-list">
+  <aside class="comment-list collapsed">
     <h3>Comments</h3>
     <ol id="comment-list"></ol>
     <p class="hint">Click "Submit & Exit" to finish review.</p>
   </aside>
-  <button class="comment-toggle" id="comment-toggle">Comments (0)</button>
 
   <div class="modal-overlay" id="submit-modal">
     <div class="modal-dialog">
@@ -1716,7 +1704,7 @@ function diffHtmlTemplate(diffData, history = []) {
     const commentList = document.getElementById('comment-list');
     const commentCount = document.getElementById('comment-count');
     const commentPanel = document.querySelector('.comment-list');
-    const commentToggle = document.getElementById('comment-toggle');
+    const pillComments = document.getElementById('pill-comments');
 
     const comments = {};
     let currentKey = null;
@@ -1947,7 +1935,6 @@ function diffHtmlTemplate(diffData, history = []) {
       commentList.innerHTML = '';
       const items = Object.values(comments).sort((a, b) => (a.startRow ?? a.row) - (b.startRow ?? b.row));
       commentCount.textContent = items.length;
-      commentToggle.textContent = 'Comments (' + items.length + ')';
       if (items.length === 0) panelOpen = false;
       commentPanel.classList.toggle('collapsed', !panelOpen || items.length === 0);
       if (!items.length) {
@@ -1968,7 +1955,7 @@ function diffHtmlTemplate(diffData, history = []) {
       });
     }
 
-    commentToggle.addEventListener('click', () => {
+    pillComments.addEventListener('click', () => {
       panelOpen = !panelOpen;
       if (panelOpen && Object.keys(comments).length === 0) panelOpen = false;
       commentPanel.classList.toggle('collapsed', !panelOpen);
@@ -2343,7 +2330,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     }
     .theme-toggle:hover { background: var(--hover-bg); transform: scale(1.05); }
 
-    .wrap { padding: 12px 16px 40px; }
+    .wrap { padding: 12px 16px 12px; }
     .toolbar {
       display: flex;
       gap: 12px;
@@ -2607,26 +2594,13 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     }
     .comment-list li { margin-bottom: 6px; }
     .comment-list .hint { color: var(--muted); font-size: 12px; }
-    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--selected-bg); border: 1px solid var(--border); font-size: 12px; color: var(--text); }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; background: var(--selected-bg); border: 1px solid var(--border); font-size: 12px; color: var(--text); cursor: pointer; transition: background 150ms ease, border-color 150ms ease; }
+    .pill:hover { background: var(--hover-bg); border-color: var(--accent); }
     .pill strong { color: var(--text); font-weight: 700; }
     .comment-list.collapsed {
       opacity: 0;
       pointer-events: none;
       transform: translateY(8px) scale(0.98);
-    }
-    .comment-toggle {
-      position: fixed;
-      right: 14px;
-      bottom: 14px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--selected-bg);
-      color: var(--text);
-      cursor: pointer;
-      box-shadow: 0 10px 24px var(--shadow-color);
-      font-size: 13px;
-      transition: background 200ms ease, border-color 200ms ease;
     }
     .md-preview {
       background: var(--input-bg);
@@ -2641,7 +2615,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       gap: 16px;
       align-items: stretch;
       margin-top: 8px;
-      height: calc(100vh - 140px);
+      height: calc(100vh - 80px);
     }
     .md-left {
       flex: 1;
@@ -3686,7 +3660,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     <div class="meta">
       <h1><span class="title-path">${projectRoot}</span><span class="title-file">${relativePath}</span></h1>
       <span class="badge">Click to comment / ESC to cancel</span>
-      <span class="pill">Comments <strong id="comment-count">0</strong></span>
+      <button class="pill" id="pill-comments" title="Toggle comment panel">Comments <strong id="comment-count">0</strong></button>
     </div>
     <div class="actions">
       <button class="history-toggle" id="history-toggle" title="Review History">☰</button>
@@ -3777,12 +3751,11 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     </div>
   </div>
 
-  <aside class="comment-list">
+  <aside class="comment-list collapsed">
     <h3>Comments</h3>
     <ol id="comment-list"></ol>
     <p class="hint">Close the tab or click "Submit & Exit" to send comments and stop the server.</p>
   </aside>
-  <button class="comment-toggle" id="comment-toggle">Comments (0)</button>
   <div class="filter-menu" id="filter-menu">
     <label class="menu-check"><input type="checkbox" id="freeze-col-check" /> Freeze up to this column</label>
     <button data-action="not-empty">Rows where not empty</button>
@@ -4074,7 +4047,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
   const commentCount = document.getElementById('comment-count');
   const fitBtn = document.getElementById('fit-width');
   const commentPanel = document.querySelector('.comment-list');
-  const commentToggle = document.getElementById('comment-toggle');
+  const pillComments = document.getElementById('pill-comments');
   const filterMenu = document.getElementById('filter-menu');
   const rowMenu = document.getElementById('row-menu');
   const freezeColCheck = document.getElementById('freeze-col-check');
@@ -4566,7 +4539,6 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         return aRow === bRow ? aCol - bCol : aRow - bRow;
       });
       commentCount.textContent = items.length;
-      commentToggle.textContent = 'Comments (' + items.length + ')';
       if (items.length === 0) {
         panelOpen = false;
       }
@@ -4608,7 +4580,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       });
     }
 
-    commentToggle.addEventListener('click', () => {
+    pillComments.addEventListener('click', () => {
       panelOpen = !panelOpen;
       if (panelOpen && Object.keys(comments).length === 0) {
         panelOpen = false; // keep hidden if no comments
