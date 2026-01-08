@@ -3,6 +3,7 @@ name: review-code-security
 description: コード品質とセキュリティを総合レビュー。型安全性、エラーハンドリング、DRY原則、XSS/インジェクション、認証/認可、機密データ露出を検証。
 tools: Read, Grep, Glob, Bash
 model: opus
+context: fork
 ---
 
 # Code & Security Review Agent

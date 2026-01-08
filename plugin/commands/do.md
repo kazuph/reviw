@@ -1,12 +1,103 @@
 ---
 description: Task Start - worktree creation, planning, and review preparation in reviw
 argument-hint: <task description>
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 
 # Task Start Command
 
 Receive requests for tasks to be done, set up the work environment, and create a plan.
+
+**Role: You are the Project Manager (PM) interviewing the Product Owner (user).**
+
+## Phase 0: Interactive Discovery (REQUIRED)
+
+Before any implementation, conduct a structured interview with the user to fully understand requirements.
+
+### Step 0-1: Development Approach Question
+
+**Use AskUserQuestion tool** to ask about development approach:
+
+```
+Question: "How would you like to organize this work?"
+Header: "Approach"
+Options:
+  1. "Use worktree (Recommended)" - Create isolated branch in .worktree/ directory. Clean separation, easy cleanup.
+  2. "Work in current branch" - Make changes directly in current branch. Simpler for small changes.
+  3. "Create new branch only" - Create branch but work in main directory. Middle ground.
+```
+
+### Step 0-2: Specification Deep-Dive (PM Interview)
+
+**As Project Manager, drill down into specifications with multiple rounds of questions.**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  PM Interview Protocol (Iterative Questioning)                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Round 1: User Story & Scope                                    │
+│    - What problem does this solve?                              │
+│    - Who is the target user?                                    │
+│    - What is the expected outcome?                              │
+│    - What is NOT in scope?                                      │
+│                                                                 │
+│  Round 2: Functional Requirements (based on Round 1)            │
+│    - What are the specific actions users will take?             │
+│    - What data inputs/outputs are needed?                       │
+│    - What are the edge cases?                                   │
+│    - What validation rules apply?                               │
+│                                                                 │
+│  Round 3: Technical Constraints (based on Round 1-2)            │
+│    - Are there performance requirements?                        │
+│    - Are there existing patterns to follow?                     │
+│    - What dependencies are involved?                            │
+│    - Are there security considerations?                         │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Use AskUserQuestion tool iteratively:**
+
+1. First, ask 2-3 questions about user story and scope
+2. Based on answers, formulate 2-3 follow-up questions about functional details
+3. Based on answers, ask about technical constraints and preferences
+4. Summarize understanding and confirm before proceeding
+
+**Example question flow:**
+
+```
+Round 1 Example:
+Q1: "What specific problem are you trying to solve?"
+Q2: "Who will use this feature and in what context?"
+Q3: "What does success look like for this feature?"
+
+Round 2 Example (based on Round 1 answers):
+Q4: "You mentioned X - what happens when Y?"
+Q5: "Should the system handle Z case?"
+Q6: "What error messages should users see?"
+
+Round 3 Example (based on Round 1-2 answers):
+Q7: "Should we follow the existing pattern in [file] or try something different?"
+Q8: "Given the requirements, I see two approaches: A or B. Which do you prefer?"
+```
+
+### Step 0-3: Architecture & Implementation Approach
+
+**After understanding requirements, propose implementation approach and confirm:**
+
+```
+Use AskUserQuestion to present options:
+
+Question: "Based on our discussion, here are the implementation approaches:"
+Header: "Architecture"
+Options:
+  1. "[Approach A]" - [Brief explanation with trade-offs]
+  2. "[Approach B]" - [Brief explanation with trade-offs]
+  3. "Let me explain more" - Need more context before deciding
+```
+
+**Only proceed to implementation after user confirms approach.**
 
 ## Important: Subagents Required
 
@@ -283,6 +374,85 @@ Task(subagent_type="webapp-master", prompt="Implement FooterComponent...")
 +---------------------------------------------------------------+
 ```
 
+## E2E Test Policy (CRITICAL - Read Before Implementation)
+
+**E2E tests will be strictly reviewed by the review-e2e agent at /done. Implementing without understanding these rules will result in rejection and rework.**
+
+### Absolute Prohibitions
+
+| Category | Prohibited | Reason |
+|----------|-----------|--------|
+| **Mocks** | `jest.fn`, `vi.fn`, `sinon.*`, `mock`, `Mock` | Fake behavior hides real bugs |
+| **Network intercepts** | `route.fulfill`, `page.route`, `nock`, `msw` | Must test real API |
+| **Time mocks** | `useFakeTimers`, `clock.*`, `setSystemTime` | Must test real timing |
+| **DB mocks** | `mockPrisma`, `mockFirestore`, `mockDatabase` | Must use real emulator |
+| **Auth shortcuts** | `loginAs`, `signInAs`, `setAuthToken`, `setSession` | Must go through UI |
+| **Direct API calls** | `fetch()`, `axios.*` in tests (except setup) | UI operations only |
+| **localStorage/sessionStorage direct manipulation** | `localStorage.setItem` in tests | Must use UI |
+
+### goto Restrictions
+
+```
+✅ Allowed:
+   - page.goto('/') or page.goto(baseUrl)  // First navigation only
+   - page.goto('http://localhost:9099')     // Emulator switch (Firebase etc.)
+   - page.goto(process.env.MAILPIT_URL)     // Emulator switch
+
+❌ Prohibited:
+   - page.goto('/dashboard')  // After initial navigation - use UI clicks
+   - page.goto('/settings')   // After initial navigation - use UI clicks
+```
+
+### Required Patterns
+
+| Pattern | Requirement |
+|---------|-------------|
+| **Navigation** | After first goto, ALL navigation must be via UI clicks |
+| **Authentication** | Must go through actual login form (UI flow) |
+| **Data creation** | Use seed data or create via UI operations |
+| **Waiting** | Use element/state-based waits, NOT `sleep` or `waitForTimeout` |
+| **Assertions** | Include DB/record change assertions, not just UI checks |
+
+### Dependency Injection (DI)
+
+```
+✅ Correct DI:
+   - Firebase Emulator (localhost:9099)
+   - Mailpit (localhost:8025)
+   - Environment variable switching
+
+❌ Wrong approach:
+   - Mocking Firebase in code
+   - Stubbing email sending
+   - In-memory database replacement
+```
+
+### Example: Good vs Bad E2E Test
+
+```typescript
+// ❌ BAD - Will be rejected at review
+test('user can view dashboard', async () => {
+  await page.goto('/dashboard');  // NG: Direct navigation
+  localStorage.setItem('token', 'fake-token');  // NG: Auth shortcut
+  await expect(page.locator('.dashboard')).toBeVisible();
+});
+
+// ✅ GOOD - Will pass review
+test('user can view dashboard', async () => {
+  await page.goto('/');  // OK: Initial navigation
+  await page.fill('[data-testid="email"]', 'test@example.com');
+  await page.fill('[data-testid="password"]', 'password123');
+  await page.click('[data-testid="login-button"]');  // OK: UI flow
+  await expect(page.locator('.dashboard')).toBeVisible();
+
+  // Assert DB state changed
+  const user = await db.query('SELECT * FROM users WHERE email = ?', ['test@example.com']);
+  expect(user.last_login).toBeTruthy();
+});
+```
+
+**Understanding this policy before writing E2E tests prevents 90% of rejections at review.**
+
 ## Prohibited Actions
 
 - **Direct work on main branch prohibited** - Always create a worktree before starting work
@@ -293,6 +463,8 @@ Task(subagent_type="webapp-master", prompt="Implement FooterComponent...")
 - Writing code directly in the main thread (causes context exhaustion)
 - Only declaring "will implement" without launching subagents
 - Executing parallelizable tasks sequentially (reduced efficiency)
+- **Writing E2E tests without reading the E2E Test Policy above**
+- **Using mocks, stubs, or shortcuts in E2E tests**
 
 ## PR Creation Flow (Reference)
 

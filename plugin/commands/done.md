@@ -1,11 +1,36 @@
 ---
 description: Task completion check - Evidence collection, reviw review initiation
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task
+allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 
 # Task Completion Checklist
 
 When you think implementation is done, run this command to verify completion criteria are met.
+
+## Phase 0: Report Level Selection (REQUIRED)
+
+**Before starting the review process, ask user about desired report level.**
+
+Use AskUserQuestion tool:
+
+```
+Question: "What level of report do you need for this task?"
+Header: "Report Level"
+Options:
+  1. "Full Review (Recommended)" - All 3 review agents + detailed evidence + comprehensive REPORT.md
+  2. "Quick Review" - E2E + Code Security only, minimal evidence
+  3. "Evidence Only" - Skip review agents, just collect screenshots/videos
+  4. "Skip to reviw" - Already have evidence, go straight to reviw review
+```
+
+**Actions based on selection:**
+
+| Level | Review Agents | Evidence | REPORT.md |
+|-------|---------------|----------|-----------|
+| Full Review | All 3 (code-security, e2e, ui-ux) | Screenshots + Video | Comprehensive |
+| Quick Review | 2 (code-security, e2e) | Screenshots only | Summary |
+| Evidence Only | Skip | Screenshots + Video | Basic |
+| Skip to reviw | Skip | Use existing | Use existing |
 
 ## Important: Subagent Mandatory (compact countermeasure)
 
@@ -109,69 +134,100 @@ On rejection, display:
    - Use `webapp-testing` skill to actually operate in browser
    - Verify expected behavior
 
-### 4. Comprehensive Review (7 Review Agents in Parallel)
+### 4. Comprehensive Review (3 Integrated Review Agents in Parallel)
 
-**Launch all 7 review agents simultaneously with Task tool:**
+**Launch all 3 review agents simultaneously with Task tool:**
 
 ```
-Launch SEVEN agents simultaneously with Task tool:
+Launch THREE agents simultaneously with Task tool:
 
-1. subagent_type: "review-code-quality"
-   → Check readability, maintainability, DRY principle
-   → Verify type safety and error handling
-   → Append "Code Quality Review" section to REPORT.md
+1. subagent_type: "reviw-plugin:review-code-security"
+   → Type safety (any type detection)
+   → Error handling adequacy
+   → DRY principle violations
+   → XSS, injection, OWASP Top 10
+   → Hardcoded secrets, auth issues
+   → Append "Code & Security Review" section to REPORT.md
 
-2. subagent_type: "review-security"
-   → Check XSS, injection, OWASP Top 10
-   → Detect hardcoded secrets, auth issues
-   → Append "Security Review" section to REPORT.md
+2. subagent_type: "reviw-plugin:review-e2e"
+   → goto restrictions (only first "/" allowed)
+   → Mock/stub detection (ALL mocks prohibited)
+   → User flow reproduction fidelity
+   → DI (Dependency Injection) adequacy
+   → Record change assertions
+   → Wait strategy verification (no fixed sleeps)
+   → Hardcoded values/environment locks
+   → Append "E2E Test Review" section to REPORT.md
 
-3. subagent_type: "review-a11y-ux"
-   → Check WCAG 2.2 AA compliance
-   → Verify keyboard navigation, focus management
-   → Append "A11y & UX Review" section to REPORT.md
-
-4. subagent_type: "review-figma-fidelity"
-   → Check design token compliance
-   → Detect hardcoded colors/spacing
-   → Append "Figma Fidelity Review" section to REPORT.md
-
-5. subagent_type: "review-copy-consistency"
-   → Detect text inconsistencies
-   → Check i18n coverage
-   → Append "Copy Consistency Review" section to REPORT.md
-
-6. subagent_type: "review-e2e-integrity"
-   → Verify user flow reproduction
-   → Detect shortcuts, mock contamination
-   → Append "E2E Integrity Review" section to REPORT.md
-
-7. subagent_type: "e2e-health-reviewer"
-   → Check goto restrictions
-   → Verify record change assertions
-   → Detect hardcoded values/environment locks
-   → Detect unnecessary mocks/stubs
-   → Append "E2E Health Review" section to REPORT.md
+3. subagent_type: "reviw-plugin:review-ui-ux"
+   → WCAG 2.2 AA compliance
+   → Keyboard navigation, focus management
+   → Design token compliance
+   → Text/copy consistency
+   → i18n coverage (if applicable)
+   → Append "UI/UX Review" section to REPORT.md
+   → **Note: Only execute if UI changes are included**
 ```
 
-**Important: Execute all 7 agents in a single Task tool call for parallel execution.**
+**Important: Execute all 3 agents in a single Task tool call for parallel execution.**
 
-### 5. Report Creation/Evidence Organization
+**Agent name mapping (for reference):**
+| Old name (deprecated) | New integrated agent |
+|-----------------------|----------------------|
+| review-code-quality | reviw-plugin:review-code-security |
+| review-security | reviw-plugin:review-code-security |
+| review-a11y-ux | reviw-plugin:review-ui-ux |
+| review-figma-fidelity | reviw-plugin:review-ui-ux |
+| review-copy-consistency | reviw-plugin:review-ui-ux |
+| review-e2e-integrity | reviw-plugin:review-e2e |
+| e2e-health-reviewer | reviw-plugin:review-e2e |
 
-**After reviews complete, launch report-builder:**
+### 5. Review Agent Findings Check (CRITICAL - Do NOT Skip)
+
+**After review agents complete, check their findings BEFORE creating the report:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Review Agent Findings → Decision Gate                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Read REPORT.md sections added by review agents:                │
+│    - Code & Security Review                                     │
+│    - E2E Test Review                                            │
+│    - UI/UX Review (if applicable)                               │
+│                                                                 │
+│  Check for Critical/High severity issues:                       │
+│    YES → STOP. Fix issues first. Return to Step 1.              │
+│    NO  → Proceed to Step 6 (Report Creation)                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**If Critical/High issues found:**
+1. Register ALL findings in TodoWrite (detailed, no summarization)
+2. Fix each issue
+3. Re-run build/verification
+4. Re-run review agents (return to Step 4)
+5. Only proceed when no Critical/High issues remain
+
+**This is NOT optional. Proceeding with Critical/High issues will result in rejection.**
+
+### 6. Report Creation/Evidence Organization
+
+**Only after review agents pass (no Critical/High issues), launch report-builder:**
 
 ```
 Launch ONE agent with Task tool:
 
-subagent_type: "report-builder"
+subagent_type: "reviw-plugin:report-builder"
    → artifact-proof skill auto-loads
-   → Calculate total review score (X/35)
+   → Calculate total review score (X/15 for 3 agents)
    → Organize priority action items
    → Execute report creation/evidence organization
    → Ready to start reviw review
 ```
 
-### 6. Start reviw Review
+### 7. Start reviw Review
 
 **Important: Launch reviw in foreground**
 
@@ -193,12 +249,40 @@ When reviw review starts:
 - To receive user review comments
 - Feedback won't be conveyed in background
 
-### 7. Feedback Response
+### 8. User Feedback Response (Improvement Cycle)
 
-After receiving feedback:
-1. **MUST register in TodoWrite before starting work**
-2. Write TODO sentences in detail (no summarization)
-3. After modification complete, evidence collection again → reviw review
+After receiving user feedback from reviw:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Feedback Response Cycle                                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. Parse YAML feedback                                         │
+│  2. Register EACH comment in TodoWrite                          │
+│     - DO NOT summarize - copy exact text                        │
+│     - Include file:line references                              │
+│                                                                 │
+│  3. Fix issues one by one                                       │
+│     - Mark TODO complete after each fix                         │
+│                                                                 │
+│  4. After ALL fixes complete:                                   │
+│     - Re-run build                                              │
+│     - Re-collect evidence (webapp-testing)                      │
+│     - Update REPORT.md with new evidence                        │
+│                                                                 │
+│  5. Return to Step 6 (Start reviw Review again)                 │
+│     - User will verify fixes                                    │
+│     - Repeat until approval                                     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**NEVER do this:**
+- ❌ Write REPORT.md and declare "done" without fixing
+- ❌ Skip re-verification after fixes
+- ❌ Summarize feedback (copy exact text)
+- ❌ Batch multiple fixes without individual TODO tracking
 
 ## reviw Usage Tips
 

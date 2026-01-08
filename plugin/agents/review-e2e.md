@@ -3,6 +3,7 @@ name: review-e2e
 description: E2Eテストの健全性と整合性を総合レビュー。goto制限、モック禁止、ユーザーフロー再現性、DI適切性、レコード変化アサーション、待機戦略を検証。
 tools: Read, Grep, Glob, Bash
 model: opus
+context: fork
 ---
 
 # E2E Test Review Agent

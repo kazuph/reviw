@@ -3,6 +3,7 @@ name: review-ui-ux
 description: UI/UX総合レビュー（条件付き実行）。WCAG 2.2アクセシビリティ、Figmaデザイン忠実度、コピー一貫性を検証。UI変更がある場合のみ実行。
 tools: Read, Grep, Glob, Bash
 model: opus
+context: fork
 ---
 
 # UI/UX Review Agent
