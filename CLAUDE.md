@@ -32,6 +32,18 @@
 
 plugin変更時は必ず `plugin/.claude-plugin/plugin.json` のバージョンを上げること。
 
+### plugin更新手順（コミット・プッシュ後）
+
+```bash
+# 1. マーケットプレースを更新（GitHubから最新を取得）
+claude plugin marketplace update reviw-plugins
+
+# 2. プラグインを更新
+claude plugin update reviw-plugin@reviw-plugins
+
+# 3. Claude Codeを再起動して適用
+```
+
 ## テストファイルの配置
 
 - テスト用のmd/動画ファイルは `examples/` ディレクトリに配置する
