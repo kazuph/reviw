@@ -1,6 +1,6 @@
 {
   "name": "reviw-plugin",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "reviw CLI integration - task management with /do & /done, review workflow, and report generation agent",
   "author": {
     "name": "kazuph",
@@ -9,26 +9,5 @@
   "homepage": "https://github.com/kazuph/reviw",
   "repository": "https://github.com/kazuph/reviw",
   "license": "MIT",
-  "keywords": ["review", "csv", "markdown", "diff", "workflow", "task-management", "e2e-testing", "code-review"],
-  "agents": [
-    {
-      "path": "../agents/review-e2e.md",
-      "name": "review-e2e"
-    },
-    {
-      "path": "../agents/review-code-security.md",
-      "name": "review-code-security"
-    },
-    {
-      "path": "../agents/review-ui-ux.md",
-      "name": "review-ui-ux"
-    },
-    {
-      "path": "../agents/report-builder.md",
-      "name": "report-builder"
-    }
-  ],
-  "hooks": {
-    "path": "../hooks/hooks.json"
-  }
+  "keywords": ["review", "csv", "markdown", "diff", "workflow", "task-management", "e2e-testing", "code-review"]
 }
