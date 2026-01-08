@@ -1202,6 +1202,15 @@ function diffHtmlTemplate(diffData, history = []) {
     }
     .modal-actions button:hover { background: var(--border); }
     .modal-actions button.primary { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+    .image-attach-area { margin: 12px 0; }
+    .image-attach-area label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .image-attach-area.image-attach-small { margin: 8px 0; }
+    .image-attach-area.image-attach-small label { font-size: 11px; }
+    .image-preview-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 24px; }
+    .image-preview-item { position: relative; }
+    .image-preview-item img { max-width: 80px; max-height: 60px; border-radius: 4px; border: 1px solid var(--border); object-fit: cover; }
+    .image-preview-item .remove-image { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--error, #ef4444); color: #fff; border: none; cursor: pointer; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .image-preview-item .remove-image:hover { background: #dc2626; }
 
     .modal-checkboxes { margin: 12px 0; }
     .modal-checkboxes label {
@@ -1481,6 +1490,10 @@ function diffHtmlTemplate(diffData, history = []) {
     </header>
     <div id="cell-preview" style="font-size:11px; color: var(--muted); margin-bottom:8px; white-space: pre-wrap; max-height: 60px; overflow: hidden;"></div>
     <textarea id="comment-input" placeholder="Enter your comment"></textarea>
+    <div class="image-attach-area image-attach-small" id="comment-image-area">
+      <label>📎 Image (⌘V, max 1)</label>
+      <div class="image-preview-list" id="comment-image-preview"></div>
+    </div>
     <div class="actions">
       <button class="primary" id="save-comment">Save</button>
     </div>
@@ -1498,6 +1511,10 @@ function diffHtmlTemplate(diffData, history = []) {
       <p class="modal-summary" id="modal-summary"></p>
       <label for="global-comment">Overall comment (optional)</label>
       <textarea id="global-comment" placeholder="Add a summary or overall feedback..."></textarea>
+      <div class="image-attach-area" id="submit-image-area">
+        <label>📎 Attach images (⌘V to paste, max 5)</label>
+        <div class="image-preview-list" id="submit-image-preview"></div>
+      </div>
       <div class="modal-checkboxes">
         <label><input type="checkbox" id="prompt-subagents" checked /> 🤖 Delegate to sub-agents (implement, verify, report)</label>
         <label><input type="checkbox" id="prompt-reviw" checked /> 👁️ Open in REVIW next time</label>
@@ -1713,6 +1730,81 @@ function diffHtmlTemplate(diffData, history = []) {
     let dragStart = null;
     let dragEnd = null;
     let selection = null;
+
+    // Image attachment state
+    const submitImages = []; // base64 images for submit modal (max 5)
+    let currentCommentImage = null; // base64 image for current comment (max 1)
+
+    // Image attachment handlers
+    const submitImagePreview = document.getElementById('submit-image-preview');
+    const commentImagePreview = document.getElementById('comment-image-preview');
+
+    function addImageToPreview(container, images, maxCount, base64) {
+      if (images.length >= maxCount) return;
+      images.push(base64);
+      renderImagePreviews(container, images);
+    }
+
+    function renderImagePreviews(container, images) {
+      container.innerHTML = '';
+      images.forEach((base64, idx) => {
+        const item = document.createElement('div');
+        item.className = 'image-preview-item';
+        item.innerHTML = \`<img src="\${base64}" alt="attached image"><button class="remove-image" data-idx="\${idx}">×</button>\`;
+        item.querySelector('.remove-image').addEventListener('click', () => {
+          images.splice(idx, 1);
+          renderImagePreviews(container, images);
+        });
+        container.appendChild(item);
+      });
+    }
+
+    function renderCommentImagePreview() {
+      commentImagePreview.innerHTML = '';
+      if (currentCommentImage) {
+        const item = document.createElement('div');
+        item.className = 'image-preview-item';
+        item.innerHTML = \`<img src="\${currentCommentImage}" alt="attached image"><button class="remove-image">×</button>\`;
+        item.querySelector('.remove-image').addEventListener('click', () => {
+          currentCommentImage = null;
+          renderCommentImagePreview();
+        });
+        commentImagePreview.appendChild(item);
+      }
+    }
+
+    // Global paste handler
+    document.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result;
+            const activeEl = document.activeElement;
+            // Prioritize comment card if its textarea has focus
+            if (card.style.display !== 'none' && activeEl === commentInput) {
+              if (!currentCommentImage) {
+                currentCommentImage = base64;
+                renderCommentImagePreview();
+              }
+            } else if (submitModal.classList.contains('visible')) {
+              addImageToPreview(submitImagePreview, submitImages, 5, base64);
+            } else if (card.style.display !== 'none') {
+              if (!currentCommentImage) {
+                currentCommentImage = base64;
+                renderCommentImagePreview();
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    });
 
     function makeKey(start, end) {
       return start === end ? String(start) : (start + '-' + end);
@@ -1967,7 +2059,7 @@ function diffHtmlTemplate(diffData, history = []) {
       const range = keyToRange(currentKey);
       if (!range) return;
       const rowIdx = range.start;
-      if (text) {
+      if (text || currentCommentImage) {
         if (range.start === range.end) {
           comments[currentKey] = { row: rowIdx, text, content: DATA[rowIdx]?.content || '' };
         } else {
@@ -1979,11 +2071,16 @@ function diffHtmlTemplate(diffData, history = []) {
             content: DATA.slice(range.start, range.end + 1).map(r => r?.content || '').join('\\n')
           };
         }
+        if (currentCommentImage) {
+          comments[currentKey].image = currentCommentImage;
+        }
         setDotRange(range.start, range.end, true);
       } else {
         delete comments[currentKey];
         setDotRange(range.start, range.end, false);
       }
+      currentCommentImage = null;
+      renderCommentImagePreview();
       refreshList();
       closeCard();
       saveToStorage();
@@ -2099,17 +2196,28 @@ function diffHtmlTemplate(diffData, history = []) {
     function payload(reason) {
       const data = { file: FILE_NAME, mode: MODE, submittedBy: reason, submittedAt: new Date().toISOString(), comments: Object.values(comments) };
       if (globalComment.trim()) data.summary = globalComment.trim();
+      if (submitImages.length > 0) data.summaryImages = submitImages;
       const prompts = getSelectedPrompts();
       if (prompts.length > 0) data.prompts = prompts;
       return data;
     }
-    function sendAndExit(reason = 'button') {
+    async function sendAndExit(reason = 'button') {
       if (sent) return;
       sent = true;
       clearStorage();
       const p = payload(reason);
       saveToHistory(p);
-      navigator.sendBeacon('/exit', new Blob([JSON.stringify(p)], { type: 'application/json' }));
+      try {
+        // Use fetch with keepalive to handle large payloads (images)
+        await fetch('/exit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p),
+          // Note: keepalive has 64KB limit like sendBeacon, so we don't use it for large payloads
+        });
+      } catch (err) {
+        console.error('Failed to send exit request:', err);
+      }
     }
     function showSubmitModal() {
       const count = Object.keys(comments).length;
@@ -2121,11 +2229,11 @@ function diffHtmlTemplate(diffData, history = []) {
     function hideSubmitModal() { submitModal.classList.remove('visible'); }
     document.getElementById('send-and-exit').addEventListener('click', showSubmitModal);
     document.getElementById('modal-cancel').addEventListener('click', hideSubmitModal);
-    function doSubmit() {
+    async function doSubmit() {
       globalComment = globalCommentInput.value;
       savePromptPrefs();
       hideSubmitModal();
-      sendAndExit('button');
+      await sendAndExit('button');
       // Try to close window; if it fails (browser security), show completion message
       setTimeout(() => {
         window.close();
@@ -3328,6 +3436,15 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     }
     .modal-actions button:hover { background: var(--hover-bg); }
     .modal-actions button.primary { background: var(--accent); color: var(--text-inverse); border-color: var(--accent); }
+    .image-attach-area { margin: 12px 0; }
+    .image-attach-area label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    .image-attach-area.image-attach-small { margin: 8px 0; }
+    .image-attach-area.image-attach-small label { font-size: 11px; }
+    .image-preview-list { display: flex; flex-wrap: wrap; gap: 8px; min-height: 24px; }
+    .image-preview-item { position: relative; }
+    .image-preview-item img { max-width: 80px; max-height: 60px; border-radius: 4px; border: 1px solid var(--border); object-fit: cover; }
+    .image-preview-item .remove-image { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--error, #ef4444); color: #fff; border: none; cursor: pointer; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .image-preview-item .remove-image:hover { background: #dc2626; }
     .modal-actions button.primary:hover { background: #7dd3fc; }
 
     .modal-checkboxes { margin: 12px 0; }
@@ -3746,6 +3863,10 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     </header>
     <div id="cell-preview" style="font-size:12px; color: var(--muted); margin-bottom:8px;"></div>
     <textarea id="comment-input" placeholder="Enter your comment or note"></textarea>
+    <div class="image-attach-area image-attach-small" id="comment-image-area">
+      <label>📎 Image (⌘V, max 1)</label>
+      <div class="image-preview-list" id="comment-image-preview"></div>
+    </div>
     <div class="actions">
       <button class="primary" id="save-comment">Save</button>
     </div>
@@ -3785,6 +3906,10 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       <p class="modal-summary" id="modal-summary"></p>
       <label for="global-comment">Overall comment (optional)</label>
       <textarea id="global-comment" placeholder="Add a summary or overall feedback..."></textarea>
+      <div class="image-attach-area" id="submit-image-area">
+        <label>📎 Attach images (⌘V to paste, max 5)</label>
+        <div class="image-preview-list" id="submit-image-preview"></div>
+      </div>
       <div class="modal-checkboxes">
         <label><input type="checkbox" id="prompt-subagents" checked /> 🤖 Delegate to sub-agents (implement, verify, report)</label>
         <label><input type="checkbox" id="prompt-reviw" checked /> 👁️ Open in REVIW next time</label>
@@ -4116,6 +4241,85 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     let dragStart = null; // {row, col}
     let dragEnd = null;   // {row, col}
     let selection = null; // {startRow, endRow, startCol, endCol}
+
+    // Image attachment state
+    const submitImages = []; // base64 images for submit modal (max 5)
+    let currentCommentImage = null; // base64 image for current comment (max 1)
+
+    // Image attachment handlers
+    const submitImagePreview = document.getElementById('submit-image-preview');
+    const commentImagePreview = document.getElementById('comment-image-preview');
+
+    function addImageToPreview(container, images, maxCount, base64) {
+      if (images.length >= maxCount) return;
+      images.push(base64);
+      renderImagePreviews(container, images);
+    }
+
+    function renderImagePreviews(container, images) {
+      container.innerHTML = '';
+      images.forEach((base64, idx) => {
+        const item = document.createElement('div');
+        item.className = 'image-preview-item';
+        item.innerHTML = \`<img src="\${base64}" alt="attached image"><button class="remove-image" data-idx="\${idx}">×</button>\`;
+        item.querySelector('.remove-image').addEventListener('click', () => {
+          images.splice(idx, 1);
+          renderImagePreviews(container, images);
+        });
+        container.appendChild(item);
+      });
+    }
+
+    function renderCommentImagePreview() {
+      commentImagePreview.innerHTML = '';
+      if (currentCommentImage) {
+        const item = document.createElement('div');
+        item.className = 'image-preview-item';
+        item.innerHTML = \`<img src="\${currentCommentImage}" alt="attached image"><button class="remove-image">×</button>\`;
+        item.querySelector('.remove-image').addEventListener('click', () => {
+          currentCommentImage = null;
+          renderCommentImagePreview();
+        });
+        commentImagePreview.appendChild(item);
+      }
+    }
+
+    // Global paste handler for images
+    document.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = reader.result;
+            const modal = document.getElementById('submit-modal');
+            const commentCard = document.getElementById('comment-card');
+            const activeEl = document.activeElement;
+            const commentInput = document.getElementById('comment-input');
+
+            // Prioritize comment card if its textarea has focus
+            if (commentCard?.style.display !== 'none' && activeEl === commentInput) {
+              if (!currentCommentImage) {
+                currentCommentImage = base64;
+                renderCommentImagePreview();
+              }
+            } else if (modal?.classList.contains('visible')) {
+              addImageToPreview(submitImagePreview, submitImages, 5, base64);
+            } else if (commentCard?.style.display !== 'none') {
+              if (!currentCommentImage) {
+                currentCommentImage = base64;
+                renderCommentImagePreview();
+              }
+            }
+          };
+          reader.readAsDataURL(file);
+          break;
+        }
+      }
+    });
 
     // --- localStorage Comment Persistence ---
     const STORAGE_KEY = 'reviw:comments:' + FILE_NAME;
@@ -4717,8 +4921,11 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       if (isRangeKey(currentKey)) {
         // Range (rectangular) comment
         const { startRow, startCol, endRow, endCol } = parseRangeKey(currentKey);
-        if (text) {
+        if (text || currentCommentImage) {
           comments[currentKey] = { startRow, startCol, endRow, endCol, text, isRange: true };
+          if (currentCommentImage) {
+            comments[currentKey].image = currentCommentImage;
+          }
           for (let r = startRow; r <= endRow; r++) {
             for (let c = startCol; c <= endCol; c++) {
               setDot(r, c, true);
@@ -4740,14 +4947,19 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         const [row, col] = currentKey.split('-').map(Number);
         const td = tbody.querySelector('td[data-row="' + row + '"][data-col="' + col + '"]');
         const value = td ? td.textContent : '';
-        if (text) {
+        if (text || currentCommentImage) {
           comments[currentKey] = { row, col, text, value };
+          if (currentCommentImage) {
+            comments[currentKey].image = currentCommentImage;
+          }
           setDot(row, col, true);
         } else {
           delete comments[currentKey];
           setDot(row, col, false);
         }
       }
+      currentCommentImage = null;
+      renderCommentImagePreview();
       refreshList();
       closeCard();
       saveCommentsToStorage();
@@ -5031,6 +5243,10 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         if (c.isRange) {
           transformed.lineEnd = (c.endRow || c.startRow) + 1;
         }
+        // Preserve image attachment
+        if (c.image) {
+          transformed.image = c.image;
+        }
         return transformed;
       });
     }
@@ -5051,6 +5267,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       if (globalComment.trim()) {
         data.summary = globalComment.trim();
       }
+      if (submitImages.length > 0) data.summaryImages = submitImages;
       const prompts = getSelectedPrompts();
       if (prompts.length > 0) data.prompts = prompts;
       // Include answered questions
@@ -5071,14 +5288,24 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
       return data;
     }
-    function sendAndExit(reason = 'pagehide') {
+    async function sendAndExit(reason = 'pagehide') {
       if (sent) return;
       sent = true;
       clearCommentsFromStorage();
       const p = payload(reason);
       saveToHistory(p);
-      const blob = new Blob([JSON.stringify(p)], { type: 'application/json' });
-      navigator.sendBeacon('/exit', blob);
+      try {
+        // Use fetch with keepalive to handle large payloads (images)
+        // keepalive allows the request to outlive the page
+        await fetch('/exit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(p),
+          // Note: keepalive has 64KB limit like sendBeacon, so we don't use it for large payloads
+        });
+      } catch (err) {
+        console.error('Failed to send exit request:', err);
+      }
     }
     function showSubmitModal() {
       const count = Object.keys(comments).length;
@@ -5094,11 +5321,11 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     }
     document.getElementById('send-and-exit').addEventListener('click', showSubmitModal);
     modalCancel.addEventListener('click', hideSubmitModal);
-    function doSubmit() {
+    async function doSubmit() {
       globalComment = globalCommentInput.value;
       savePromptPrefs();
       hideSubmitModal();
-      sendAndExit('button');
+      await sendAndExit('button');
       // Try to close window; if it fails (browser security), show completion message
       setTimeout(() => {
         window.close();
@@ -6468,6 +6695,79 @@ function removeLockFile(filePath) {
   }
 }
 
+// --- Image Saving Helper ---
+function saveBase64Image(base64Data, baseDir) {
+  try {
+    // Parse data URL: data:image/png;base64,iVBORw0K...
+    const match = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
+    if (!match) return null;
+
+    const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+    const data = match[2];
+
+    // Create ./tmp/ directory if it doesn't exist
+    const tmpDir = path.join(baseDir, 'tmp');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+
+    // Generate unique filename using timestamp and random string
+    const timestamp = Date.now();
+    const random = crypto.randomBytes(4).toString('hex');
+    const filename = `reviw-${timestamp}-${random}.${ext}`;
+    const filepath = path.join(tmpDir, filename);
+
+    // Decode base64 and save to file
+    const buffer = Buffer.from(data, 'base64');
+    fs.writeFileSync(filepath, buffer);
+
+    // Return relative path (./tmp/filename)
+    return `./tmp/${filename}`;
+  } catch (err) {
+    console.error('Failed to save image:', err);
+    return null;
+  }
+}
+
+// Process payload images: save to disk and replace base64 with paths
+function processPayloadImages(payload, baseDir) {
+  // Process summaryImages (images attached to summary)
+  if (payload.summaryImages && Array.isArray(payload.summaryImages)) {
+    const imagePaths = [];
+    for (const base64 of payload.summaryImages) {
+      const savedPath = saveBase64Image(base64, baseDir);
+      if (savedPath) {
+        imagePaths.push(savedPath);
+      }
+    }
+    // Replace base64 array with file paths (keeps same key position)
+    payload.summaryImages = imagePaths.length > 0 ? imagePaths : undefined;
+    if (!payload.summaryImages) delete payload.summaryImages;
+  }
+
+  // Process comment images
+  if (payload.comments && Array.isArray(payload.comments)) {
+    for (const comment of payload.comments) {
+      if (comment.image) {
+        const savedPath = saveBase64Image(comment.image, baseDir);
+        if (savedPath) {
+          comment.imagePath = savedPath;
+        }
+        delete comment.image; // Remove base64 data from comment
+      }
+    }
+  }
+
+  // Add image reading instruction if any images are attached
+  const hasCommentImages = payload.comments?.some(c => c.imagePath);
+  const hasSummaryImages = payload.summaryImages?.length > 0;
+  if (hasCommentImages || hasSummaryImages) {
+    payload._imageReadingNote = "MANDATORY: You MUST read ALL images (imagePath and summaryImages) using the Read tool. Skipping image reading is PROHIBITED.";
+  }
+
+  return payload;
+}
+
 function checkExistingServer(filePath) {
   try {
     const lockPath = getLockFilePath(filePath);
@@ -6843,6 +7143,10 @@ function createFileServer(filePath, fileIndex = 0) {
           if (raw && raw.trim()) {
             payload = JSON.parse(raw);
           }
+          // Process images: save to ./tmp/ and replace base64 with paths
+          if (payload) {
+            payload = processPayloadImages(payload, ctx.baseDir);
+          }
           // Save to file-based history (only if there are comments)
           if (payload && (payload.comments?.length > 0 || payload.submitComment)) {
             saveHistoryToFile(ctx.filePath, payload);
@@ -7108,6 +7412,11 @@ function createDiffServer(diffContent) {
           let payload = {};
           if (raw && raw.trim()) {
             payload = JSON.parse(raw);
+          }
+          // Process images: save to ./tmp/ and replace base64 with paths
+          // For diff mode, use current working directory
+          if (payload) {
+            payload = processPayloadImages(payload, process.cwd());
           }
           // Save to file-based history (only if there are comments)
           // For diff mode, use relativePath as identifier
