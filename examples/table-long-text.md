@@ -29,3 +29,29 @@
 | `DataTable` - columns, data, sortable, filterable, pagination, onRowClick | 87.4% | ✅ |
 | `MultiSelectDropdown` - options, selected, onChange, searchable, maxHeight | 92.1% | ✅ |
 | `FileUploader` - accept, maxSize, multiple, onUpload, onError, progress | 78.3% | ⚠️ |
+
+## 動画を表から分離したパターン
+
+以下は動画をテーブル外に配置した例です。
+
+### テスト実行結果
+
+| テストシナリオ名（詳細説明付き） | ステータス | フロー概要 |
+|--------------------------------|:----------:|-----------|
+| ユーザー登録フローの完全なE2Eテスト（メール認証・SMS認証含む） | ✅ Pass | 登録画面 → 入力 → 確認 → 認証 → 完了 |
+| 複雑なフォームバリデーションと送信処理の検証（全フィールド必須チェック） | ✅ Pass | フォーム → 各種バリデーション → エラー表示 → 修正 → 送信 |
+| 管理者ダッシュボードのアクセス権限チェックとロールベース表示切替 | ⚠️ Flaky | ログイン → 権限確認 → ダッシュボード → 各メニュー確認 |
+
+### テスト実行動画
+
+#### ユーザー登録フロー（横長動画）
+
+![ユーザー登録フローの実行動画](videos/video-landscape.mp4)
+
+#### フォームバリデーション（縦長動画）
+
+![フォームバリデーションの実行動画](videos/video-portrait.mp4)
+
+#### 管理者ダッシュボード（正方形動画）
+
+![管理者ダッシュボードの実行動画](videos/video-square.mp4)
