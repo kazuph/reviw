@@ -159,7 +159,8 @@ marked.use({
       if (videoExtensions.test(href)) {
         // For videos, render as video element with controls and thumbnail preview
         var displayText = text || href.split('/').pop();
-        return '<video src="' + escapeHtmlForXss(href) + '" controls preload="metadata" class="video-preview"' + titleAttr + '>' +
+        var dataAlt = text ? ' data-alt="' + escapeHtmlForXss(text) + '"' : "";
+        return '<video src="' + escapeHtmlForXss(href) + '" controls preload="metadata" class="video-preview"' + titleAttr + dataAlt + '>' +
                '<a href="' + escapeHtmlForXss(href) + '">📹' + escapeHtmlForXss(displayText) + '</a></video>';
       }
       return '<img src="' + escapeHtmlForXss(href) + '"' + altAttr + titleAttr + '>';
@@ -2730,6 +2731,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       min-width: 0;
       overflow-y: auto;
       overflow-x: hidden;
+      overscroll-behavior: contain;
     }
     .md-left .md-preview {
       max-height: none;
@@ -2739,6 +2741,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       min-width: 0;
       overflow-y: auto;
       overflow-x: auto;
+      overscroll-behavior: contain;
     }
     .md-right .table-box {
       max-width: none;
@@ -6117,8 +6120,46 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           .trim();
       }
 
-      // Helper: find matching source line for text
-      function findSourceLine(text) {
+      // Helper: find matching source line for text or element
+      // If element is provided, also searches by media src attributes
+      function findSourceLine(text, element = null) {
+        // First, try to find by media src (images, videos) in the element
+        if (element) {
+          const mediaElements = element.querySelectorAll('img, video');
+          for (const m of mediaElements) {
+            const src = m.getAttribute('src');
+            if (!src) continue;
+
+            const fileName = src.split('/').pop();
+            const alt = m.getAttribute('alt') || m.getAttribute('data-alt') || m.getAttribute('title') || '';
+
+            // Search for lines containing this media file (![...](path) syntax)
+            // Prioritize exact match with alt text
+            let bestMatch = -1;
+            for (let i = 0; i < DATA.length; i++) {
+              const lineText = (DATA[i][0] || '');
+              if (!lineText.includes(fileName)) continue;
+
+              // Check if it's an image/video markdown syntax
+              const match = lineText.match(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/);
+              if (!match) continue;
+
+              const [, mdAlt, mdPath] = match;
+
+              // Exact path match
+              if (mdPath.includes(fileName)) {
+                // If alt text matches exactly, this is definitely the right one
+                if (alt && mdAlt && mdAlt === alt) {
+                  return i + 1;
+                }
+                // Otherwise, remember as fallback (prefer first match)
+                if (bestMatch === -1) bestMatch = i + 1;
+              }
+            }
+            if (bestMatch !== -1) return bestMatch;
+          }
+        }
+
         if (!text) return -1;
         const normalized = text.trim().replace(/\\s+/g, ' ').slice(0, 100);
         if (!normalized) return -1;
@@ -6358,9 +6399,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         const target = e.target.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th');
         if (!target) return;
 
-        // Use table-specific search for table cells
+        // Use table-specific search for table cells, otherwise use element-aware search
         const isTableCell = target.tagName === 'TD' || target.tagName === 'TH';
-        const line = isTableCell ? findTableSourceLine(target.textContent) : findSourceLine(target.textContent);
+        const line = isTableCell ? findTableSourceLine(target.textContent) : findSourceLine(target.textContent, target);
         if (line <= 0) return;
 
         e.preventDefault();
