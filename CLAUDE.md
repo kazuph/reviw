@@ -22,7 +22,15 @@
 ## 主要ファイル
 
 - `cli.cjs` - メインソースコード（単一ファイル）
-- `package.json` - バージョン管理
+- `package.json` - reviw CLI本体のバージョン管理
+
+## バージョン管理
+
+**reviw CLIとpluginのバージョンは別管理**:
+- reviw CLI: `package.json` の `version`
+- plugin: `plugin/.claude-plugin/plugin.json` の `version`
+
+plugin変更時は必ず `plugin/.claude-plugin/plugin.json` のバージョンを上げること。
 
 ## テストファイルの配置
 
