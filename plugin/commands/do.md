@@ -99,6 +99,48 @@ Options:
 
 **Only proceed to implementation after user confirms approach.**
 
+### Step 0-4: Record Q&A in REPORT.md (REQUIRED)
+
+**All questions asked and answers received MUST be recorded in REPORT.md.**
+
+After completing the interview, add the following section to REPORT.md:
+
+```markdown
+## Requirements Discovery (Q&A Log)
+
+### Development Approach
+- **Q**: How would you like to organize this work?
+- **A**: [User's answer]
+
+### User Story & Scope
+- **Q**: [Question 1]
+- **A**: [Answer 1]
+
+- **Q**: [Question 2]
+- **A**: [Answer 2]
+
+### Functional Requirements
+- **Q**: [Question 3]
+- **A**: [Answer 3]
+
+### Architecture Decision
+- **Q**: [Implementation approach question]
+- **A**: [User's choice and reasoning]
+
+### Key Decisions Summary
+| Decision | Choice | Reasoning |
+|----------|--------|-----------|
+| Development approach | worktree / current branch | [reason] |
+| Architecture | [chosen approach] | [reason] |
+| [Other key decision] | [choice] | [reason] |
+```
+
+**Why this matters:**
+- Preserves context for future sessions (after compact)
+- Documents requirements for review
+- Enables traceability of decisions
+- Helps when resuming work
+
 ## Important: Subagents Required
 
 **To prevent context exhaustion, the following tasks MUST be executed by subagents (Task tool):**
