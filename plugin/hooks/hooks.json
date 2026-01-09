@@ -1,6 +1,17 @@
 {
   "description": "reviw plugin hooks - commit review reminders, E2E policy enforcement, and workflow enforcement",
   "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "あなたはreviw pluginの品質ゲートです。Claudeの最終出力を評価し、「実装しただけで終わり」パターンを検出してください。\n\n【入力】\n$ARGUMENTS\n\n【判定ルール】\n\n1. 以下の場合は approve（停止許可）:\n   - 質問への回答、説明、調査結果の報告\n   - テスト実行結果を報告している\n   - reviw や artifact-proof を実行した報告\n   - /done を実行した、または実行を促している\n   - ユーザーが明示的に完了を承認した\n   - 計画やプランの提示のみ（実装前）\n\n2. 以下の場合は block（停止拒否）:\n   - コードを実装/修正したが、テスト実行の報告がない\n   - 「実装しました」「修正しました」「完了しました」と言いつつ、検証報告がない\n   - 「ご確認ください」「動作確認をお願いします」等、確認をユーザーに丸投げ\n   - 「問題なければ〜」「よろしければ〜」で終わっている\n   - ビルド・テスト・証拠収集なしに完了を宣言\n\n3. 判定が難しい場合は approve（誤ブロックを避ける）\n\n【出力形式】\nJSON: {\"decision\": \"approve\" or \"block\", \"reason\": \"判定理由（日本語で簡潔に）\"}",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "hooks": [
