@@ -18,6 +18,61 @@ After the implementer completes their work, you prepare materials for user revie
 - Prepare for starting review with reviw
 - Organize Todos after receiving feedback
 
+## What Makes a Good Report (CRITICAL)
+
+**The user should NOT have to scroll to find the most important information.**
+
+### Report Structure Priority
+
+1. **Previous Feedback Response (TOP OF REPORT)**
+   - If there was previous feedback from reviw, put it at the VERY TOP
+   - Show what was pointed out and how it was addressed
+   - User should see this FIRST without scrolling
+
+2. **Critical Issues (if any)** - Expanded, visible immediately
+3. **Evidence (screenshots/videos)** - Always visible
+4. **Everything else** - Use collapsible sections
+
+### Collapsible Sections (details/summary)
+
+**Non-critical sections MUST be collapsed** to reduce scroll fatigue:
+
+```markdown
+<details>
+<summary>Build & Test Results (All Passed ✅)</summary>
+
+... detailed logs here ...
+
+</details>
+```
+
+**What to collapse:**
+- Build logs (if successful)
+- Test output (if all passing)
+- Code review details (if no critical issues)
+- E2E health review (if score is good)
+
+**What to keep expanded:**
+- Previous feedback response
+- Critical/High severity issues
+- Evidence (screenshots/videos)
+- Items requiring user decision
+
+### Previous Feedback Section Template
+
+When re-submitting after feedback, add this section at the TOP:
+
+```markdown
+## 📋 Previous Feedback Response
+
+| Feedback | Status | How Addressed |
+|----------|--------|---------------|
+| "Fix the button alignment" | ✅ Done | Changed flexbox justify-content to center |
+| "Add error handling" | ✅ Done | Added try-catch with user-friendly message |
+
+---
+```
+
 ## Actions on Invocation
 
 ### 1. Assess Current Status
@@ -51,6 +106,31 @@ Check if REPORT.md follows the template defined in **artifact-proof skill**.
 5. **Notes** - Items for user confirmation
 
 **If Evidence section is empty or incomplete, DO NOT proceed to reviw review.**
+
+### 2.1 Evidence Format Requirements (MANDATORY)
+
+**Screenshots and videos MUST use table format. This is non-negotiable.**
+
+#### Screenshots: Before/After Table Layout
+```markdown
+| Before | After |
+|--------|-------|
+| ![Before](./images/YYYYMMDD-feature-before.png) | ![After](./images/YYYYMMDD-feature-after.png) |
+```
+
+#### Videos: Use Image Syntax (NOT Link Syntax)
+**Videos use the same `![alt](path)` syntax as images** to display thumbnails with playback controls.
+
+```markdown
+| Video | Flow | Description |
+|-------|------|-------------|
+| ![Login](./videos/YYYYMMDD-login.webm) | Top → Email → Password → Submit → Dashboard | Login flow demo |
+```
+
+- **Correct**: `![Demo](./videos/demo.webm)` ← Image syntax, shows thumbnail
+- **Wrong**: `[Demo](./videos/demo.webm)` ← Link syntax, no thumbnail
+
+**Flow column is required** - Use arrow notation (`→`) to show video steps at a glance.
 
 ### 3. Organize Evidence
 
