@@ -126,6 +126,13 @@ function sanitizeHtml(html) {
 }
 
 marked.use({
+  hooks: {
+    // テーブルをスクロールラッパーで囲む（後処理）
+    postprocess: function(html) {
+      return html.replace(/<table>/g, '<div class="table-scroll-container"><span class="scroll-hint">← scroll →</span><div class="table-scroll-wrapper"><table>')
+                 .replace(/<\/table>/g, '</table></div></div>');
+    }
+  },
   renderer: {
     // 生HTMLブロックをサニタイズ
     html: function(token) {
@@ -2730,7 +2737,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       flex: 1;
       min-width: 0;
       overflow-y: auto;
-      overflow-x: hidden;
+      overflow-x: auto;
       overscroll-behavior: contain;
     }
     .md-left .md-preview {
@@ -2772,8 +2779,6 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       display: block;
       width: 100%;
       height: auto;
-      min-width: 120px;
-      max-width: 250px;
     }
     .md-preview code { background: rgba(255,255,255,0.08); padding: 2px 4px; border-radius: 4px; }
     .md-preview pre {
@@ -2899,12 +2904,38 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     [data-theme="light"] .frontmatter-table tbody th {
       color: #7c3aed;
     }
+    /* Table scroll container and indicator */
+    .table-scroll-container {
+      position: relative;
+      margin: 16px 0;
+    }
+    .table-scroll-wrapper {
+      overflow-x: auto;
+      border-radius: 8px;
+    }
+    .scroll-hint {
+      text-align: right;
+      font-size: 12px;
+      color: var(--accent);
+      padding: 4px 8px;
+      margin-bottom: 4px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 200ms ease;
+    }
+    .table-scroll-container.can-scroll .scroll-hint {
+      opacity: 0.8;
+      visibility: visible;
+    }
+    .table-scroll-container.scrolled-end .scroll-hint {
+      opacity: 0;
+      visibility: hidden;
+    }
     /* Markdown tables in preview */
     .md-preview table:not(.frontmatter-table table) {
-      width: 100%;
+      min-width: 100%;
+      width: max-content;
       border-collapse: collapse;
-      table-layout: fixed;
-      margin: 16px 0;
       border: 1px solid var(--border);
       border-radius: 8px;
     }
@@ -2916,17 +2947,12 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       vertical-align: top;
       word-break: break-word;
       overflow-wrap: anywhere;
+      width: auto;
     }
-    .md-preview table:not(.frontmatter-table table) th:first-child,
-    .md-preview table:not(.frontmatter-table table) td:first-child {
-      width: 30%;
-      min-width: 200px;
-    }
-    .md-preview table:not(.frontmatter-table table) th:last-child,
-    .md-preview table:not(.frontmatter-table table) td:last-child {
-      width: 180px;
-      min-width: 180px;
-      max-width: 180px;
+    /* Force equal column widths when colgroup is not specified */
+    .md-preview table:not(.frontmatter-table table) colgroup ~ * th,
+    .md-preview table:not(.frontmatter-table table) colgroup ~ * td {
+      width: auto;
     }
     .md-preview table:not(.frontmatter-table table) td:has(video),
     .md-preview table:not(.frontmatter-table table) td:has(img) {
@@ -4034,6 +4060,48 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     });
 
     themeToggle.addEventListener('click', toggleTheme);
+  })();
+
+  // --- Table Scroll Indicator ---
+  (function initTableScrollIndicators() {
+    function updateScrollIndicator(wrapper) {
+      const container = wrapper.closest('.table-scroll-container');
+      if (!container) return;
+
+      const canScroll = wrapper.scrollWidth > wrapper.clientWidth;
+      const isAtEnd = wrapper.scrollLeft + wrapper.clientWidth >= wrapper.scrollWidth - 5;
+
+      container.classList.toggle('can-scroll', canScroll && !isAtEnd);
+      container.classList.toggle('scrolled-end', isAtEnd);
+    }
+
+    function initWrapper(wrapper) {
+      updateScrollIndicator(wrapper);
+      wrapper.addEventListener('scroll', () => updateScrollIndicator(wrapper));
+    }
+
+    // Initialize existing wrappers
+    document.querySelectorAll('.table-scroll-wrapper').forEach(initWrapper);
+
+    // Watch for dynamically added wrappers
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === 1) {
+            if (node.classList?.contains('table-scroll-wrapper')) {
+              initWrapper(node);
+            }
+            node.querySelectorAll?.('.table-scroll-wrapper').forEach(initWrapper);
+          }
+        });
+      });
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Update on resize
+    window.addEventListener('resize', () => {
+      document.querySelectorAll('.table-scroll-wrapper').forEach(updateScrollIndicator);
+    });
   })();
 
   // --- History Management ---
