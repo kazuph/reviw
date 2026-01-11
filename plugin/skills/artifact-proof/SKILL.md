@@ -44,6 +44,49 @@ Created: YYYY-MM-DD
 Branch: <branch-name>
 Status: Awaiting Review
 
+## 📌 Attention Required (今回の確認項目)
+
+**Please review these specific points:**
+
+| # | Item | Question/Note |
+|---|------|---------------|
+| 1 | [Specific area to review] | [What you want feedback on] |
+| 2 | [Design decision] | [Options considered, why this choice] |
+| 3 | [Edge case handling] | [How it's handled, is this acceptable?] |
+
+---
+
+## 📋 Previous Feedback Response (累積フィードバック履歴)
+
+<details open>
+<summary><strong>Latest: YYYY-MM-DD</strong></summary>
+
+| Feedback | Status | How Addressed |
+|----------|--------|---------------|
+| "Fix the button alignment" | ✅ Done | Changed flexbox justify-content to center |
+| "Add error handling" | ✅ Done | Added try-catch with user-friendly message |
+
+</details>
+
+<details>
+<summary>YYYY-MM-DD (Previous)</summary>
+
+| Feedback | Status | How Addressed |
+|----------|--------|---------------|
+| "Improve loading state" | ✅ Done | Added skeleton loader |
+
+</details>
+
+<!--
+ACCUMULATION RULE:
+- When receiving new feedback, move the current "Latest" to a new collapsed <details> block
+- Add new feedback response as the new "Latest" (with <details open>)
+- Never delete previous feedback - keep accumulating
+- Oldest feedback goes to the bottom
+-->
+
+---
+
 ## Context
 - Background and requirements
 - Out of scope

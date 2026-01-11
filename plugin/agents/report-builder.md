@@ -58,17 +58,95 @@ After the implementer completes their work, you prepare materials for user revie
 - Evidence (screenshots/videos)
 - Items requiring user decision
 
-### Previous Feedback Section Template
+### Report Header Structure (CRITICAL - First Two Sections)
 
-When re-submitting after feedback, add this section at the TOP:
+**The first two sections MUST be:**
+
+1. **📌 Attention Required** - What the user should review NOW
+2. **📋 Previous Feedback Response** - Accumulated feedback history (toggle format)
+
+### 1. Attention Required Section Template
 
 ```markdown
-## 📋 Previous Feedback Response
+## 📌 Attention Required (今回の確認項目)
+
+**Please review these specific points:**
+
+| # | Item | Question/Note |
+|---|------|---------------|
+| 1 | [Specific area] | [What you want feedback on] |
+| 2 | [Design decision] | [Why this choice, alternatives considered] |
+
+---
+```
+
+### 2. Previous Feedback Section Template (ACCUMULATION FORMAT)
+
+**IMPORTANT: Feedback history must ACCUMULATE across iterations.**
+
+```markdown
+## 📋 Previous Feedback Response (累積フィードバック履歴)
+
+<details open>
+<summary><strong>Latest: YYYY-MM-DD</strong></summary>
 
 | Feedback | Status | How Addressed |
 |----------|--------|---------------|
 | "Fix the button alignment" | ✅ Done | Changed flexbox justify-content to center |
 | "Add error handling" | ✅ Done | Added try-catch with user-friendly message |
+
+</details>
+
+<details>
+<summary>YYYY-MM-DD (Previous round)</summary>
+
+| Feedback | Status | How Addressed |
+|----------|--------|---------------|
+| "Improve loading state" | ✅ Done | Added skeleton loader |
+
+</details>
+
+---
+```
+
+### Accumulation Rules
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Feedback Accumulation Protocol                                  │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  When NEW feedback arrives:                                      │
+│                                                                  │
+│  1. Current "Latest" block → Move to collapsed <details> block   │
+│  2. New feedback → Create as new "Latest" with <details open>    │
+│  3. NEVER delete old feedback - keep accumulating                │
+│  4. Oldest feedback → Bottom of the list                         │
+│                                                                  │
+│  Example flow:                                                   │
+│    Round 1: Latest (open)                                        │
+│    Round 2: Latest (open) → Round 1 (collapsed)                  │
+│    Round 3: Latest (open) → Round 2 (collapsed) → Round 1        │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### First-Time Report (No Previous Feedback)
+
+For initial submissions, still include the sections but mark as first submission:
+
+```markdown
+## 📌 Attention Required (今回の確認項目)
+
+| # | Item | Question/Note |
+|---|------|---------------|
+| 1 | [Item to review] | [Question] |
+
+---
+
+## 📋 Previous Feedback Response (累積フィードバック履歴)
+
+*Initial submission - no previous feedback yet.*
 
 ---
 ```
@@ -92,11 +170,17 @@ cat .artifacts/*/REPORT.md
 
 Check if REPORT.md follows the template defined in **artifact-proof skill**.
 
-**Key sections to verify (in order of importance):**
+**Key sections to verify (in order of appearance - TOP TO BOTTOM):**
 
-1. **Context (依頼内容)** - What was requested
-2. **Plan (計画)** - Tasks with checkboxes
-3. **Evidence (証拠)** ⭐ MOST IMPORTANT
+1. **📌 Attention Required (今回の確認項目)** ⭐ MUST BE FIRST
+   - What the user should review this time
+   - Specific questions/decisions for the user
+2. **📋 Previous Feedback Response (累積履歴)** ⭐ MUST BE SECOND
+   - Toggle format with Latest open, older collapsed
+   - Accumulated across all iterations
+3. **Context (依頼内容)** - What was requested
+4. **Plan (計画)** - Tasks with checkboxes
+5. **Evidence (証拠)** ⭐ CRITICAL
    - Screenshots (Before/After table format)
    - Videos
    - Test results with commands
