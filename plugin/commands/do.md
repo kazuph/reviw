@@ -27,6 +27,44 @@ Options:
   3. "Create new branch only" - Create branch but work in main directory. Middle ground.
 ```
 
+### Step 0-1.5: Tool Installation Check (If worktree selected)
+
+**If user selects worktree approach, check required tools:**
+
+```bash
+# Check if gwq is installed
+which gwq
+# Check if direnv is installed
+which direnv
+# Check if dotenvx is installed
+which dotenvx || npx @dotenvx/dotenvx --version
+```
+
+**If any tool is missing, use AskUserQuestion:**
+
+```
+Question: "Some recommended tools are not installed. Would you like to install them?"
+Header: "Tools"
+Options:
+  1. "Install all (Recommended)" - Install gwq + direnv + dotenvx for optimal workflow
+  2. "Skip installation" - Continue without installing (manual worktree management)
+  3. "Let me install manually" - I'll install them myself later
+```
+
+**Recommended Tool Stack:**
+
+| Tool | Purpose | Install |
+|------|---------|---------|
+| **gwq** | Git worktree manager with fuzzy finder | `go install github.com/d-kuro/gwq@latest` or download from [releases](https://github.com/d-kuro/gwq/releases) |
+| **direnv** | Auto-load environment variables per directory | `brew install direnv` |
+| **dotenvx** | Encrypted .env file management | `npm install -g @dotenvx/dotenvx` |
+
+**Why this stack:**
+- **gwq**: Manages worktrees with auto `npm install`, fuzzy finder for switching
+- **direnv**: Parent directory `.envrc` is inherited by `.worktree/` subdirectories
+- **dotenvx**: `.env` is encrypted and committed to git, decrypted only in memory at runtime
+- **Combined**: `.envrc` with `DOTENV_PRIVATE_KEY` in main dir auto-decrypts `.env` in all worktrees (no file copying needed)
+
 ### Step 0-2: Specification Deep-Dive (PM Interview)
 
 **As Project Manager, drill down into specifications with multiple rounds of questions.**
@@ -218,33 +256,87 @@ Next, create a worktree for the task. Branch name is automatically generated app
 | Documentation | `docs/<target>` | `docs/readme` |
 
 ```bash
-# Create worktree (--from-current to branch from current branch)
-git gtr new <branch-name> --from-current
+# Create worktree with gwq (recommended)
+gwq add -b <branch-name>
 
-# Get worktree path
-WORKTREE_PATH="$(git gtr go <branch-name>)"
+# Or use standard git worktree if gwq is not installed
+git worktree add .worktree/<feature-name> -b <branch-name>
 
 # Move to worktree
-cd "$WORKTREE_PATH"
+cd .worktree/<feature-name>
+
+# Install dependencies (gwq does this automatically via setup_commands)
+npm install || pnpm install || yarn install
+```
+
+**gwq Configuration (~/.config/gwq/config.toml):**
+
+```toml
+[worktree]
+basedir = ".worktree"  # Use project-local directory for direnv inheritance
+
+[[repository_settings]]
+repository = "*"
+copy_files = []  # No files to copy - direnv inherits from parent, .env is git-managed
+setup_commands = ["npm install || pnpm install || true", "direnv allow"]
 ```
 
 ### 2. .gitignore Configuration
 
-**Important:** Exclude `.worktree` and `.artifacts` from commit targets.
+**Important:** Exclude `.worktree`, `.artifacts`, and `.envrc` from commit targets.
 
 ```bash
 # Add to project root .gitignore (only if not already present)
-if ! grep -q "^\.worktree$" .gitignore 2>/dev/null; then
-  echo ".worktree" >> .gitignore
-fi
-if ! grep -q "^\.artifacts$" .gitignore 2>/dev/null; then
-  echo ".artifacts" >> .gitignore
-fi
+for pattern in ".worktree" ".artifacts" ".envrc"; do
+  if ! grep -q "^\\$pattern\$" .gitignore 2>/dev/null; then
+    echo "$pattern" >> .gitignore
+  fi
+done
 ```
 
 **Reason:**
 - `.worktree/` - Work directory is for local use only
 - `.artifacts/` - Evidence (screenshots/videos) excluded to prevent repository bloat
+- `.envrc` - Contains `DOTENV_PRIVATE_KEY` for decryption
+
+### 2.5. Environment Setup (direnv + dotenvx)
+
+**Recommended: Set up encrypted environment variables**
+
+```bash
+# 1. Initialize dotenvx encryption (if .env exists and not yet encrypted)
+dotenvx encrypt
+# This generates .env.keys with DOTENV_PRIVATE_KEY
+
+# 2. Create .envrc with the key from .env.keys, then delete .env.keys
+cat > .envrc << 'EOF'
+# Decrypt .env at runtime (file stays encrypted on disk)
+export DOTENV_PRIVATE_KEY="<copy-key-from-.env.keys-then-delete-file>"
+eval "$(dotenvx decrypt --stdout --format shell 2>/dev/null)" || dotenv_if_exists
+EOF
+
+# 3. Delete .env.keys (no longer needed - key is in .envrc)
+rm .env.keys
+
+# 4. Allow direnv
+direnv allow
+```
+
+**How it works with worktrees:**
+
+```
+project/
+├── .env              # Encrypted (git commit OK)
+├── .envrc            # DOTENV_PRIVATE_KEY + decrypt (gitignore)
+└── .worktree/
+    └── feature-x/    # ← Parent .envrc is inherited!
+        └── .env      # ← Auto-decrypted via parent .envrc
+```
+
+- `.env` is always encrypted on disk, decrypted only in memory at runtime
+- direnv automatically inherits `.envrc` from parent directories
+- worktrees in `.worktree/` get environment variables without copying any files
+- To add/modify env vars: use `dotenvx set KEY="value"` (auto re-encrypts)
 
 **When you want to commit specific evidence:**
 
