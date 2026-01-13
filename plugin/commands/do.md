@@ -22,7 +22,7 @@ Before any implementation, conduct a structured interview with the user to fully
 Question: "How would you like to organize this work?"
 Header: "Approach"
 Options:
-  1. "Use worktree (Recommended)" - Create isolated branch in .worktree/ directory. Clean separation, easy cleanup.
+  1. "Use worktree (Recommended)" - Create isolated branch in separate directory. Clean separation, easy cleanup. (gwq: global, git worktree: project-local)
   2. "Work in current branch" - Make changes directly in current branch. Simpler for small changes.
   3. "Create new branch only" - Create branch but work in main directory. Middle ground.
 ```
@@ -60,10 +60,10 @@ Options:
 | **dotenvx** | Encrypted .env file management | `npm install -g @dotenvx/dotenvx` |
 
 **Why this stack:**
-- **gwq**: Manages worktrees with auto `npm install`, fuzzy finder for switching
-- **direnv**: Parent directory `.envrc` is inherited by `.worktree/` subdirectories
+- **gwq**: Manages worktrees with auto `npm install`, fuzzy finder for switching. Uses global basedir (e.g., `~/src`) with ghq-compatible directory structure.
+- **direnv**: Parent directory `.envrc` is inherited by child directories. With gwq, place `.envrc` at Owner level (`~/src/github.com/owner/.envrc`); with standard git worktree, place at project root.
 - **dotenvx**: `.env` is encrypted and committed to git, decrypted only in memory at runtime
-- **Combined**: `.envrc` with `DOTENV_PRIVATE_KEY` in main dir auto-decrypts `.env` in all worktrees (no file copying needed)
+- **Combined**: `.envrc` with `DOTENV_PRIVATE_KEY` auto-decrypts `.env` in all worktrees (no file copying needed)
 
 ### Step 0-2: Specification Deep-Dive (PM Interview)
 
@@ -271,15 +271,67 @@ npm install || pnpm install || yarn install
 
 **gwq Configuration (~/.config/gwq/config.toml):**
 
+> **Note:** gwqは**グローバルなbasedir**を前提とした設計です。プロジェクトローカルな`.worktree/`配置はサポートされていません。
+
 ```toml
 [worktree]
-basedir = ".worktree"  # Use project-local directory for direnv inheritance
+# グローバルなbasedirを指定（環境に合わせて変更）
+# デフォルト: ~/worktrees
+# ghq連携: ghqのrootと同じディレクトリ（例: ~/src, ~/ghq, ~/code）
+basedir = "~/worktrees"
+auto_mkdir = true
+
+[naming]
+# ディレクトリ構造のテンプレート
+# ghq連携時は {{.Repository}}-{{.Branch}} でリポジトリと同階層に配置
+template = "{{.Host}}/{{.Owner}}/{{.Repository}}-{{.Branch}}"
+
+[naming.sanitize_chars]
+"/" = "-"
+":" = "-"
 
 [[repository_settings]]
 repository = "*"
-copy_files = []  # No files to copy - direnv inherits from parent, .env is git-managed
-setup_commands = ["npm install || pnpm install || true", "direnv allow"]
+copy_files = []  # direnvで環境変数を継承するのでコピー不要
+setup_commands = ["npm install || pnpm install || yarn install || true"]
 ```
+
+**ghq連携パターン（ghqユーザーは推奨）:**
+
+ghqを使っている場合、**basedirをghqのrootと同じにすることを推奨**します。理由：
+- 同じOwner配下に並ぶのでdirenvの`.envrc`が自動継承される
+- `ls`で見たときに関連リポジトリ（メイン＋worktree）が一目瞭然
+- ghqとgwqが同じディレクトリ構造で動く
+
+```
+# ghqのroot確認
+git config --get ghq.root  # 例: ~/src
+
+# gwqのbasedirをghqと同じに設定
+basedir = "~/src"  # ghqのrootに合わせる
+```
+
+この場合のディレクトリ構造：
+```
+~/src/github.com/owner/       # または ~/ghq/github.com/owner/ など
+├── .envrc                    ← Ownerレベルで環境変数設定（direnv）
+├── myrepo/                   ← ghqで管理（メインリポジトリ）
+├── myrepo-feature-auth/      ← gwqで作成（worktree）
+└── myrepo-fix-bug/           ← gwqで作成（worktree）
+```
+
+direnvは親ディレクトリの`.envrc`を継承するため、Ownerレベルに環境変数を設定しておけば、ghqで管理するリポジトリもgwqで作成するworktreeも、同じ環境変数が自動適用されます。
+
+**gwqを使わない場合（標準git worktree）:**
+
+gwqをインストールしていない場合は、プロジェクトローカルに配置できます：
+
+```bash
+# プロジェクト内に.worktree/を作成
+git worktree add .worktree/<feature-name> -b <branch-name>
+```
+
+この場合、プロジェクトルートの`.envrc`がworktreeに継承されます。
 
 ### 2. .gitignore Configuration
 
