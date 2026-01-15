@@ -1,6 +1,6 @@
 {
   "name": "reviw-plugin",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "reviw CLI integration - task management with /do & /done, review workflow, and report generation agent",
   "author": {
     "name": "kazuph",

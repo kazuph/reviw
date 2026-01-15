@@ -42,7 +42,7 @@ claude plugin marketplace remove reviw-marketplace    # ターミナルで実行
 
 | コマンド | 説明 |
 |---------|------|
-| `/reviw:do <タスク説明>` | タスク開始 - worktree 作成、計画策定、Todo 登録 |
+| `/reviw:do <タスク説明>` | タスク開始 - gwq で worktree 作成、計画策定、Todo 登録 |
 | `/reviw:done` | タスク完了チェック - エビデンス収集、reviw でレビュー開始 |
 
 ### Agents（サブエージェント）
@@ -87,7 +87,7 @@ Task ツールで subagent_type: "e2e-health-reviewer" を指定
 ```
 /reviw:do <タスク説明>
     ↓
-worktree 作成 + 計画策定
+gwq で worktree 作成 + 計画策定
     ↓
 実装作業
     ↓

@@ -177,7 +177,7 @@ plugin/
 
 | 種類 | 名前 | 説明 |
 |------|------|------|
-| **コマンド** | `/reviw:do` | タスク開始 - worktree作成、計画、todo登録 |
+| **コマンド** | `/reviw:do` | タスク開始 - gwqでworktree作成、計画、todo登録 |
 | **コマンド** | `/reviw:done` | 完了チェックリスト - 7レビューエージェント実行、エビデンス収集、レビュー開始 |
 | **エージェント** | `report-builder` | ユーザーレビュー用レポート準備 |
 | **エージェント** | `review-code-quality` | コード品質: 可読性、DRY、型安全性、エラーハンドリング |
@@ -201,22 +201,22 @@ plugin/
 適切な環境セットアップで新しいタスクを開始します。
 
 **処理内容:**
-1. 分離開発用のgit worktreeを作成（`feature/<name>`、`fix/<name>`など）
+1. gwqを使用して分離開発用のgit worktreeを作成（`feature/<name>`、`fix/<name>`など）
 2. エビデンス用の`.artifacts/<feature>/`ディレクトリをセットアップ
 3. 計画とTODOチェックリスト付きの`REPORT.md`を作成
 4. 進捗追跡用にTodoWriteにtodoを登録
 
 **作成されるディレクトリ構成:**
 ```
-.worktree/<feature>/
+<worktree>/                   # 例: ~/src/github.com/owner/myrepo-feature-auth/
 └── .artifacts/
-    └── <feature>/
-        ├── REPORT.md     # 計画、進捗、エビデンスリンク
-        ├── images/       # スクリーンショット
-        └── videos/       # 動画録画
+    └── <feature>/            # 例: auth（feature/authから）
+        ├── REPORT.md         # 計画、進捗、エビデンスリンク
+        ├── images/           # スクリーンショット
+        └── videos/           # 動画録画
 ```
 
-**タスク再開:** セッション開始時またはコンテキスト圧縮後、コマンドは既存のworktreeをチェックし、`REPORT.md`から再開します。
+**タスク再開:** セッション開始時またはコンテキスト圧縮後、コマンドは既存のworktreeを確認（`gwq list`）し、`REPORT.md`から再開します。
 
 #### `/reviw:done`
 
