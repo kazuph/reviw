@@ -5896,12 +5896,81 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         fsContent.style.cursor = 'grab';
       });
 
-      // Zoom with mouse wheel - use multiplicative factor
+      // Trackpad/Mouse wheel handling
+      // - ctrlKey true (pinch gesture on trackpad) → zoom
+      // - ctrlKey false (two-finger scroll) → pan
       fsContent.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const factor = e.deltaY > 0 ? 0.9 : 1.1;
-        zoomAt(factor, e.clientX, e.clientY);
+        if (e.ctrlKey) {
+          // Pinch zoom on trackpad (or Ctrl+wheel on mouse)
+          const factor = e.deltaY > 0 ? 0.9 : 1.1;
+          zoomAt(factor, e.clientX, e.clientY);
+        } else {
+          // Two-finger scroll → pan
+          panX -= e.deltaX;
+          panY -= e.deltaY;
+          updateTransform();
+        }
       }, { passive: false });
+
+      // Touch support for pinch-to-zoom and two-finger pan
+      let lastTouchDistance = 0;
+      let lastTouchCenter = { x: 0, y: 0 };
+      let touchStartPanX = 0;
+      let touchStartPanY = 0;
+
+      function getTouchDistance(touches) {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      function getTouchCenter(touches) {
+        return {
+          x: (touches[0].clientX + touches[1].clientX) / 2,
+          y: (touches[0].clientY + touches[1].clientY) / 2
+        };
+      }
+
+      fsContent.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          lastTouchDistance = getTouchDistance(e.touches);
+          lastTouchCenter = getTouchCenter(e.touches);
+          touchStartPanX = panX;
+          touchStartPanY = panY;
+        }
+      }, { passive: false });
+
+      fsContent.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          const currentDistance = getTouchDistance(e.touches);
+          const currentCenter = getTouchCenter(e.touches);
+
+          // Pinch zoom
+          if (lastTouchDistance > 0) {
+            const scale = currentDistance / lastTouchDistance;
+            if (Math.abs(scale - 1) > 0.01) {
+              zoomAt(scale, currentCenter.x, currentCenter.y);
+              lastTouchDistance = currentDistance;
+            }
+          }
+
+          // Two-finger pan
+          const dx = currentCenter.x - lastTouchCenter.x;
+          const dy = currentCenter.y - lastTouchCenter.y;
+          panX += dx;
+          panY += dy;
+          updateTransform();
+
+          lastTouchCenter = currentCenter;
+        }
+      }, { passive: false });
+
+      fsContent.addEventListener('touchend', () => {
+        lastTouchDistance = 0;
+      });
 
       // ESC to close
       document.addEventListener('keydown', (e) => {
