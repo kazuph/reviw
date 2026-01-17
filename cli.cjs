@@ -5897,12 +5897,12 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       });
 
       // Trackpad/Mouse wheel handling
-      // - ctrlKey true (pinch gesture on trackpad) → zoom
-      // - ctrlKey false (two-finger scroll) → pan
+      // - ctrlKey/shiftKey true (pinch gesture on trackpad, or Ctrl/Shift+wheel) → zoom
+      // - ctrlKey/shiftKey false (two-finger scroll) → pan
       fsContent.addEventListener('wheel', (e) => {
         e.preventDefault();
-        if (e.ctrlKey) {
-          // Pinch zoom on trackpad (or Ctrl+wheel on mouse)
+        if (e.ctrlKey || e.shiftKey) {
+          // Pinch zoom on trackpad (or Ctrl/Shift+wheel on mouse)
           const factor = e.deltaY > 0 ? 0.9 : 1.1;
           zoomAt(factor, e.clientX, e.clientY);
         } else {
