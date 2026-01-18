@@ -7,6 +7,50 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQues
 
 When you think implementation is done, run this command to verify completion criteria are met.
 
+## Report Creation Rules (MANDATORY - Read Before Proceeding)
+
+**These rules MUST be followed when creating or updating REPORT.md:**
+
+### 1. Language Policy
+- **Write the report in the user's language** (日本語で依頼されたら日本語で作成)
+- Match the language the user used when making their request
+- Technical terms and code can remain in English
+
+### 2. Media Format (Images & Videos)
+- **ALWAYS use `![]()` syntax** (image syntax, NOT link syntax)
+- **ALWAYS place in tables** to arrange horizontally (2-3 columns)
+- Vertical stacking is prohibited - it makes scrolling tedious
+
+```markdown
+| Before | After |
+|--------|-------|
+| ![Before](./images/before.png) | ![After](./images/after.png) |
+
+| Video | Flow | Description |
+|-------|------|-------------|
+| ![Demo](./videos/demo.webm) | Step1 → Step2 → Step3 | Feature demo |
+```
+
+### 3. Priority Ordering (Critical First)
+- **Critical/High severity issues → TOP of report**
+- Previous feedback response → Second
+- Evidence → Third
+- Everything else → Use collapsible sections
+
+### 4. Feedback Accumulation (Original Text Required)
+- **Record user feedback in near-original text** (ほぼ原文で記録)
+- **NEVER summarize or paraphrase** - copy exact wording
+- **Register as TODO immediately when receiving feedback** (指摘を受けたらすぐTodo化)
+- Accumulate across iterations - never delete old feedback
+
+```
+When user says: "ボタンの位置がずれている"
+Record as: "ボタンの位置がずれている" ← Exact text
+NOT as: "UI alignment issue" ← Summarized (WRONG)
+```
+
+---
+
 ## Phase 0: Report Level Selection (REQUIRED)
 
 **Before starting the review process, ask user about desired report level.**

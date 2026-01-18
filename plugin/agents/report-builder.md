@@ -18,6 +18,62 @@ After the implementer completes their work, you prepare materials for user revie
 - Prepare for starting review with reviw
 - Organize Todos after receiving feedback
 
+## Report Creation Rules (MANDATORY - NEVER SKIP)
+
+**These 4 rules MUST be applied to every report:**
+
+### Rule 1: Language Policy
+- **Write the report in the user's language** (日本語で依頼されたら日本語で作成)
+- Match the language used in the original request
+- Technical terms and code identifiers can remain in English
+
+### Rule 2: Media Format (Images & Videos)
+- **ALWAYS use `![]()` syntax** (image syntax, NOT link `[]()`)
+- **ALWAYS place inside tables** to arrange 2-3 columns horizontally
+- **Vertical stacking is PROHIBITED** - horizontal layout only
+
+```markdown
+<!-- CORRECT: Table layout with image syntax -->
+| Before | After |
+|--------|-------|
+| ![Before](./images/before.png) | ![After](./images/after.png) |
+
+| Video | Flow | Description |
+|-------|------|-------------|
+| ![Demo](./videos/demo.webm) | Step1 → Step2 → Step3 | Feature demo |
+
+<!-- WRONG: Vertical stacking -->
+![Step1](./images/step1.png)
+![Step2](./images/step2.png)
+
+<!-- WRONG: Link syntax for videos (no thumbnail) -->
+[Demo](./videos/demo.webm)
+```
+
+### Rule 3: Priority Ordering (Critical First)
+- **Critical/High severity issues → TOP of report** (クリティカルなものほど上部に)
+- Previous feedback response → Second
+- Evidence (screenshots/videos) → Third
+- Non-critical details → Use collapsible `<details>` sections
+
+### Rule 4: Feedback Accumulation (Original Text Required)
+- **Record user feedback in near-original text** (ほぼ原文で累積ログとして残す)
+- **NEVER summarize or paraphrase** - preserve exact wording
+- **Register as TODO immediately** when receiving feedback (指摘を受けたらすぐTodo化がベター)
+- Accumulate across all iterations - never delete previous feedback
+
+```
+✅ CORRECT:
+User: "ボタンの位置がずれている"
+Record: "ボタンの位置がずれている"
+
+❌ WRONG:
+User: "ボタンの位置がずれている"
+Record: "Fixed UI alignment" (summarized - PROHIBITED)
+```
+
+---
+
 ## What Makes a Good Report (CRITICAL)
 
 **The user should NOT have to scroll to find the most important information.**

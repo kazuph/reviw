@@ -10,10 +10,55 @@ allowed-tools:
 An operational workflow for preserving development evidence (screenshots, videos, logs) in `.artifacts/<feature>/` and reusing it for PR descriptions.
 Assumes human-in-the-loop visual regression, requiring screenshots to be retaken and verified before commits and PR pushes.
 
-## Language Policy
+## Report Creation Rules (MANDATORY - 4 Rules)
 
+**Every report MUST follow these rules. Violations will result in rejection.**
+
+### Rule 1: Language Policy
 - **Skill instructions**: Written in English for universal understanding
-- **REPORT.md content**: Write in the user's native language to ensure clear communication with stakeholders. Match the language used by the user in their requests.
+- **REPORT.md content**: Write in the user's language (日本語で依頼されたら日本語で作成)
+- Match the language used by the user in their requests
+- Technical terms and code identifiers can remain in English
+
+### Rule 2: Media Format (Images & Videos)
+- **ALWAYS use `![]()` syntax** for both images AND videos (image syntax, NOT link `[]()`)
+- **ALWAYS place inside tables** to arrange 2-3 columns horizontally
+- **Vertical stacking is PROHIBITED** - forces unnecessary scrolling
+
+```markdown
+<!-- ✅ CORRECT: Table layout -->
+| Before | After |
+|--------|-------|
+| ![Before](./images/before.png) | ![After](./images/after.png) |
+
+| Video | Flow | Description |
+|-------|------|-------------|
+| ![Demo](./videos/demo.webm) | Step1 → Step2 → Step3 | Demo |
+
+<!-- ❌ WRONG: Vertical stacking -->
+![Step1](./images/step1.png)
+![Step2](./images/step2.png)
+```
+
+### Rule 3: Priority Ordering (Critical First)
+- **Critical/High severity issues → TOP of report** (クリティカルなものほど上部に)
+- Previous feedback response → Second (累積履歴)
+- Evidence (screenshots/videos) → Third
+- Non-critical details → Collapse with `<details>` tags
+
+### Rule 4: Feedback Accumulation (Original Text Required)
+- **Record user feedback in near-original text** (ほぼ原文で累積ログとして残す)
+- **NEVER summarize or paraphrase** - preserve exact wording
+- **Register as TODO immediately** upon receiving feedback (指摘された直後にTodo化がベター)
+- Accumulate across ALL iterations - never delete previous rounds
+
+```
+When user says: "ボタンの色が仕様と違う"
+Record exactly: "ボタンの色が仕様と違う" ✅
+NOT: "Button color issue" ❌ (summarized)
+```
+
+---
 
 ## Triggers
 - When asked for work evidence for a PR
