@@ -7425,6 +7425,13 @@ function createFileServer(filePath, fileIndex = 0) {
                 res.end();
               } else {
                 const stream = fs.createReadStream(staticPath, { start, end });
+                stream.on("error", (streamErr) => {
+                  console.error("Range stream error:", streamErr);
+                  if (!res.headersSent) {
+                    res.writeHead(500, { "Content-Type": "text/plain" });
+                  }
+                  res.end();
+                });
                 stream.pipe(res);
               }
             } else {
@@ -7445,6 +7452,13 @@ function createFileServer(filePath, fileIndex = 0) {
               } else if (fileSize > 1024 * 1024) {
                 // Use streaming for large files (> 1MB)
                 const stream = fs.createReadStream(staticPath);
+                stream.on("error", (streamErr) => {
+                  console.error("Stream error:", streamErr);
+                  if (!res.headersSent) {
+                    res.writeHead(500, { "Content-Type": "text/plain" });
+                  }
+                  res.end();
+                });
                 stream.pipe(res);
               } else {
                 const content = fs.readFileSync(staticPath);
@@ -7454,12 +7468,15 @@ function createFileServer(filePath, fileIndex = 0) {
             return;
           }
         } catch (err) {
-          // fall through to 404
+          console.error("Static file error:", err);
+          // fall through to 404 (but check headersSent first)
         }
       }
 
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("not found");
+      if (!res.headersSent) {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("not found");
+      }
     });
 
     let serverStarted = false;
