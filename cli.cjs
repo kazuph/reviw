@@ -18,6 +18,254 @@ const path = require("path");
 const crypto = require("crypto");
 const { spawn, execSync, spawnSync } = require("child_process");
 const chardet = require("chardet");
+
+// --- ffmpeg availability check for video timeline feature ---
+let ffmpegAvailable = null;
+function checkFfmpegAvailable() {
+  if (ffmpegAvailable !== null) return ffmpegAvailable;
+  try {
+    execSync('ffmpeg -version', { stdio: 'pipe' });
+    ffmpegAvailable = true;
+  } catch {
+    ffmpegAvailable = false;
+  }
+  return ffmpegAvailable;
+}
+
+// Track temporary directories for timeline thumbnails (cleanup on exit)
+const timelineTempDirs = new Set();
+
+// Extract video timeline thumbnails using ffmpeg scene detection
+// Uses "stabilization filter" - groups consecutive similar frames and takes the last frame of each group
+function extractVideoTimeline(videoPath, tmpDir, res, onComplete) {
+  const STABILIZATION_THRESHOLD = 0.5; // seconds - consecutive changes within this are grouped
+  const SCENE_THRESHOLD = 0.01; // Very low threshold to catch subtle color changes
+  const MIN_INTERVAL = 1.0; // Minimum interval for additional keyframes (seconds)
+
+  // First, get video duration using ffprobe
+  let videoDuration = 0;
+  try {
+    const durationResult = spawnSync('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      videoPath
+    ], { encoding: 'utf8' });
+    videoDuration = parseFloat(durationResult.stdout.trim()) || 0;
+  } catch (err) {
+    // Ignore duration detection errors
+  }
+
+  // Step 1: Extract first frame (always include start)
+  const firstFramePath = `${tmpDir}/first_frame.jpg`;
+  spawnSync('ffmpeg', [
+    '-y', '-i', videoPath,
+    '-vf', 'scale=160:-1',
+    '-vframes', '1',
+    '-q:v', '5',
+    firstFramePath
+  ], { stdio: 'pipe' });
+
+  // Step 2: Extract last frame (always include end)
+  const lastFramePath = `${tmpDir}/last_frame.jpg`;
+  if (videoDuration > 0) {
+    const lastTime = Math.max(0, videoDuration - 0.1);
+    spawnSync('ffmpeg', [
+      '-y', '-i', videoPath,
+      '-ss', String(lastTime),
+      '-vf', 'scale=160:-1',
+      '-vframes', '1',
+      '-q:v', '5',
+      lastFramePath
+    ], { stdio: 'pipe' });
+  }
+
+  // Step 3: Use ffmpeg with scene detection filter (low threshold for color changes)
+  // select='gt(scene,0.01)' detects frames where scene change is > 1%
+  const ffmpeg = spawn('ffmpeg', [
+    '-i', videoPath,
+    '-vf', `select='gt(scene,${SCENE_THRESHOLD})',showinfo,scale=160:-1`,
+    '-vsync', 'vfr',
+    '-q:v', '5',
+    `${tmpDir}/scene_%04d.jpg`
+  ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+  let stderrBuffer = '';
+  const sceneTimestamps = [];
+
+  ffmpeg.stderr.on('data', (data) => {
+    stderrBuffer += data.toString();
+
+    // Parse showinfo output to extract timestamps
+    // Format: [Parsed_showinfo_1 @ ...] n:   0 pts:      0 pts_time:0
+    const lines = stderrBuffer.split('\n');
+    stderrBuffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      const match = line.match(/pts_time:([0-9.]+)/);
+      if (match) {
+        const timestamp = parseFloat(match[1]);
+        sceneTimestamps.push(timestamp);
+      }
+    }
+  });
+
+  ffmpeg.on('close', (code) => {
+    // Even if ffmpeg fails, we still have first/last frames
+
+    // Apply stabilization filter: group consecutive frames within threshold
+    const stabilizedScenes = applyStabilizationFilter(sceneTimestamps, STABILIZATION_THRESHOLD);
+
+    // Collect all thumbnails with their timestamps
+    const allThumbnails = [];
+
+    // Add first frame (time: 0)
+    if (fs.existsSync(firstFramePath)) {
+      allThumbnails.push({ path: firstFramePath, time: 0 });
+    }
+
+    // Add scene-detected frames
+    const sceneFiles = fs.readdirSync(tmpDir)
+      .filter(f => f.startsWith('scene_') && f.endsWith('.jpg'))
+      .sort();
+
+    sceneFiles.forEach((file, idx) => {
+      const timestamp = sceneTimestamps[idx];
+      if (timestamp !== undefined && stabilizedScenes.includes(timestamp)) {
+        allThumbnails.push({
+          path: `${tmpDir}/${file}`,
+          time: timestamp
+        });
+      }
+    });
+
+    // Add last frame (time: videoDuration)
+    if (videoDuration > 0 && fs.existsSync(lastFramePath)) {
+      // Only add if it's not too close to existing thumbnails
+      const lastThumbTime = allThumbnails.length > 0
+        ? allThumbnails[allThumbnails.length - 1].time
+        : 0;
+      if (videoDuration - lastThumbTime > STABILIZATION_THRESHOLD) {
+        allThumbnails.push({ path: lastFramePath, time: videoDuration });
+      }
+    }
+
+    // If we have very few thumbnails for a long video, add interval-based ones
+    if (videoDuration > 3 && allThumbnails.length < 3) {
+      // Extract frames at regular intervals
+      const intervalCount = Math.min(5, Math.floor(videoDuration / MIN_INTERVAL));
+      for (let i = 1; i < intervalCount; i++) {
+        const time = (videoDuration / intervalCount) * i;
+        // Check if we already have a thumbnail close to this time
+        const hasNearby = allThumbnails.some(t => Math.abs(t.time - time) < STABILIZATION_THRESHOLD);
+        if (!hasNearby) {
+          const intervalPath = `${tmpDir}/interval_${i}.jpg`;
+          const result = spawnSync('ffmpeg', [
+            '-y', '-i', videoPath,
+            '-ss', String(time),
+            '-vf', 'scale=160:-1',
+            '-vframes', '1',
+            '-q:v', '5',
+            intervalPath
+          ], { stdio: 'pipe' });
+          if (result.status === 0 && fs.existsSync(intervalPath)) {
+            allThumbnails.push({ path: intervalPath, time: time });
+          }
+        }
+      }
+    }
+
+    // Sort by time
+    allThumbnails.sort((a, b) => a.time - b.time);
+
+    // Remove duplicates (same time within threshold)
+    const uniqueThumbnails = [];
+    for (const thumb of allThumbnails) {
+      const isDuplicate = uniqueThumbnails.some(t => Math.abs(t.time - thumb.time) < 0.1);
+      if (!isDuplicate) {
+        uniqueThumbnails.push(thumb);
+      }
+    }
+
+    // Send each thumbnail via SSE
+    uniqueThumbnails.forEach((thumb, idx) => {
+      if (fs.existsSync(thumb.path)) {
+        const imageData = fs.readFileSync(thumb.path);
+        const base64 = imageData.toString('base64');
+        res.write(`data: ${JSON.stringify({
+          type: "thumbnail",
+          time: thumb.time,
+          index: idx,
+          data: `data:image/jpeg;base64,${base64}`
+        })}\n\n`);
+      }
+    });
+
+    // Send completion message
+    res.write(`data: ${JSON.stringify({
+      type: "complete",
+      total: uniqueThumbnails.length,
+      duration: videoDuration
+    })}\n\n`);
+    res.end();
+    onComplete();
+  });
+
+  ffmpeg.on('error', (err) => {
+    // Try to send at least first/last frames even on spawn error
+    const fallbackThumbnails = [];
+    if (fs.existsSync(firstFramePath)) {
+      fallbackThumbnails.push({ path: firstFramePath, time: 0 });
+    }
+    if (fs.existsSync(lastFramePath)) {
+      fallbackThumbnails.push({ path: lastFramePath, time: videoDuration });
+    }
+
+    fallbackThumbnails.forEach((thumb, idx) => {
+      const imageData = fs.readFileSync(thumb.path);
+      const base64 = imageData.toString('base64');
+      res.write(`data: ${JSON.stringify({
+        type: "thumbnail",
+        time: thumb.time,
+        index: idx,
+        data: `data:image/jpeg;base64,${base64}`
+      })}\n\n`);
+    });
+
+    res.write(`data: ${JSON.stringify({
+      type: "complete",
+      total: fallbackThumbnails.length,
+      duration: videoDuration
+    })}\n\n`);
+    res.end();
+    onComplete();
+  });
+}
+
+// Stabilization filter: groups consecutive timestamps within threshold and returns the last of each group
+function applyStabilizationFilter(timestamps, threshold) {
+  if (timestamps.length === 0) return [];
+  if (timestamps.length === 1) return timestamps;
+
+  const sorted = [...timestamps].sort((a, b) => a - b);
+  const result = [];
+  let groupStart = 0;
+
+  for (let i = 1; i < sorted.length; i++) {
+    // If gap between current and previous is larger than threshold, end the group
+    if (sorted[i] - sorted[i - 1] > threshold) {
+      // Take the last frame of the current group
+      result.push(sorted[i - 1]);
+      groupStart = i;
+    }
+  }
+
+  // Always include the last frame of the final group
+  result.push(sorted[sorted.length - 1]);
+
+  return result;
+}
+
 const iconv = require("iconv-lite");
 const marked = require("marked");
 const yaml = require("js-yaml");
@@ -3088,10 +3336,140 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       align-items: center;
     }
     .video-container video {
-      max-width: 100%;
-      max-height: 100%;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
       border-radius: 8px;
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+    /* Video Timeline */
+    .video-timeline {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      overflow-x: auto;
+      padding: 8px;
+      gap: 4px;
+      backdrop-filter: blur(8px);
+      z-index: 5;
+    }
+    .video-timeline::-webkit-scrollbar {
+      height: 6px;
+    }
+    .video-timeline::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+    .video-timeline::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+    }
+    .video-timeline::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+    .timeline-thumb {
+      height: 64px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      border-radius: 4px;
+      flex-shrink: 0;
+      transition: border-color 0.2s, transform 0.15s;
+      opacity: 0.85;
+    }
+    .timeline-thumb:hover {
+      border-color: rgba(59, 130, 246, 0.5);
+      opacity: 1;
+      transform: scale(1.05);
+    }
+    .timeline-thumb.active {
+      border-color: #3b82f6;
+      opacity: 1;
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+    }
+    .timeline-loading {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 12px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .timeline-loading::before {
+      content: '';
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: timeline-spin 0.8s linear infinite;
+    }
+    @keyframes timeline-spin {
+      to { transform: rotate(360deg); }
+    }
+    .timeline-time {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 9px;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 1px 4px;
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    .timeline-thumb-wrapper {
+      position: relative;
+      flex-shrink: 0;
+    }
+    /* Video Shortcuts Help */
+    .video-shortcuts-help {
+      opacity: 0.85;
+      transition: opacity 0.2s;
+    }
+    .video-shortcuts-help:hover {
+      opacity: 1;
+    }
+    .video-shortcuts-help .shortcuts-title {
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      color: rgba(255, 255, 255, 0.7);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .video-shortcuts-help .shortcuts-title::before {
+      content: '\u2328';
+      font-size: 14px;
+    }
+    .video-shortcuts-help .shortcut-item {
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+    .video-shortcuts-help .shortcut-item:last-child {
+      margin-bottom: 0;
+    }
+    .video-shortcuts-help kbd {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 10px;
+      font-weight: 500;
+      min-width: 18px;
+      text-align: center;
+      margin-right: 2px;
     }
     /* Reviw Questions Modal */
     .reviw-questions-overlay {
@@ -6105,18 +6483,175 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
       const videoExtensions = /\\.(mp4|mov|webm|avi|mkv|m4v|ogv)$/i;
 
-      // Collect all video links for navigation
-      const allVideoLinks = Array.from(preview.querySelectorAll('a')).filter(link => {
+      // Collect all video sources for navigation
+      // Includes both: a[href=video] (link syntax) and video.video-preview (image syntax ![](video.mp4))
+      const allVideoSources = [];
+
+      // 1. Collect video links (a tags with video href)
+      const videoLinks = Array.from(preview.querySelectorAll('a')).filter(link => {
         const href = link.getAttribute('href');
         return href && videoExtensions.test(href);
       });
+      videoLinks.forEach(link => {
+        allVideoSources.push({
+          type: 'link',
+          element: link,
+          src: link.getAttribute('href')
+        });
+      });
+
+      // 2. Collect video elements (video tags with video-preview class, from ![](video.mp4) syntax)
+      const videoElements = Array.from(preview.querySelectorAll('video.video-preview'));
+      videoElements.forEach(video => {
+        const src = video.getAttribute('src');
+        if (src && videoExtensions.test(src)) {
+          allVideoSources.push({
+            type: 'video',
+            element: video,
+            src: src
+          });
+        }
+      });
+
+      // For backwards compatibility
+      const allVideoLinks = videoLinks;
       let currentVideoIndex = -1;
+      let currentTimelineEventSource = null;
+      let timelineThumbnails = [];
+
+      // Format time as MM:SS
+      function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return mins + ':' + (secs < 10 ? '0' : '') + secs;
+      }
+
+      // Load video timeline via SSE
+      function loadVideoTimeline(videoPath, video) {
+        // Close existing connection
+        if (currentTimelineEventSource) {
+          currentTimelineEventSource.close();
+          currentTimelineEventSource = null;
+        }
+
+        // Clear existing timeline
+        const existingTimeline = videoContainer.querySelector('.video-timeline');
+        if (existingTimeline) existingTimeline.remove();
+        timelineThumbnails = [];
+
+        // Create timeline container
+        const timeline = document.createElement('div');
+        timeline.className = 'video-timeline';
+        timeline.addEventListener('click', (e) => e.stopPropagation()); // Prevent closing overlay
+
+        // Add loading indicator
+        const loading = document.createElement('div');
+        loading.className = 'timeline-loading';
+        loading.textContent = 'Loading timeline...';
+        timeline.appendChild(loading);
+
+        videoContainer.appendChild(timeline);
+
+        // Start SSE connection
+        const encodedPath = encodeURIComponent(videoPath);
+        const es = new EventSource('/video-timeline?path=' + encodedPath);
+        currentTimelineEventSource = es;
+
+        es.onmessage = function(e) {
+          const data = JSON.parse(e.data);
+
+          if (data.type === 'thumbnail') {
+            // Remove loading indicator on first thumbnail
+            const loadingEl = timeline.querySelector('.timeline-loading');
+            if (loadingEl) loadingEl.remove();
+
+            // Create thumbnail wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'timeline-thumb-wrapper';
+
+            // Create thumbnail image
+            const thumb = document.createElement('img');
+            thumb.className = 'timeline-thumb';
+            thumb.src = data.data;
+            thumb.dataset.time = data.time;
+            thumb.title = 'Jump to ' + formatTime(data.time);
+
+            // Click to seek (no autoplay - user controls playback)
+            thumb.addEventListener('click', function() {
+              video.currentTime = parseFloat(thumb.dataset.time);
+              // Don't call video.play() - let user control when to play
+            });
+
+            // Add time label
+            const timeLabel = document.createElement('span');
+            timeLabel.className = 'timeline-time';
+            timeLabel.textContent = formatTime(data.time);
+
+            wrapper.appendChild(thumb);
+            wrapper.appendChild(timeLabel);
+            timeline.appendChild(wrapper);
+
+            timelineThumbnails.push({ element: thumb, time: data.time });
+          } else if (data.type === 'complete') {
+            es.close();
+            currentTimelineEventSource = null;
+
+            // If no thumbnails were added, show message
+            if (timelineThumbnails.length === 0) {
+              const loadingEl = timeline.querySelector('.timeline-loading');
+              if (loadingEl) {
+                loadingEl.textContent = 'No scene changes detected';
+              }
+            }
+          } else if (data.type === 'error') {
+            es.close();
+            currentTimelineEventSource = null;
+            // Remove timeline on error (ffmpeg not available, etc.)
+            timeline.remove();
+          }
+        };
+
+        es.onerror = function() {
+          es.close();
+          currentTimelineEventSource = null;
+          // Remove timeline on connection error
+          timeline.remove();
+        };
+
+        // Update active thumbnail on video timeupdate
+        video.addEventListener('timeupdate', function() {
+          if (timelineThumbnails.length === 0) return;
+
+          const currentTime = video.currentTime;
+          let closestIdx = 0;
+          let closestDiff = Infinity;
+
+          for (let i = 0; i < timelineThumbnails.length; i++) {
+            const diff = Math.abs(timelineThumbnails[i].time - currentTime);
+            if (diff < closestDiff) {
+              closestDiff = diff;
+              closestIdx = i;
+            }
+          }
+
+          // Update active class
+          timelineThumbnails.forEach(function(t, idx) {
+            if (idx === closestIdx) {
+              t.element.classList.add('active');
+              // Scroll to active thumbnail
+              t.element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            } else {
+              t.element.classList.remove('active');
+            }
+          });
+        });
+      }
 
       function showVideo(index) {
-        if (index < 0 || index >= allVideoLinks.length) return;
+        if (index < 0 || index >= allVideoSources.length) return;
         currentVideoIndex = index;
-        const link = allVideoLinks[index];
-        const href = link.getAttribute('href');
+        const source = allVideoSources[index];
+        const href = source.src;
 
         // Remove existing video if any
         const existingVideo = videoContainer.querySelector('video');
@@ -6130,31 +6665,80 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         const existingCounter = videoContainer.querySelector('.fullscreen-counter');
         if (existingCounter) existingCounter.remove();
 
+        // Remove existing timeline
+        const existingTimeline = videoContainer.querySelector('.video-timeline');
+        if (existingTimeline) existingTimeline.remove();
+
+        // Remove existing shortcuts help
+        const existingHelp = videoOverlay.querySelector('.video-shortcuts-help');
+        if (existingHelp) existingHelp.remove();
+
         const video = document.createElement('video');
         video.src = href;
         video.controls = true;
-        video.autoplay = true;
-        video.style.maxWidth = '100%';
-        video.style.maxHeight = '100%';
+        // autoplay disabled: サムネイルクリック時はシークのみ、再生は手動
+        video.style.width = '100%';
+        video.style.height = 'calc(100% - 80px)'; // Leave room for timeline
+        video.style.objectFit = 'contain';
         // Prevent click on video from closing overlay
         video.addEventListener('click', (e) => e.stopPropagation());
         videoContainer.appendChild(video);
 
         // Show navigation hint
-        if (allVideoLinks.length > 1) {
+        if (allVideoSources.length > 1) {
           const counter = document.createElement('div');
           counter.className = 'fullscreen-counter';
-          counter.textContent = \`\${index + 1} / \${allVideoLinks.length}\`;
-          counter.style.cssText = 'position:absolute;bottom:20px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,0.6);padding:8px 16px;border-radius:20px;font-size:14px;';
+          counter.textContent = \`\${index + 1} / \${allVideoSources.length}\`;
+          counter.style.cssText = 'position:absolute;bottom:100px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,0.6);padding:8px 16px;border-radius:20px;font-size:14px;z-index:10;';
           videoContainer.appendChild(counter);
         }
 
+        // Add keyboard shortcuts help
+        const shortcutsHelp = document.createElement('div');
+        shortcutsHelp.className = 'video-shortcuts-help';
+        shortcutsHelp.innerHTML = \`
+          <div class="shortcuts-title">Shortcuts</div>
+          <div class="shortcut-item"><kbd>Space</kbd><kbd>K</kbd> Play/Pause</div>
+          <div class="shortcut-item"><kbd>\u2190</kbd><kbd>J</kbd> Prev scene</div>
+          <div class="shortcut-item"><kbd>\u2192</kbd><kbd>L</kbd> Next scene</div>
+          <div class="shortcut-item"><kbd>ESC</kbd> Close</div>
+        \`;
+        shortcutsHelp.style.cssText = \`
+          position: absolute;
+          left: 20px;
+          top: 50%;
+          transform: translateY(-50%);
+          background: rgba(0, 0, 0, 0.6);
+          color: rgba(255, 255, 255, 0.9);
+          padding: 16px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-family: system-ui, -apple-system, sans-serif;
+          z-index: 10;
+          pointer-events: none;
+          user-select: none;
+        \`;
+        // Prevent click propagation
+        shortcutsHelp.addEventListener('click', (e) => e.stopPropagation());
+        videoOverlay.appendChild(shortcutsHelp);
+
         videoOverlay.classList.add('visible');
+
+        // Load video timeline
+        loadVideoTimeline(href, video);
       }
 
       function closeVideoOverlay() {
         videoOverlay.classList.remove('visible');
         currentVideoIndex = -1;
+
+        // Close timeline SSE connection
+        if (currentTimelineEventSource) {
+          currentTimelineEventSource.close();
+          currentTimelineEventSource = null;
+        }
+        timelineThumbnails = [];
+
         // Stop and remove video
         const video = videoContainer.querySelector('video');
         if (video) {
@@ -6162,13 +6746,62 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           video.src = '';
           video.remove();
         }
+
+        // Remove timeline
+        const timeline = videoContainer.querySelector('.video-timeline');
+        if (timeline) timeline.remove();
+
+        // Remove shortcuts help
+        const shortcutsHelp = videoOverlay.querySelector('.video-shortcuts-help');
+        if (shortcutsHelp) shortcutsHelp.remove();
       }
 
       function navigateVideo(direction) {
         if (!videoOverlay.classList.contains('visible')) return;
         const newIndex = currentVideoIndex + direction;
-        if (newIndex >= 0 && newIndex < allVideoLinks.length) {
+        if (newIndex >= 0 && newIndex < allVideoSources.length) {
           showVideo(newIndex);
+        }
+      }
+
+      // Navigate between thumbnails (scenes) within the video
+      function navigateThumbnail(direction) {
+        if (!videoOverlay.classList.contains('visible')) return;
+        if (timelineThumbnails.length === 0) return;
+
+        const video = videoContainer.querySelector('video');
+        if (!video) return;
+
+        const currentTime = video.currentTime;
+
+        // Find current thumbnail index
+        let currentThumbIdx = 0;
+        let closestDiff = Infinity;
+        for (let i = 0; i < timelineThumbnails.length; i++) {
+          const diff = Math.abs(timelineThumbnails[i].time - currentTime);
+          if (diff < closestDiff) {
+            closestDiff = diff;
+            currentThumbIdx = i;
+          }
+        }
+
+        // Calculate target index
+        const targetIdx = currentThumbIdx + direction;
+        if (targetIdx >= 0 && targetIdx < timelineThumbnails.length) {
+          video.currentTime = timelineThumbnails[targetIdx].time;
+        }
+      }
+
+      // Toggle video play/pause
+      function toggleVideoPlayPause() {
+        if (!videoOverlay.classList.contains('visible')) return;
+        const video = videoContainer.querySelector('video');
+        if (!video) return;
+
+        if (video.paused) {
+          video.play();
+        } else {
+          video.pause();
         }
       }
 
@@ -6190,31 +6823,113 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           case 'Escape':
             closeVideoOverlay();
             break;
+          // Scene navigation: Arrow keys and j/l (YouTube-like)
           case 'ArrowLeft':
+          case 'j':
+            e.preventDefault();
+            navigateThumbnail(-1);
+            break;
+          case 'ArrowRight':
+          case 'l':
+            e.preventDefault();
+            navigateThumbnail(1);
+            break;
+          // Video navigation: Arrow Up/Down for switching between videos
           case 'ArrowUp':
             e.preventDefault();
             navigateVideo(-1);
             break;
-          case 'ArrowRight':
           case 'ArrowDown':
             e.preventDefault();
             navigateVideo(1);
             break;
+          // Play/Pause toggle: Space and k (YouTube-like)
+          case ' ':
+          case 'k':
+            e.preventDefault();
+            toggleVideoPlayPause();
+            break;
         }
       });
 
-      // Intercept video link clicks
-      allVideoLinks.forEach((link, index) => {
-        link.style.cursor = 'pointer';
-        link.title = allVideoLinks.length > 1
-          ? 'Click to play video fullscreen (← → to navigate)'
-          : 'Click to play video fullscreen';
+      // Intercept video source clicks
+      allVideoSources.forEach((source, index) => {
+        const element = source.element;
 
-        link.addEventListener('click', (e) => {
-          e.preventDefault();
-          // Don't stop propagation - allow select to work
-          showVideo(index);
-        });
+        if (source.type === 'link') {
+          // For link syntax: single click opens fullscreen
+          element.style.cursor = 'pointer';
+          element.title = allVideoSources.length > 1
+            ? 'Click to play video fullscreen (\u2190 \u2192 to navigate)'
+            : 'Click to play video fullscreen';
+
+          element.addEventListener('click', (e) => {
+            e.preventDefault();
+            showVideo(index);
+          });
+        } else if (source.type === 'video') {
+          // For image syntax ![](video.mp4): add fullscreen overlay button
+          // Wrap video in a container with fullscreen button
+          const wrapper = document.createElement('div');
+          wrapper.className = 'video-fullscreen-wrapper';
+          wrapper.style.cssText = 'position:relative;display:inline-block;';
+
+          // Insert wrapper before video, then move video inside
+          element.parentNode.insertBefore(wrapper, element);
+          wrapper.appendChild(element);
+
+          // Create fullscreen button overlay
+          const fsButton = document.createElement('button');
+          fsButton.className = 'video-fullscreen-btn';
+          fsButton.innerHTML = '<span style="font-size:14px;margin-right:4px">\u26F6</span>Fullscreen+';
+          fsButton.title = 'Enhanced fullscreen with keyboard shortcuts (Space=Play/Pause, \u2190\u2192=Scene navigation)';
+          fsButton.style.cssText = \`
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 6px 12px;
+            background: rgba(59, 130, 246, 0.9);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.8;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          \`;
+
+          wrapper.appendChild(fsButton);
+
+          // Highlight button on hover
+          fsButton.addEventListener('mouseenter', () => {
+            fsButton.style.opacity = '1';
+            fsButton.style.transform = 'scale(1.05)';
+          });
+          fsButton.addEventListener('mouseleave', () => {
+            fsButton.style.opacity = '0.8';
+            fsButton.style.transform = 'scale(1)';
+          });
+
+          // Click button to open fullscreen
+          fsButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showVideo(index);
+          });
+
+          // Also support double-click on video itself
+          element.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showVideo(index);
+          });
+        }
       });
     })();
 
@@ -7215,8 +7930,22 @@ function shutdownAll() {
     });
     if (ctx.server) ctx.server.close();
   }
+  // Cleanup timeline temp directories
+  cleanupTimelineTempDirs();
   outputAllResults();
   setTimeout(() => process.exit(0), 500).unref();
+}
+
+// Cleanup all timeline temporary directories
+function cleanupTimelineTempDirs() {
+  for (const dir of timelineTempDirs) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch (err) {
+      // Ignore cleanup errors
+    }
+  }
+  timelineTempDirs.clear();
 }
 
 process.on("SIGINT", shutdownAll);
@@ -7354,6 +8083,72 @@ function createFileServer(filePath, fileIndex = 0) {
         res.write("retry: 3000\n\n");
         ctx.sseClients.add(res);
         req.on("close", () => ctx.sseClients.delete(res));
+        return;
+      }
+
+      // Video timeline SSE endpoint - streams thumbnail data for video scrubbing
+      if (req.method === "GET" && req.url.startsWith("/video-timeline?")) {
+        const urlParams = new URL(req.url, `http://localhost`);
+        const videoPath = urlParams.searchParams.get("path");
+
+        if (!videoPath) {
+          res.writeHead(400, { "Content-Type": "text/plain" });
+          res.end("missing path parameter");
+          return;
+        }
+
+        // Security check: prevent path traversal
+        if (videoPath.includes("..")) {
+          res.writeHead(403, { "Content-Type": "text/plain" });
+          res.end("forbidden");
+          return;
+        }
+
+        // Check ffmpeg availability
+        if (!checkFfmpegAvailable()) {
+          res.writeHead(200, {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          });
+          res.write(`data: ${JSON.stringify({ type: "error", message: "ffmpeg not available" })}\n\n`);
+          res.end();
+          return;
+        }
+
+        // Resolve full video path
+        const fullVideoPath = path.join(baseDir, videoPath);
+        if (!fs.existsSync(fullVideoPath)) {
+          res.writeHead(404, { "Content-Type": "text/plain" });
+          res.end("video not found");
+          return;
+        }
+
+        // Setup SSE response
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
+        });
+
+        // Create temp directory for thumbnails
+        const tmpDir = path.join(os.tmpdir(), `reviw-timeline-${crypto.randomBytes(8).toString('hex')}`);
+        fs.mkdirSync(tmpDir, { recursive: true });
+        timelineTempDirs.add(tmpDir);
+
+        // Extract thumbnails using ffmpeg with scene detection
+        extractVideoTimeline(fullVideoPath, tmpDir, res, () => {
+          // Cleanup after SSE closes
+          req.on("close", () => {
+            try {
+              fs.rmSync(tmpDir, { recursive: true, force: true });
+              timelineTempDirs.delete(tmpDir);
+            } catch (err) {
+              // Ignore cleanup errors
+            }
+          });
+        });
         return;
       }
 
