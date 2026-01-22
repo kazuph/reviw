@@ -58,8 +58,8 @@ flowchart LR
 
 | 動画 | 説明 |
 |------|------|
-| 📹 [ログインフロー](./videos/login-flow.webm) | ログイン操作のデモ動画 |
-| 📹 [設定変更フロー](./videos/settings-flow.webm) | 設定変更のデモ動画 |
+| ![ログインフロー](./videos/video-landscape.mp4) | ログイン操作のデモ動画 |
+| ![設定変更フロー](./videos/video-portrait.mp4) | 設定変更のデモ動画 |
 
 #### ログインフロー図
 ```mermaid
@@ -87,8 +87,15 @@ flowchart TD
 
 | 動画ファイル | 説明 | フロー |
 |-------------|------|--------|
-| login-demo.webm | ログイン操作 | Login → Dashboard |
-| settings-demo.webm | 設定変更 | Settings → Save |
+| video-landscape.mp4 | 横長動画デモ | 横画面表示 |
+| video-portrait.mp4 | 縦長動画デモ | 縦画面表示 |
+
+### 閾値調整テスト用動画
+
+| 動画 | 説明 |
+|------|------|
+| ![16色テスト](./videos/video-16colors.mp4) | 16種類の異なる色（1秒ずつ切り替わり）- シーン検出テスト用 |
+| ![グラデーション](./videos/video-gradient.mp4) | 虹色のグラデーション変化（10秒）- 閾値感度テスト用 |
 
 ---
 

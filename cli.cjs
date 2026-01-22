@@ -37,9 +37,10 @@ const timelineTempDirs = new Set();
 
 // Extract video timeline thumbnails using ffmpeg scene detection
 // Uses "stabilization filter" - groups consecutive similar frames and takes the last frame of each group
-function extractVideoTimeline(videoPath, tmpDir, res, onComplete) {
-  const STABILIZATION_THRESHOLD = 0.5; // seconds - consecutive changes within this are grouped
-  const SCENE_THRESHOLD = 0.01; // Very low threshold to catch subtle color changes
+function extractVideoTimeline(videoPath, tmpDir, res, onComplete, options = {}) {
+  // Use provided thresholds or defaults
+  const STABILIZATION_THRESHOLD = options.stabilizationThreshold || 0.5; // seconds - consecutive changes within this are grouped
+  const SCENE_THRESHOLD = options.sceneThreshold || 0.005; // Lower default threshold (was 0.01) to catch more subtle changes
   const MIN_INTERVAL = 1.0; // Minimum interval for additional keyframes (seconds)
 
   // First, get video duration using ffprobe
@@ -382,6 +383,16 @@ marked.use({
     }
   },
   renderer: {
+    // 見出しをトグル可能なセクションとしてレンダリング
+    // markedのrenderer.headingは (text, level, raw) を引数に取る
+    heading: function(text, level, raw) {
+      // トグル用のdata属性を追加（見出しテキストをキーとして使用）
+      var headingKey = (text || '').replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u3400-\u4DBF]/g, '-').toLowerCase();
+      return '<h' + level + ' class="md-heading-toggle" data-heading-key="' + escapeHtmlForXss(headingKey) + '" data-heading-level="' + level + '">' +
+             '<span class="heading-toggle-icon">▼</span>' +
+             text +
+             '</h' + level + '>';
+    },
     // 生HTMLブロックをサニタイズ
     html: function(token) {
       var text = token.raw || token.text || token;
@@ -3020,6 +3031,35 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     .md-preview h1, .md-preview h2, .md-preview h3, .md-preview h4 {
       margin: 0.4em 0 0.2em;
     }
+    /* Heading toggle feature */
+    .md-preview .md-heading-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .md-preview .heading-toggle-icon {
+      font-size: 0.6em;
+      transition: transform 150ms ease;
+      color: var(--muted);
+      flex-shrink: 0;
+      cursor: pointer;
+      padding: 4px 8px;
+      margin: -4px 0 -4px -8px;
+      border-radius: 4px;
+    }
+    .md-preview .heading-toggle-icon:hover {
+      background: var(--hover-bg);
+      color: var(--accent);
+    }
+    .md-preview .md-heading-toggle.collapsed .heading-toggle-icon {
+      transform: rotate(-90deg);
+    }
+    .md-preview .heading-section-content {
+      /* Content wrapper for collapsible sections */
+    }
+    .md-preview .heading-section-content.hidden {
+      display: none;
+    }
     .md-preview p { margin: 0.3em 0; line-height: 1.5; }
     .md-preview img { max-width: 100%; height: auto; border-radius: 8px; }
     .md-preview video.video-preview { max-width: 100%; height: auto; border-radius: 8px; background: #000; }
@@ -3424,6 +3464,111 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     .timeline-thumb-wrapper {
       position: relative;
       flex-shrink: 0;
+    }
+    /* Video threshold settings panel */
+    .video-settings-btn {
+      position: absolute;
+      top: 14px;
+      right: 64px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 50%;
+      cursor: pointer;
+      color: #fff;
+      font-size: 18px;
+      z-index: 10;
+      backdrop-filter: blur(4px);
+      transition: background 120ms ease, transform 120ms ease;
+    }
+    .video-settings-btn:hover {
+      background: rgba(0, 0, 0, 0.75);
+      transform: scale(1.04);
+    }
+    .video-settings-panel {
+      position: absolute;
+      top: 60px;
+      right: 14px;
+      background: rgba(0, 0, 0, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      z-index: 15;
+      min-width: 280px;
+      display: none;
+      backdrop-filter: blur(8px);
+    }
+    .video-settings-panel.visible {
+      display: block;
+    }
+    .video-settings-panel h4 {
+      margin: 0 0 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .video-settings-desc {
+      margin: 0 0 12px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .video-settings-buttons {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .video-settings-buttons button {
+      flex: 1;
+      padding: 8px 4px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+    .video-settings-buttons button:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .video-settings-buttons button.selected {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: #fff;
+    }
+    .video-settings-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .video-settings-actions button {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 120ms ease;
+    }
+    .video-settings-actions .regenerate-btn {
+      background: #3b82f6;
+      color: #fff;
+    }
+    .video-settings-actions .regenerate-btn:hover {
+      background: #2563eb;
+    }
+    .video-settings-actions .reset-btn {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+    .video-settings-actions .reset-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
     }
     /* Video Shortcuts Help */
     .video-shortcuts-help {
@@ -4358,6 +4503,21 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
   </div>
   <div class="video-fullscreen-overlay" id="video-fullscreen">
     <button class="video-close-btn" id="video-close" aria-label="Close video" title="Close (ESC)">✕</button>
+    <button class="video-settings-btn" id="video-settings-btn" aria-label="Timeline settings" title="Timeline settings">⚙</button>
+    <div class="video-settings-panel" id="video-settings-panel">
+      <h4>サムネイル数の調整</h4>
+      <p class="video-settings-desc">重要シーンの見逃しを防ぐため、サムネイル数を調整できます</p>
+      <div class="video-settings-buttons" id="scene-buttons">
+        <button data-scene="0.05" data-stab="1.0">少なめ</button>
+        <button data-scene="0.02" data-stab="0.8">やや少</button>
+        <button data-scene="0.005" data-stab="0.5" class="selected">標準</button>
+        <button data-scene="0.002" data-stab="0.3">やや多</button>
+        <button data-scene="0.001" data-stab="0.2">多め</button>
+      </div>
+      <div class="video-settings-actions">
+        <button class="regenerate-btn" id="video-settings-regenerate">この設定で再生成</button>
+      </div>
+    </div>
     <div class="video-container" id="video-container"></div>
   </div>
 
@@ -6083,8 +6243,17 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       let startX, startY;
       let svgNaturalWidth = 0, svgNaturalHeight = 0;
       let minimapScale = 1;
+      let currentMermaidContainer = null; // Store the container for selection after close
+      let skipNextFullscreenOpen = false; // Flag to skip opening fullscreen after close
 
       function openFullscreen(mermaidEl) {
+        // Skip if this is triggered by the post-close click
+        if (skipNextFullscreenOpen) {
+          skipNextFullscreenOpen = false;
+          return;
+        }
+        // Store the container for selection when fullscreen closes
+        currentMermaidContainer = mermaidEl.closest('.mermaid-container');
         const svg = mermaidEl.querySelector('svg');
         if (!svg) return;
         fsWrapper.innerHTML = '';
@@ -6146,6 +6315,16 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
       function closeFullscreen() {
         fsOverlay.classList.remove('visible');
+        // Trigger selection of the mermaid container after closing fullscreen
+        if (currentMermaidContainer) {
+          const containerToSelect = currentMermaidContainer;
+          currentMermaidContainer = null;
+          // Set flag to skip reopening fullscreen, then trigger click for selection
+          setTimeout(() => {
+            skipNextFullscreenOpen = true;
+            containerToSelect.click();
+          }, 100);
+        }
       }
 
       function updateTransform() {
@@ -6375,6 +6554,82 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
     })();
 
+    // --- Heading Toggle ---
+    (function initHeadingToggle() {
+      const preview = document.querySelector('.md-preview');
+      if (!preview) return;
+
+      const STORAGE_PREFIX = 'reviw-heading-toggle-';
+
+      // Get all headings
+      const headings = Array.from(preview.querySelectorAll('.md-heading-toggle'));
+      if (headings.length === 0) return;
+
+      // Wrap content between headings into sections
+      headings.forEach((heading, idx) => {
+        const level = parseInt(heading.dataset.headingLevel) || 1;
+        const key = heading.dataset.headingKey;
+
+        // Collect all siblings until next heading of same or higher level
+        const content = [];
+        let sibling = heading.nextElementSibling;
+
+        while (sibling) {
+          // Check if it's a heading of same or higher level
+          if (sibling.classList.contains('md-heading-toggle')) {
+            const siblingLevel = parseInt(sibling.dataset.headingLevel) || 1;
+            if (siblingLevel <= level) break;
+          }
+          content.push(sibling);
+          sibling = sibling.nextElementSibling;
+        }
+
+        // Create wrapper for content
+        if (content.length > 0) {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'heading-section-content';
+          wrapper.dataset.forHeading = key;
+
+          // Move content into wrapper
+          const firstContent = content[0];
+          heading.parentNode.insertBefore(wrapper, firstContent);
+          content.forEach(el => wrapper.appendChild(el));
+
+          // Restore state from localStorage
+          const savedState = localStorage.getItem(STORAGE_PREFIX + key);
+          if (savedState === 'collapsed') {
+            heading.classList.add('collapsed');
+            wrapper.classList.add('hidden');
+          }
+        }
+
+        // Add click handler to toggle icon only (not the whole heading)
+        // This allows the heading text to remain selectable for comments
+        const toggleIcon = heading.querySelector('.heading-toggle-icon');
+        if (toggleIcon) {
+          toggleIcon.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent triggering comment selection
+            const wrapper = preview.querySelector(\`.heading-section-content[data-for-heading="\${key}"]\`);
+            if (!wrapper) return;
+
+            const isCollapsed = heading.classList.toggle('collapsed');
+            wrapper.classList.toggle('hidden', isCollapsed);
+
+            // Save state to localStorage
+            localStorage.setItem(STORAGE_PREFIX + key, isCollapsed ? 'collapsed' : 'expanded');
+
+            // Re-render Mermaid diagrams when expanding (they may not render while hidden)
+            if (!isCollapsed && typeof mermaid !== 'undefined') {
+              const mermaidDivs = wrapper.querySelectorAll('.mermaid');
+              if (mermaidDivs.length > 0) {
+                mermaid.run({ nodes: Array.from(mermaidDivs) }).catch(() => {});
+              }
+            }
+          });
+        }
+      });
+    })();
+
     // --- Image Fullscreen ---
     (function initImageFullscreen() {
       const preview = document.querySelector('.md-preview');
@@ -6526,8 +6781,23 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         return mins + ':' + (secs < 10 ? '0' : '') + secs;
       }
 
+      // Default threshold values
+      const DEFAULT_SCENE_THRESHOLD = 0.005;
+      const DEFAULT_STABILIZATION_THRESHOLD = 0.5;
+      let currentSceneThreshold = DEFAULT_SCENE_THRESHOLD;
+      let currentStabilizationThreshold = DEFAULT_STABILIZATION_THRESHOLD;
+      let currentVideoPath = null;
+      let currentVideo = null;
+
       // Load video timeline via SSE
-      function loadVideoTimeline(videoPath, video) {
+      function loadVideoTimeline(videoPath, video, options = {}) {
+        const sceneThreshold = options.sceneThreshold || currentSceneThreshold;
+        const stabilizationThreshold = options.stabilizationThreshold || currentStabilizationThreshold;
+
+        // Store for regeneration
+        currentVideoPath = videoPath;
+        currentVideo = video;
+
         // Close existing connection
         if (currentTimelineEventSource) {
           currentTimelineEventSource.close();
@@ -6552,9 +6822,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
         videoContainer.appendChild(timeline);
 
-        // Start SSE connection
+        // Start SSE connection with threshold parameters
         const encodedPath = encodeURIComponent(videoPath);
-        const es = new EventSource('/video-timeline?path=' + encodedPath);
+        const es = new EventSource(\`/video-timeline?path=\${encodedPath}&scene=\${sceneThreshold}&stabilization=\${stabilizationThreshold}\`);
         currentTimelineEventSource = es;
 
         es.onmessage = function(e) {
@@ -6648,6 +6918,11 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
 
       function showVideo(index) {
+        // Skip if this is triggered by the post-close click
+        if (window._skipNextVideoFullscreen) {
+          window._skipNextVideoFullscreen = false;
+          return;
+        }
         if (index < 0 || index >= allVideoSources.length) return;
         currentVideoIndex = index;
         const source = allVideoSources[index];
@@ -6730,6 +7005,12 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
       function closeVideoOverlay() {
         videoOverlay.classList.remove('visible');
+
+        // Save source element before resetting index (for triggering selection)
+        const closedSource = currentVideoIndex >= 0 && currentVideoIndex < allVideoSources.length
+          ? allVideoSources[currentVideoIndex]
+          : null;
+
         currentVideoIndex = -1;
 
         // Close timeline SSE connection
@@ -6745,6 +7026,18 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           video.pause();
           video.src = '';
           video.remove();
+        }
+
+        // Trigger selection on the source element's parent table cell (if any)
+        if (closedSource && closedSource.element) {
+          const parentCell = closedSource.element.closest('td, th');
+          if (parentCell) {
+            // Set global flag to skip reopening fullscreen, then trigger click for selection
+            setTimeout(() => {
+              window._skipNextVideoFullscreen = true;
+              parentCell.click();
+            }, 100);
+          }
         }
 
         // Remove timeline
@@ -6931,6 +7224,63 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           });
         }
       });
+
+      // --- Video Settings Panel ---
+      const settingsBtn = document.getElementById('video-settings-btn');
+      const settingsPanel = document.getElementById('video-settings-panel');
+      const sceneButtons = document.getElementById('scene-buttons');
+      const regenerateBtn = document.getElementById('video-settings-regenerate');
+
+      if (settingsBtn && settingsPanel) {
+        // Toggle settings panel
+        settingsBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          settingsPanel.classList.toggle('visible');
+        });
+
+        // Prevent panel clicks from closing overlay
+        settingsPanel.addEventListener('click', (e) => e.stopPropagation());
+
+        // Handle 5-level button clicks
+        if (sceneButtons) {
+          const buttons = sceneButtons.querySelectorAll('button');
+          buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+              buttons.forEach(b => b.classList.remove('selected'));
+              btn.classList.add('selected');
+            });
+          });
+        }
+
+        // Regenerate timeline with selected settings
+        if (regenerateBtn) {
+          regenerateBtn.addEventListener('click', () => {
+            if (!currentVideoPath || !currentVideo) return;
+
+            // Get selected button's values
+            const selectedBtn = sceneButtons?.querySelector('button.selected');
+            if (selectedBtn) {
+              currentSceneThreshold = parseFloat(selectedBtn.dataset.scene) || DEFAULT_SCENE_THRESHOLD;
+              currentStabilizationThreshold = parseFloat(selectedBtn.dataset.stab) || DEFAULT_STABILIZATION_THRESHOLD;
+            }
+
+            loadVideoTimeline(currentVideoPath, currentVideo, {
+              sceneThreshold: currentSceneThreshold,
+              stabilizationThreshold: currentStabilizationThreshold
+            });
+
+            // Hide panel after regenerating
+            settingsPanel.classList.remove('visible');
+          });
+        }
+
+        // Close panel when overlay closes
+        const originalCloseVideoOverlay = closeVideoOverlay;
+        closeVideoOverlay = function() {
+          settingsPanel.classList.remove('visible');
+          originalCloseVideoOverlay();
+        };
+      }
     })();
 
     // --- Preview Commenting ---
@@ -6946,10 +7296,15 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         .md-preview > p:hover, .md-preview > h1:hover, .md-preview > h2:hover,
         .md-preview > h3:hover, .md-preview > h4:hover, .md-preview > h5:hover,
         .md-preview > h6:hover, .md-preview > ul > li:hover, .md-preview > ol > li:hover,
-        .md-preview > pre:hover, .md-preview > blockquote:hover {
+        .md-preview > pre:hover, .md-preview > blockquote:hover,
+        .md-preview details summary:hover {
           background: rgba(99, 102, 241, 0.08);
           cursor: pointer;
           border-radius: 4px;
+        }
+        .md-preview td:hover, .md-preview th:hover {
+          background: rgba(99, 102, 241, 0.12);
+          cursor: pointer;
         }
         .md-preview img:hover {
           outline: 2px solid var(--accent);
@@ -7013,7 +7368,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         }
 
         if (!text) return -1;
-        const normalized = text.trim().replace(/\\s+/g, ' ').slice(0, 100);
+        // Remove toggle icon characters (▼, ▶) that may be included from heading toggles
+        const cleanText = text.replace(/[▼▶]/g, '').trim();
+        const normalized = cleanText.replace(/\\s+/g, ' ').slice(0, 100);
         if (!normalized) return -1;
 
         for (let i = 0; i < DATA.length; i++) {
@@ -7033,6 +7390,19 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
             }
           }
 
+          // Check for HTML summary tags: <summary>text</summary>
+          const summaryMatch = lineText.match(/<summary>([^<]*)<\\/summary>/i);
+          if (summaryMatch) {
+            const summaryText = summaryMatch[1].trim();
+            if (summaryText === normalized || summaryText.toLowerCase() === normalized.toLowerCase()) {
+              return i + 1;
+            }
+            // Partial match for long summary text
+            if (summaryText.includes(normalized.slice(0, 30)) && normalized.length > 5) {
+              return i + 1;
+            }
+          }
+
           // Try stripping all markdown formatting (links, bold, italic, etc.)
           const strippedLine = stripMarkdown(lineText).replace(/\\s+/g, ' ').slice(0, 100);
           if (strippedLine === normalized) return i + 1;
@@ -7045,10 +7415,31 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       // Helper: find matching source line for table cell (prioritizes table rows)
       function findTableSourceLine(text) {
         if (!text) return -1;
-        const normalized = text.trim().replace(/\\s+/g, ' ').slice(0, 100);
+        // Remove toggle icon characters (▼, ▶) that may be included from heading toggles
+        const cleanText = text.replace(/[▼▶]/g, '').trim();
+        const normalized = cleanText.replace(/\\s+/g, ' ').slice(0, 100);
         if (!normalized) return -1;
 
-        // First pass: look for table rows (lines starting with |) containing the text
+        // First pass: look for EXACT cell text match (not inside markdown syntax)
+        for (let i = 0; i < DATA.length; i++) {
+          const lineText = (DATA[i][0] || '').trim();
+          if (!lineText || !lineText.startsWith('|')) continue;
+
+          // Split into cells and check for exact match (excluding markdown syntax)
+          const cells = lineText.split('|').map(c => c.trim());
+          for (const cell of cells) {
+            // Skip cells that are markdown images/links (start with ![, contain []())
+            if (cell.match(/^!?\\[.*\\]\\(.*\\)$/)) continue;
+
+            // Check for exact cell text match
+            if (cell === normalized) return i + 1;
+
+            // For short text (like header cells), require exact word match
+            if (normalized.length <= 5 && cell === normalized) return i + 1;
+          }
+        }
+
+        // Second pass: look for partial matches (including inside markdown syntax)
         for (let i = 0; i < DATA.length; i++) {
           const lineText = (DATA[i][0] || '').trim();
           if (!lineText || !lineText.startsWith('|')) continue;
@@ -7217,6 +7608,44 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           return;
         }
 
+        // Handle video/video-button clicks - select source line first
+        // This includes video elements, fullscreen buttons, video wrapper clicks,
+        // AND clicks on table cells containing videos (for post-fullscreen selection)
+        const videoElement = e.target.closest('video.video-preview');
+        const videoButton = e.target.closest('.video-fullscreen-btn');
+        const videoWrapper = e.target.closest('.video-fullscreen-wrapper');
+
+        // Also check if clicking on a td that contains a video
+        const targetCell = e.target.closest('td, th');
+        const cellContainsVideo = targetCell && targetCell.querySelector('video.video-preview');
+
+        if (videoElement || videoButton || videoWrapper || cellContainsVideo) {
+          // Check if this is a post-fullscreen click (for selection only, skip fullscreen)
+          const isPostFullscreenClick = window._skipNextVideoFullscreen;
+          if (isPostFullscreenClick) {
+            window._skipNextVideoFullscreen = false;
+          }
+
+          // Find the parent table cell
+          const refElement = videoElement || videoButton || videoWrapper || targetCell;
+          const parentCell = refElement.closest('td, th') || targetCell;
+          if (parentCell) {
+            // Use video src to find the source line
+            const video = videoElement || parentCell.querySelector('video');
+            if (video && video.src) {
+              const line = findImageSourceLine(video.src);
+              if (line > 0) {
+                selectSourceRange(line, null, parentCell);
+                // Return if this is a post-fullscreen click (for selection only)
+                if (isPostFullscreenClick) {
+                  return;
+                }
+              }
+            }
+          }
+          // Don't return for normal clicks - let fullscreen handler work too
+        }
+
         // Handle links - sync to source but let link work normally
         const link = e.target.closest('a');
         if (link) {
@@ -7248,15 +7677,31 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           return;
         }
 
-        const target = e.target.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th');
+        const target = e.target.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th, summary');
         if (!target) return;
+
+        // Get text content, excluding toggle icon if present (for heading toggles)
+        let searchText = target.textContent;
+
+        // For summary elements, clean up the text (may have disclosure triangle)
+        if (target.tagName === 'SUMMARY') {
+          searchText = searchText.replace(/^[▶▼◀►◆◇]?\\s*/, '').trim();
+        }
+        const toggleIcon = target.querySelector('.heading-toggle-icon');
+        if (toggleIcon) {
+          // Exclude the toggle icon text from search
+          searchText = searchText.replace(toggleIcon.textContent, '').trim();
+        }
 
         // Use table-specific search for table cells, otherwise use element-aware search
         const isTableCell = target.tagName === 'TD' || target.tagName === 'TH';
-        const line = isTableCell ? findTableSourceLine(target.textContent) : findSourceLine(target.textContent, target);
+        const line = isTableCell ? findTableSourceLine(searchText) : findSourceLine(searchText, target);
         if (line <= 0) return;
 
-        e.preventDefault();
+        // Don't prevent default for summary elements - let native <details> toggle work
+        if (target.tagName !== 'SUMMARY') {
+          e.preventDefault();
+        }
         selectSourceRange(line, null, target);
       });
 
@@ -8090,6 +8535,8 @@ function createFileServer(filePath, fileIndex = 0) {
       if (req.method === "GET" && req.url.startsWith("/video-timeline?")) {
         const urlParams = new URL(req.url, `http://localhost`);
         const videoPath = urlParams.searchParams.get("path");
+        const sceneThreshold = parseFloat(urlParams.searchParams.get("scene")) || 0.005;
+        const stabilizationThreshold = parseFloat(urlParams.searchParams.get("stabilization")) || 0.5;
 
         if (!videoPath) {
           res.writeHead(400, { "Content-Type": "text/plain" });
@@ -8148,7 +8595,7 @@ function createFileServer(filePath, fileIndex = 0) {
               // Ignore cleanup errors
             }
           });
-        });
+        }, { sceneThreshold, stabilizationThreshold });
         return;
       }
 
