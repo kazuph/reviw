@@ -180,7 +180,7 @@ plugin/
 
 | Type | Name | Description |
 |------|------|-------------|
-| **Command** | `/reviw:do` | Start a task - create worktree with gwq, plan, register todos |
+| **Command** | `/reviw:do` | Start a task - create worktree with git wt, plan, register todos |
 | **Command** | `/reviw:done` | Complete checklist - run 7 review agents, collect evidence, start review |
 | **Agent** | `report-builder` | Prepare reports and evidence for user review |
 | **Agent** | `review-code-quality` | Code quality: readability, DRY, type safety, error handling |
@@ -204,14 +204,14 @@ plugin/
 Starts a new task with proper environment setup.
 
 **What it does:**
-1. Creates a git worktree using gwq for isolated development (`feature/<name>`, `fix/<name>`, etc.)
+1. Creates a git worktree using git wt for isolated development (`feature/<name>`, `fix/<name>`, etc.)
 2. Sets up `.artifacts/<feature>/` directory for evidence
 3. Creates `REPORT.md` with plan and TODO checklist
 4. Registers todos in TodoWrite for progress tracking
 
 **Directory structure created:**
 ```
-<worktree>/                   # e.g., ~/src/github.com/owner/myrepo-feature-auth/
+<worktree>/                   # e.g., .worktree/feature-auth/
 └── .artifacts/
     └── <feature>/            # e.g., auth (from feature/auth)
         ├── REPORT.md         # Plan, progress, evidence links
@@ -219,7 +219,7 @@ Starts a new task with proper environment setup.
         └── videos/           # Video recordings
 ```
 
-**Task resumption:** When a session starts or after context compaction, the command checks for existing worktrees (via `gwq list`) and resumes from `REPORT.md`.
+**Task resumption:** When a session starts or after context compaction, the command checks for existing worktrees (via `git wt`) and resumes from `REPORT.md`.
 
 #### `/reviw:done`
 

@@ -22,7 +22,7 @@ Before any implementation, conduct a structured interview with the user to fully
 Question: "How would you like to organize this work?"
 Header: "Approach"
 Options:
-  1. "Use worktree (Recommended)" - Create isolated branch in separate directory using gwq. Clean separation, easy cleanup.
+  1. "Use worktree (Recommended)" - Create isolated branch in separate directory using git wt. Clean separation, easy cleanup.
   2. "Work in current branch" - Make changes directly in current branch. Simpler for small changes.
   3. "Create new branch only" - Create branch but work in main directory. Middle ground.
 ```
@@ -32,39 +32,35 @@ Options:
 **If user selects worktree approach, check required tools:**
 
 ```bash
-# Check if gwq is installed
-which gwq
+# Check if git-wt is installed
+git wt --version
 # Check if direnv is installed
 which direnv
 # Check if dotenvx is installed
 which dotenvx || npx @dotenvx/dotenvx --version
 ```
 
-**If gwq is not installed, display error and require installation:**
+**If git-wt is not installed, display error and require installation:**
 
 ```
-gwq is required for worktree management. Please install it:
+git-wt is required for worktree management. Please install it:
 
-  go install github.com/d-kuro/gwq@latest
-
-  Or download from https://github.com/d-kuro/gwq/releases
-
-After installation, configure ~/.config/gwq/config.toml
+  brew install k1LoW/tap/git-wt
 ```
 
-**Do NOT proceed with standard git worktree as fallback. gwq is mandatory.**
+**Do NOT proceed with standard git worktree as fallback. git-wt is mandatory.**
 
 **Recommended Tool Stack:**
 
 | Tool | Purpose | Install |
 |------|---------|---------|
-| **gwq** | Git worktree manager with fuzzy finder | `go install github.com/d-kuro/gwq@latest` or download from [releases](https://github.com/d-kuro/gwq/releases) |
+| **git-wt** | Git worktree manager | `brew install k1LoW/tap/git-wt` |
 | **direnv** | Auto-load environment variables per directory | `brew install direnv` |
 | **dotenvx** | Encrypted .env file management | `npm install -g @dotenvx/dotenvx` |
 
 **Why this stack:**
-- **gwq**: Manages worktrees with auto `npm install`, fuzzy finder for switching. Uses global basedir (e.g., `~/src`) with ghq-compatible directory structure.
-- **direnv**: Parent directory `.envrc` is inherited by child directories. With gwq, place `.envrc` at Owner level (`~/src/github.com/owner/.envrc`).
+- **git-wt**: Manages worktrees with auto hooks (npm install etc). Uses project-local `.worktree/` directory.
+- **direnv**: Parent directory `.envrc` is inherited by child directories, so worktrees in `.worktree/` inherit project root's `.envrc`.
 - **dotenvx**: `.env` is encrypted and committed to git, decrypted only in memory at runtime
 - **Combined**: `.envrc` with `DOTENV_PRIVATE_KEY` auto-decrypts `.env` in all worktrees (no file copying needed)
 
@@ -217,12 +213,12 @@ $ARGUMENTS = Request text for what to do, specification explanation, etc.
 
 ```bash
 # Check worktrees in progress
+git wt
+# Or use git worktree list
 git worktree list
-# Or use gwq for fuzzy finding
-gwq list
 
-# Move to worktree (gwq shows the full path)
-cd <worktree-path>
+# Move to worktree
+cd .worktree/<branch-name>
 
 # Check progress
 cat .artifacts/<feature-name>/REPORT.md
@@ -236,7 +232,7 @@ cat .artifacts/<feature-name>/REPORT.md
 <worktree>/.artifacts/<feature-name>/REPORT.md
 ```
 
-- `<worktree>` = Directory created by gwq (e.g., `~/src/github.com/owner/myrepo-feature-auth/`)
+- `<worktree>` = Directory created by git wt (e.g., `.worktree/feature-auth/`)
 - `<feature-name>` = part after removing prefix from branch name (e.g., `feature/auth` → `auth`)
 
 ## Execution Steps (For New Tasks)
@@ -262,69 +258,39 @@ Next, create a worktree for the task. Branch name is automatically generated app
 | Documentation | `docs/<target>` | `docs/readme` |
 
 ```bash
-# Create worktree with gwq (required)
-gwq add -b <branch-name>
+# Create worktree with git wt (required)
+git wt <branch-name>
 
-# gwq automatically:
-# - Creates worktree in basedir (e.g., ~/src/github.com/owner/myrepo-feature-auth/)
-# - Runs setup_commands (npm install, etc.)
+# git-wt automatically:
+# - Creates worktree in .worktree/<branch-name>
+# - Runs hooks (npm install, etc. if configured)
 
-# Move to worktree (gwq shows the path after creation)
-cd <worktree-path>
+# Move to worktree
+cd .worktree/<branch-name>
 ```
 
-**gwq Configuration (~/.config/gwq/config.toml):**
+**git-wt Configuration (.gitconfig):**
 
-> **Note:** gwqは**グローバルなbasedir**を前提とした設計です。プロジェクトローカルな`.worktree/`配置はサポートされていません。
+> **Note:** git-wtは**プロジェクトローカルな.worktree/**に配置する設計です。
 
-```toml
-[worktree]
-# グローバルなbasedirを指定（環境に合わせて変更）
-# デフォルト: ~/worktrees
-# ghq連携: ghqのrootと同じディレクトリ（例: ~/src, ~/ghq, ~/code）
-basedir = "~/worktrees"
-auto_mkdir = true
-
-[naming]
-# ディレクトリ構造のテンプレート
-# ghq連携時は {{.Repository}}-{{.Branch}} でリポジトリと同階層に配置
-template = "{{.Host}}/{{.Owner}}/{{.Repository}}-{{.Branch}}"
-
-[naming.sanitize_chars]
-"/" = "-"
-":" = "-"
-
-[[repository_settings]]
-repository = "*"
-copy_files = []  # direnvで環境変数を継承するのでコピー不要
-setup_commands = ["npm install || pnpm install || yarn install || true"]
+```bash
+# 設定方法
+git config --global wt.basedir ".worktree"
+git config --global wt.copyignored true
+git config --global --add wt.hook "npm install || pnpm install || yarn install || true"
 ```
 
-**ghq連携パターン（ghqユーザーは推奨）:**
-
-ghqを使っている場合、**basedirをghqのrootと同じにすることを推奨**します。理由：
-- 同じOwner配下に並ぶのでdirenvの`.envrc`が自動継承される
-- `ls`で見たときに関連リポジトリ（メイン＋worktree）が一目瞭然
-- ghqとgwqが同じディレクトリ構造で動く
-
+**ディレクトリ構造:**
 ```
-# ghqのroot確認
-git config --get ghq.root  # 例: ~/src
-
-# gwqのbasedirをghqと同じに設定
-basedir = "~/src"  # ghqのrootに合わせる
+myproject/
+├── .worktree/
+│   ├── feature-auth/      ← git wt feature-auth で作成
+│   └── fix-bug/           ← git wt fix-bug で作成
+├── .envrc                 ← プロジェクトルートで環境変数設定（direnv）
+└── src/
 ```
 
-この場合のディレクトリ構造：
-```
-~/src/github.com/owner/       # または ~/ghq/github.com/owner/ など
-├── .envrc                    ← Ownerレベルで環境変数設定（direnv）
-├── myrepo/                   ← ghqで管理（メインリポジトリ）
-├── myrepo-feature-auth/      ← gwqで作成（worktree）
-└── myrepo-fix-bug/           ← gwqで作成（worktree）
-```
-
-direnvは親ディレクトリの`.envrc`を継承するため、Ownerレベルに環境変数を設定しておけば、ghqで管理するリポジトリもgwqで作成するworktreeも、同じ環境変数が自動適用されます。
+direnvは親ディレクトリの`.envrc`を継承するため、プロジェクトルートに環境変数を設定しておけば、`.worktree/`内のworktreeも同じ環境変数が自動適用されます。
 
 ### 2. .gitignore Configuration
 
@@ -366,20 +332,20 @@ rm .env.keys
 direnv allow
 ```
 
-**How it works with gwq worktrees:**
+**How it works with git-wt worktrees:**
 
 ```
-~/src/github.com/owner/       # Owner level (ghq root)
-├── .envrc                    # DOTENV_PRIVATE_KEY (shared by all repos)
-├── myrepo/                   # Main repository
-│   └── .env                  # Encrypted (git commit OK)
-└── myrepo-feature-auth/      # Worktree created by gwq
-    └── .env                  # ← Auto-decrypted via parent .envrc
+myproject/                    # Project root
+├── .envrc                    # DOTENV_PRIVATE_KEY
+├── .env                      # Encrypted (git commit OK)
+└── .worktree/
+    └── feature-auth/         # Worktree created by git wt
+        └── .env              # ← Auto-decrypted via parent .envrc
 ```
 
 - `.env` is always encrypted on disk, decrypted only in memory at runtime
 - direnv automatically inherits `.envrc` from parent directories
-- gwq worktrees get environment variables without copying any files
+- git-wt worktrees get environment variables without copying any files
 - To add/modify env vars: use `dotenvx set KEY="value"` (auto re-encrypts)
 
 **When you want to commit specific evidence:**
@@ -405,7 +371,7 @@ Create `.artifacts/<feature-name>/` directory within the worktree.
 
 **Directory Structure:**
 ```
-<worktree>/                   # e.g., ~/src/github.com/owner/myrepo-feature-auth/
+<worktree>/                   # e.g., .worktree/feature-auth/
 └── .artifacts/
     └── <feature-name>/       # e.g., auth (from feature/auth)
         ├── REPORT.md         # Plan, progress, and evidence links
@@ -650,7 +616,7 @@ Follow the project's CLAUDE.md for PR creation target (develop / main).
 
 ```bash
 # 1. After completing work in worktree
-cd <worktree-path>  # gwq shows the path
+cd .worktree/<branch-name>
 
 # 2. Commit (after executing /done)
 git add .
@@ -663,8 +629,8 @@ git push -u origin <branch-name>
 gh pr create --base <target-branch> --head <branch-name>
 
 # 5. After merge, remove worktree
-gwq remove <branch-name>
-# Or: git worktree remove <worktree-path>
+git wt -d <branch-name>
+# Or: git worktree remove .worktree/<branch-name>
 ```
 
 **Note**: Some projects prohibit AI from creating PRs directly to main. Check the project's CLAUDE.md.
@@ -676,7 +642,7 @@ gwq remove <branch-name>
 ```
 
 This will:
-1. Create a worktree with `feature/add-login-button` branch using gwq
-2. Write the plan to `<worktree>/.artifacts/add-login-button/REPORT.md`
+1. Create a worktree with `feature/add-login-button` branch using git wt
+2. Write the plan to `.worktree/feature-add-login-button/.artifacts/add-login-button/REPORT.md`
 3. Register TODOs in TodoWrite
 4. Display deliverable-focused action guidelines
