@@ -507,16 +507,16 @@ The main thread should focus on the director role and proceed with the following
 
 ```
 # Launch 3 independent component implementations in parallel
-Task(subagent_type="webapp-master", prompt="Implement HeaderComponent...")
-Task(subagent_type="webapp-master", prompt="Implement SidebarComponent...")
-Task(subagent_type="webapp-master", prompt="Implement FooterComponent...")
+Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement HeaderComponent...")
+Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement SidebarComponent...")
+Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent...")
 ```
 
 **Subagent Selection Criteria:**
 
 | Task Type | subagent_type | Notes |
 |-----------|---------------|------|
-| Web UI Implementation | `webapp-master` | General frontend |
+| Web UI Implementation | `reviw-plugin:webapp-impl` | General frontend with zero-tolerance policy |
 | Expo/RN Implementation | `expo-app-maker` | Mobile apps |
 | Code Investigation | `Explore` | Understanding existing code |
 | Design Review | `Plan` | Architecture review |
