@@ -6319,9 +6319,10 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         if (currentMermaidContainer) {
           const containerToSelect = currentMermaidContainer;
           currentMermaidContainer = null;
-          // Set flag to skip reopening fullscreen, then trigger click for selection
+          // Set flags to skip reopening fullscreen and trigger selection
           setTimeout(() => {
             skipNextFullscreenOpen = true;
+            window._mermaidSelectAfterClose = containerToSelect;
             containerToSelect.click();
           }, 100);
         }
@@ -7528,6 +7529,51 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         return { startLine: -1, endLine: -1 };
       }
 
+      // Helper: find source line range for mermaid diagram by its container
+      function findMermaidSourceLine(mermaidContainer) {
+        if (!mermaidContainer) return { startLine: -1, endLine: -1 };
+
+        // Find the index of this mermaid container among all mermaid containers
+        const allMermaidContainers = document.querySelectorAll('.mermaid-container');
+        let containerIndex = -1;
+        for (let i = 0; i < allMermaidContainers.length; i++) {
+          if (allMermaidContainers[i] === mermaidContainer) {
+            containerIndex = i;
+            break;
+          }
+        }
+        if (containerIndex < 0) return { startLine: -1, endLine: -1 };
+
+        // Find all mermaid code blocks in the source
+        const mermaidBlocks = [];
+        let currentBlock = null;
+
+        for (let i = 0; i < DATA.length; i++) {
+          const lineText = (DATA[i][0] || '').trim();
+
+          if (lineText.match(/^\`\`\`mermaid/i) && !currentBlock) {
+            // Start of a mermaid code block
+            currentBlock = { startLine: i + 1, lines: [] };
+          } else if (lineText === '\`\`\`' && currentBlock) {
+            // End of the code block
+            currentBlock.endLine = i + 1;
+            mermaidBlocks.push(currentBlock);
+            currentBlock = null;
+          } else if (currentBlock) {
+            // Inside the mermaid block
+            currentBlock.lines.push(DATA[i][0] || '');
+          }
+        }
+
+        // Return the block at the same index as the container
+        if (containerIndex < mermaidBlocks.length) {
+          const block = mermaidBlocks[containerIndex];
+          return { startLine: block.startLine, endLine: block.endLine };
+        }
+
+        return { startLine: -1, endLine: -1 };
+      }
+
       // Helper: find source line for image by src
       function findImageSourceLine(src) {
         if (!src) return -1;
@@ -7662,8 +7708,23 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
           return;
         }
 
-        // Ignore clicks on mermaid, video overlay
-        if (e.target.closest('.mermaid-container, .video-fullscreen-overlay')) return;
+        // Handle mermaid container clicks for post-fullscreen selection
+        const mermaidContainer = e.target.closest('.mermaid-container');
+        if (mermaidContainer) {
+          // Check if this is a post-fullscreen click for selection
+          if (window._mermaidSelectAfterClose === mermaidContainer) {
+            window._mermaidSelectAfterClose = null;
+            const { startLine, endLine } = findMermaidSourceLine(mermaidContainer);
+            if (startLine > 0) {
+              selectSourceRange(startLine, endLine, mermaidContainer);
+            }
+          }
+          // Always return to prevent fullscreen from reopening or other handling
+          return;
+        }
+
+        // Ignore clicks on video overlay
+        if (e.target.closest('.video-fullscreen-overlay')) return;
 
         // Handle code blocks - select entire block
         const pre = e.target.closest('pre');
