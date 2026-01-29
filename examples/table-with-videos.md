@@ -10,3 +10,5 @@
 | 4 | `test-d.spec.ts` | 機能Dテスト | ログイン → メニュー → 設定 → 保存 | ![動画](videos/video-landscape.mp4) |
 | 5 | `test-e.spec.ts` | 機能Eテスト | ユーザーA ログイン → アクション → ログアウト → ユーザーB ログイン → 確認 | ![動画](videos/video-portrait.mp4) |
 | 6 | `test-f.spec.ts` | 機能Fテスト（API） | [API] 認証 → リクエスト → レスポンス確認 | ※API専用 |
+| 7 | `test-g.spec.ts` | レインボーテスト | 赤 → 橙 → 黄 → 緑 → 青 → 藍 → 紫 | ![動画](videos/video-rainbow.mp4) |
+| 8 | `test-h.spec.ts` | レインボーグラデーション | 滑らかに7色が変化 | ![動画](videos/video-rainbow-gradient.mp4) |

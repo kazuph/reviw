@@ -39,9 +39,21 @@ const timelineTempDirs = new Set();
 // Uses "stabilization filter" - groups consecutive similar frames and takes the last frame of each group
 function extractVideoTimeline(videoPath, tmpDir, res, onComplete, options = {}) {
   // Use provided thresholds or defaults
-  const STABILIZATION_THRESHOLD = options.stabilizationThreshold || 0.5; // seconds - consecutive changes within this are grouped
-  const SCENE_THRESHOLD = options.sceneThreshold || 0.005; // Lower default threshold (was 0.01) to catch more subtle changes
-  const MIN_INTERVAL = 1.0; // Minimum interval for additional keyframes (seconds)
+  const STABILIZATION_THRESHOLD = options.stabilizationThreshold || 0.1; // seconds - consecutive changes within this are grouped
+  const SCENE_THRESHOLD = options.sceneThreshold || 0.01; // Default matches "標準" button
+  // Determine target thumbnail count based on BOTH scene sensitivity and stabilization
+  // Scene: lower threshold = more detail = more thumbnails
+  const SCENE_BASE = SCENE_THRESHOLD >= 0.1 ? 3
+    : SCENE_THRESHOLD >= 0.03 ? 5
+    : SCENE_THRESHOLD >= 0.01 ? 8
+    : SCENE_THRESHOLD >= 0.003 ? 12
+    : 20;
+  // Stab: lower threshold = finer granularity = scale up target
+  const STAB_FACTOR = STABILIZATION_THRESHOLD >= 0.3 ? 0.6
+    : STABILIZATION_THRESHOLD >= 0.1 ? 1.0
+    : STABILIZATION_THRESHOLD >= 0.05 ? 1.4
+    : 1.8;
+  const TARGET_THUMBNAILS = Math.round(SCENE_BASE * STAB_FACTOR);
 
   // First, get video duration using ffprobe
   let videoDuration = 0;
@@ -151,14 +163,16 @@ function extractVideoTimeline(videoPath, tmpDir, res, onComplete, options = {}) 
       }
     }
 
-    // If we have very few thumbnails for a long video, add interval-based ones
-    if (videoDuration > 3 && allThumbnails.length < 3) {
-      // Extract frames at regular intervals
-      const intervalCount = Math.min(5, Math.floor(videoDuration / MIN_INTERVAL));
-      for (let i = 1; i < intervalCount; i++) {
+    // Fill up to target thumbnail count with interval-based extraction
+    // This ensures scene sensitivity actually affects output even for gradient videos
+    if (videoDuration > 1 && allThumbnails.length < TARGET_THUMBNAILS) {
+      const needed = TARGET_THUMBNAILS - allThumbnails.length;
+      const intervalCount = needed + 1;
+      for (let i = 1; i <= needed; i++) {
         const time = (videoDuration / intervalCount) * i;
         // Check if we already have a thumbnail close to this time
-        const hasNearby = allThumbnails.some(t => Math.abs(t.time - time) < STABILIZATION_THRESHOLD);
+        const dedupThreshold = Math.min(STABILIZATION_THRESHOLD, 0.1);
+        const hasNearby = allThumbnails.some(t => Math.abs(t.time - time) < dedupThreshold);
         if (!hasNearby) {
           const intervalPath = `${tmpDir}/interval_${i}.jpg`;
           const result = spawnSync('ffmpeg', [
@@ -182,7 +196,7 @@ function extractVideoTimeline(videoPath, tmpDir, res, onComplete, options = {}) 
     // Remove duplicates (same time within threshold)
     const uniqueThumbnails = [];
     for (const thumb of allThumbnails) {
-      const isDuplicate = uniqueThumbnails.some(t => Math.abs(t.time - thumb.time) < 0.1);
+      const isDuplicate = uniqueThumbnails.some(t => Math.abs(t.time - thumb.time) < Math.min(STABILIZATION_THRESHOLD, 0.1));
       if (!isDuplicate) {
         uniqueThumbnails.push(thumb);
       }
@@ -539,6 +553,24 @@ function parseCliArgs(argv) {
 }
 
 // ===== ファイルパス検証・解決関数（require.main時のみ呼ばれる） =====
+// バイナリファイル拡張子（レビュー対象外）
+const BINARY_EXTENSIONS = new Set([
+  // 動画
+  '.mp4', '.mov', '.webm', '.avi', '.mkv', '.m4v', '.ogv', '.wmv', '.flv',
+  // 画像
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg', '.webp', '.tiff', '.tif',
+  // 音声
+  '.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.wma',
+  // アーカイブ
+  '.zip', '.tar', '.gz', '.bz2', '.xz', '.7z', '.rar',
+  // バイナリ実行
+  '.exe', '.dll', '.so', '.dylib', '.bin', '.o', '.a',
+  // その他バイナリ
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf',
+  '.sqlite', '.db'
+]);
+
 function validateAndResolvePaths(filePaths) {
   const resolved = [];
   for (const fp of filePaths) {
@@ -552,6 +584,13 @@ function validateAndResolvePaths(filePaths) {
       console.error(`Cannot open directory: ${resolvedPath}`);
       console.error(`Usage: reviw <file> [file2...]`);
       console.error(`Please specify a file, not a directory.`);
+      process.exit(1);
+    }
+    const ext = path.extname(resolvedPath).toLowerCase();
+    if (BINARY_EXTENSIONS.has(ext)) {
+      console.error(`Error: Binary file cannot be reviewed: ${path.basename(resolvedPath)} (${ext})`);
+      console.error(`reviw supports: .csv, .tsv, .md, .diff, .patch, and text files.`);
+      console.error(`Tip: To review videos/images, embed them in a Markdown file using ![](path/to/file)`);
       process.exit(1);
     }
     resolved.push(resolvedPath);
@@ -1076,6 +1115,16 @@ function loadData(filePath) {
     );
   }
   const ext = path.extname(filePath).toLowerCase();
+
+  // バイナリファイルはレビュー対象外 - エラーで拒否（validateAndResolvePathsでも弾くが二重チェック）
+  if (BINARY_EXTENSIONS.has(ext)) {
+    throw new Error(
+      `Binary file cannot be reviewed: ${path.basename(filePath)} (${ext})\n` +
+      `reviw supports: .csv, .tsv, .md, .diff, .patch, and text files.\n` +
+      `Tip: To review videos/images, embed them in a Markdown file using ![](path/to/file)`
+    );
+  }
+
   if (ext === ".csv" || ext === ".tsv") {
     const data = loadCsv(filePath);
     return { ...data, mode: "csv" };
@@ -3571,13 +3620,6 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       cursor: pointer;
       transition: background 120ms ease;
     }
-    .video-settings-actions .regenerate-btn {
-      background: #3b82f6;
-      color: #fff;
-    }
-    .video-settings-actions .regenerate-btn:hover {
-      background: #2563eb;
-    }
     .video-settings-actions .reset-btn {
       background: rgba(255, 255, 255, 0.15);
       color: #fff;
@@ -4520,17 +4562,22 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     <button class="video-close-btn" id="video-close" aria-label="Close video" title="Close (ESC)">✕</button>
     <button class="video-settings-btn" id="video-settings-btn" aria-label="Timeline settings" title="Timeline settings">⚙</button>
     <div class="video-settings-panel" id="video-settings-panel">
-      <h4>サムネイル数の調整</h4>
-      <p class="video-settings-desc">重要シーンの見逃しを防ぐため、サムネイル数を調整できます</p>
+      <h4>タイムライン設定</h4>
+      <p class="video-settings-desc">シーン感度: 映像変化の検出しきい値</p>
       <div class="video-settings-buttons" id="scene-buttons">
-        <button data-scene="0.05" data-stab="1.0">少なめ</button>
-        <button data-scene="0.02" data-stab="0.8">やや少</button>
-        <button data-scene="0.005" data-stab="0.5" class="selected">標準</button>
-        <button data-scene="0.002" data-stab="0.3">やや多</button>
-        <button data-scene="0.001" data-stab="0.2">多め</button>
+        <button data-scene="0.3">少なめ</button>
+        <button data-scene="0.1">やや少</button>
+        <button data-scene="0.01" class="selected">標準</button>
+        <button data-scene="0.003">やや多</button>
+        <button data-scene="0.001">多め</button>
       </div>
-      <div class="video-settings-actions">
-        <button class="regenerate-btn" id="video-settings-regenerate">この設定で再生成</button>
+      <p class="video-settings-desc">グルーピング: 連続する変化をまとめる秒数</p>
+      <div class="video-settings-buttons" id="stab-buttons">
+        <button data-stab="0.5">0.5s</button>
+        <button data-stab="0.3">0.3s</button>
+        <button data-stab="0.1" class="selected">0.1s</button>
+        <button data-stab="0.05">0.05s</button>
+        <button data-stab="0.02">0.02s</button>
       </div>
     </div>
     <div class="video-container" id="video-container"></div>
@@ -6798,8 +6845,8 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
 
       // Default threshold values
-      const DEFAULT_SCENE_THRESHOLD = 0.005;
-      const DEFAULT_STABILIZATION_THRESHOLD = 0.5;
+      const DEFAULT_SCENE_THRESHOLD = 0.01;
+      const DEFAULT_STABILIZATION_THRESHOLD = 0.1;
       let currentSceneThreshold = DEFAULT_SCENE_THRESHOLD;
       let currentStabilizationThreshold = DEFAULT_STABILIZATION_THRESHOLD;
       let currentVideoPath = null;
@@ -7245,7 +7292,27 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       const settingsBtn = document.getElementById('video-settings-btn');
       const settingsPanel = document.getElementById('video-settings-panel');
       const sceneButtons = document.getElementById('scene-buttons');
-      const regenerateBtn = document.getElementById('video-settings-regenerate');
+      const stabButtons = document.getElementById('stab-buttons');
+
+      // Auto-regenerate function triggered by button clicks
+      function triggerRegenerate() {
+        if (!currentVideoPath || !currentVideo) return;
+
+        const selectedScene = sceneButtons?.querySelector('button.selected');
+        if (selectedScene) {
+          currentSceneThreshold = parseFloat(selectedScene.dataset.scene) || DEFAULT_SCENE_THRESHOLD;
+        }
+
+        const selectedStab = stabButtons?.querySelector('button.selected');
+        if (selectedStab) {
+          currentStabilizationThreshold = parseFloat(selectedStab.dataset.stab) || DEFAULT_STABILIZATION_THRESHOLD;
+        }
+
+        loadVideoTimeline(currentVideoPath, currentVideo, {
+          sceneThreshold: currentSceneThreshold,
+          stabilizationThreshold: currentStabilizationThreshold
+        });
+      }
 
       if (settingsBtn && settingsPanel) {
         // Toggle settings panel
@@ -7257,36 +7324,29 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         // Prevent panel clicks from closing overlay
         settingsPanel.addEventListener('click', (e) => e.stopPropagation());
 
-        // Handle 5-level button clicks
+        // Handle scene button clicks (auto-regenerate)
         if (sceneButtons) {
           const buttons = sceneButtons.querySelectorAll('button');
           buttons.forEach(btn => {
             btn.addEventListener('click', () => {
               buttons.forEach(b => b.classList.remove('selected'));
               btn.classList.add('selected');
+              // Auto-regenerate on click
+              triggerRegenerate();
             });
           });
         }
 
-        // Regenerate timeline with selected settings
-        if (regenerateBtn) {
-          regenerateBtn.addEventListener('click', () => {
-            if (!currentVideoPath || !currentVideo) return;
-
-            // Get selected button's values
-            const selectedBtn = sceneButtons?.querySelector('button.selected');
-            if (selectedBtn) {
-              currentSceneThreshold = parseFloat(selectedBtn.dataset.scene) || DEFAULT_SCENE_THRESHOLD;
-              currentStabilizationThreshold = parseFloat(selectedBtn.dataset.stab) || DEFAULT_STABILIZATION_THRESHOLD;
-            }
-
-            loadVideoTimeline(currentVideoPath, currentVideo, {
-              sceneThreshold: currentSceneThreshold,
-              stabilizationThreshold: currentStabilizationThreshold
+        // Handle stab button clicks (auto-regenerate)
+        if (stabButtons) {
+          const buttons = stabButtons.querySelectorAll('button');
+          buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+              buttons.forEach(b => b.classList.remove('selected'));
+              btn.classList.add('selected');
+              // Auto-regenerate on click
+              triggerRegenerate();
             });
-
-            // Hide panel after regenerating
-            settingsPanel.classList.remove('visible');
           });
         }
 
@@ -8611,8 +8671,8 @@ function createFileServer(filePath, fileIndex = 0) {
       if (req.method === "GET" && req.url.startsWith("/video-timeline?")) {
         const urlParams = new URL(req.url, `http://localhost`);
         const videoPath = urlParams.searchParams.get("path");
-        const sceneThreshold = parseFloat(urlParams.searchParams.get("scene")) || 0.005;
-        const stabilizationThreshold = parseFloat(urlParams.searchParams.get("stabilization")) || 0.5;
+        const sceneThreshold = parseFloat(urlParams.searchParams.get("scene")) || 0.01;
+        const stabilizationThreshold = parseFloat(urlParams.searchParams.get("stabilization")) || 0.1;
 
         if (!videoPath) {
           res.writeHead(400, { "Content-Type": "text/plain" });
