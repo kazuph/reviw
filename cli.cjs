@@ -374,6 +374,13 @@ function sanitizeHtml(html) {
   });
 }
 
+// [TDD Fix] 重複見出しキーを防ぐためのカウンター
+// 同じテキストの見出しが複数ある場合でも、ユニークなキーを生成する
+var headingKeyCounter = {};
+function resetHeadingKeyCounter() {
+  headingKeyCounter = {};
+}
+
 marked.use({
   hooks: {
     // テーブルをスクロールラッパーで囲む（後処理）
@@ -386,8 +393,13 @@ marked.use({
     // 見出しをトグル可能なセクションとしてレンダリング
     // markedのrenderer.headingは (text, level, raw) を引数に取る
     heading: function(text, level, raw) {
-      // トグル用のdata属性を追加（見出しテキストをキーとして使用）
-      var headingKey = (text || '').replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u3400-\u4DBF]/g, '-').toLowerCase();
+      // トグル用のdata属性を追加（見出しテキスト + 出現順でユニークキーを生成）
+      var baseKey = (text || '').replace(/[^a-zA-Z0-9\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF\u3400-\u4DBF]/g, '-').toLowerCase();
+      // 同じbaseKeyが出現した回数をカウントしてユニーク化
+      if (headingKeyCounter[baseKey] === undefined) {
+        headingKeyCounter[baseKey] = 0;
+      }
+      var headingKey = baseKey + '-' + headingKeyCounter[baseKey]++;
       return '<h' + level + ' class="md-heading-toggle" data-heading-key="' + escapeHtmlForXss(headingKey) + '" data-heading-level="' + level + '">' +
              '<span class="heading-toggle-icon">▼</span>' +
              text +
@@ -873,6 +885,9 @@ function loadText(filePath) {
 }
 
 function loadMarkdown(filePath) {
+  // [TDD Fix] カウンターをリセットして新しいMarkdownファイルの見出しキーを初期化
+  resetHeadingKeyCounter();
+
   const raw = fs.readFileSync(filePath);
   const text = decodeBuffer(raw);
   const lines = text.split(/\r?\n/);
