@@ -1,5 +1,5 @@
 {
-  "description": "reviw plugin hooks - commit review reminders, E2E policy enforcement, and workflow enforcement",
+  "description": "reviw plugin hooks - mock/stub detection, E2E enforcement, commit review reminders, and workflow enforcement",
   "hooks": {
     "PreToolUse": [
       {
@@ -11,6 +11,16 @@
           }
         ],
         "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/test-mock-guard.sh",
+            "timeout": 10
+          }
+        ],
+        "matcher": "Write"
       }
     ],
     "PostToolUse": [
@@ -18,11 +28,33 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'if echo \"$CLAUDE_FILE_PATH\" | grep -qE \"\\.(e2e|spec)\\.(ts|tsx|js)$\"; then echo \"[reviw-plugin] E2E Test Warning: Remember the E2E Policy from /do - NO mocks, NO shortcuts, NO direct goto (except first /). Review agents WILL reject violations.\"; fi'",
-            "timeout": 5
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/test-mock-postcheck.sh",
+            "timeout": 10
           }
         ],
-        "matcher": "Write"
+        "matcher": "Write|Edit"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-e2e-check.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-e2e-check.sh",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
