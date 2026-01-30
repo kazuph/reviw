@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Stop / SubagentStop hook
 # コード変更があるのにテスト実行の痕跡がなければブロック
+# ただし、テスト環境がセットアップされていないプロジェクト（0→1開発）ではスキップ
 
 INPUT=$(cat)
 
@@ -10,6 +11,75 @@ if [ ! -x "$JQ" ]; then
   JQ=/opt/homebrew/bin/jq
 fi
 if [ ! -x "$JQ" ]; then
+  exit 0
+fi
+
+# カレントディレクトリからプロジェクトルートを特定
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+# テスト環境が存在するかチェックする関数
+has_test_environment() {
+  # Node.js / JavaScript / TypeScript
+  if [ -f "$PROJECT_ROOT/vitest.config.ts" ] || \
+     [ -f "$PROJECT_ROOT/vitest.config.js" ] || \
+     [ -f "$PROJECT_ROOT/vitest.config.mjs" ] || \
+     [ -f "$PROJECT_ROOT/jest.config.ts" ] || \
+     [ -f "$PROJECT_ROOT/jest.config.js" ] || \
+     [ -f "$PROJECT_ROOT/jest.config.mjs" ] || \
+     [ -f "$PROJECT_ROOT/jest.config.json" ] || \
+     [ -f "$PROJECT_ROOT/playwright.config.ts" ] || \
+     [ -f "$PROJECT_ROOT/playwright.config.js" ]; then
+    return 0
+  fi
+
+  # package.json に test script があるか
+  if [ -f "$PROJECT_ROOT/package.json" ]; then
+    if "$JQ" -e '.scripts.test // empty' "$PROJECT_ROOT/package.json" >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  # Go - テストファイルが存在するか
+  if [ -f "$PROJECT_ROOT/go.mod" ]; then
+    if find "$PROJECT_ROOT" -name "*_test.go" -type f 2>/dev/null | head -1 | grep -q .; then
+      return 0
+    fi
+  fi
+
+  # Python - pytest/unittest環境
+  if [ -f "$PROJECT_ROOT/pytest.ini" ] || \
+     [ -f "$PROJECT_ROOT/conftest.py" ] || \
+     [ -f "$PROJECT_ROOT/setup.cfg" ] || \
+     [ -f "$PROJECT_ROOT/pyproject.toml" ]; then
+    # pyproject.toml/setup.cfg にpytest設定があるかチェック
+    if [ -f "$PROJECT_ROOT/pyproject.toml" ] && grep -q '\[tool.pytest' "$PROJECT_ROOT/pyproject.toml" 2>/dev/null; then
+      return 0
+    fi
+    if [ -f "$PROJECT_ROOT/setup.cfg" ] && grep -q '\[pytest\]' "$PROJECT_ROOT/setup.cfg" 2>/dev/null; then
+      return 0
+    fi
+    if [ -f "$PROJECT_ROOT/pytest.ini" ] || [ -f "$PROJECT_ROOT/conftest.py" ]; then
+      return 0
+    fi
+  fi
+
+  # Python - test_*.py or *_test.py が存在するか
+  if find "$PROJECT_ROOT" -maxdepth 3 -name "test_*.py" -o -name "*_test.py" 2>/dev/null | head -1 | grep -q .; then
+    return 0
+  fi
+
+  # Rust - testsディレクトリまたはテストモジュール
+  if [ -f "$PROJECT_ROOT/Cargo.toml" ]; then
+    if [ -d "$PROJECT_ROOT/tests" ]; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+# テスト環境がなければスキップ（0→1開発）
+if ! has_test_environment; then
   exit 0
 fi
 
