@@ -97,6 +97,26 @@ if [ -z "$RECENT" ]; then
   exit 0
 fi
 
+# 最新のassistantメッセージのテキスト内容を取得
+LATEST_ASSISTANT_TEXT=$(printf '%s' "$RECENT" | "$JQ" -rs '
+  [.[] | select(.type == "assistant")] | last |
+  .message.content[]? | select(.type == "text") | .text // empty
+' 2>/dev/null || true)
+
+# 完了宣言キーワードのチェック（日本語・英語対応）
+# これらのキーワードがないとチェックしない（相談中はブロックしない）
+COMPLETION_KEYWORDS="完了しました|実装しました|できました|確認してください|確認お願い|レビューお願い|レビューして|見てください|チェックして|implementation complete|done|finished|please review|please check|ready for review"
+
+COMPLETION_TRIGGER=""
+if printf '%s' "$LATEST_ASSISTANT_TEXT" | grep -qiE "$COMPLETION_KEYWORDS"; then
+  COMPLETION_TRIGGER=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | grep -oiE "$COMPLETION_KEYWORDS" | head -1)
+fi
+
+# 完了宣言がなければスキップ（相談中はブロックしない）
+if [ -z "$COMPLETION_TRIGGER" ]; then
+  exit 0
+fi
+
 # ソースコードの変更があったか確認
 # Write/Edit ツールでソースファイル（テストファイル以外）を変更した痕跡を探す
 CODE_CHANGED=$(printf '%s' "$RECENT" | "$JQ" -r '
@@ -132,15 +152,19 @@ WEBAPP_TEST=$(printf '%s' "$RECENT" | "$JQ" -r '
 
 # テスト実行もwebapp-testingも使われていない場合
 if [ "${TEST_RUN:-0}" -eq 0 ] && [ "${WEBAPP_TEST:-0}" -eq 0 ]; then
-  cat >&2 <<'BLOCK'
-[reviw-plugin] ソースコードを変更しましたが、テストが実行されていません。
+  cat >&2 <<BLOCK
+[reviw-plugin] テスト未実行での完了宣言を検出しました。
 
-完了する前に以下を実施してください:
+【トリガー】"${COMPLETION_TRIGGER}" という完了宣言がありました
+【変更ファイル】${CODE_CHANGED}
+
+完了宣言する前に以下を実施してください:
 1. E2Eテストまたは結合テストを書いて実行する（モック禁止）
 2. webapp-testing skill でブラウザ検証する
 3. テスト結果のエビデンスを収集する
 
-テスト未実行での完了宣言は禁止されています。
+※相談中・作業途中のやり取りではこのチェックは発動しません。
+※完了宣言（完了しました、実装しました、確認してください等）をしたときのみチェックされます。
 BLOCK
   exit 2
 fi
