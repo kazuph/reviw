@@ -40,6 +40,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-oath-check.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-e2e-check.sh",
             "timeout": 15
           }
@@ -47,6 +56,15 @@
       }
     ],
     "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-oath-check.sh",
+            "timeout": 15
+          }
+        ]
+      },
       {
         "hooks": [
           {
