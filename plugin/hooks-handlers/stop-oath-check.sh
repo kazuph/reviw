@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Stop hook - 二段階宣誓システム
+# Stop hook - 二段階宣誓システム（AI専用メッセージ版）
 #
 # フロー:
 #   1. 宣誓文あり → スルー
-#   2. 番号のみ回答（1-4）→ 第1.5段階メッセージでブロック
-#   3. それ以外 → 第1段階メッセージでブロック
+#   2. 番号のみ回答（1-4）→ 第1.5段階メッセージでブロック（AIにだけ見える）
+#   3. それ以外 → 第1段階メッセージでブロック（AIにだけ見える）
 
 INPUT=$(cat)
 
@@ -49,22 +49,22 @@ if printf '%s' "$LATEST_ASSISTANT_TEXT" | grep -qE "$OATH_PATTERN"; then
   exit 0  # スルー
 fi
 
-# 番号のみの回答かチェック（短い返答で1-4で始まる）
-ANSWER_LENGTH=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | wc -c | tr -d ' ')
+# JSON出力用関数（AIにだけ見えるブロック）
+block_with_reason() {
+  local reason="$1"
+  "$JQ" -n --arg reason "$reason" '{"decision": "block", "reason": $reason}'
+  exit 0
+}
 
 # 最後の非空行を取得
 LAST_LINE=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | grep -v '^[[:space:]]*$' | tail -1 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-echo "[DEBUG] LAST_LINE: '$LAST_LINE'" >&2
 
 # 最後の行が数字だけ（1-4）かチェック
 if printf '%s' "$LAST_LINE" | grep -qE '^[1-4]$'; then
   CATEGORY="$LAST_LINE"
-  echo "[DEBUG] CATEGORY: '$CATEGORY'" >&2
 
   if [ "$CATEGORY" = "1" ]; then
-    # 第1.5段階: 実装
-    cat >&2 <<'BLOCK'
-[reviw-plugin] 「1. 実装」ですね。
+    block_with_reason '[reviw-plugin] 「1. 実装」ですね。
 
 以下の注意事項を確認し、すべて満たしている場合のみ宣誓文を末尾につけて再度返答してください。
 
@@ -80,15 +80,11 @@ if printf '%s' "$LAST_LINE" | grep -qE '^[1-4]$'; then
 ---
 【実装】ビルド成功、動作確認済み。エビデンス: [パスを記載]
 
-※注意事項を満たしていない場合、この宣誓文をつけることは禁止です。
-BLOCK
-    exit 2
+※注意事項を満たしていない場合、この宣誓文をつけることは禁止です。'
   fi
 
   if [ "$CATEGORY" = "2" ]; then
-    # 第1.5段階: バグ修正
-    cat >&2 <<'BLOCK'
-[reviw-plugin] 「2. バグ修正」ですね。
+    block_with_reason '[reviw-plugin] 「2. バグ修正」ですね。
 
 以下の注意事項を確認し、すべて満たしている場合のみ宣誓文を末尾につけて再度返答してください。
 
@@ -104,15 +100,11 @@ BLOCK
 ---
 【バグ修正】原因特定済み、修正確認済み。エビデンス: [パスを記載]
 
-※注意事項を満たしていない場合、この宣誓文をつけることは禁止です。
-BLOCK
-    exit 2
+※注意事項を満たしていない場合、この宣誓文をつけることは禁止です。'
   fi
 
   if [ "$CATEGORY" = "3" ]; then
-    # 第1.5段階: 調査
-    cat >&2 <<'BLOCK'
-[reviw-plugin] 「3. 調査」ですね。
+    block_with_reason '[reviw-plugin] 「3. 調査」ですね。
 
 以下の注意事項を確認し、すべて満たしている場合のみ宣誓文を末尾につけて再度返答してください。
 
@@ -127,14 +119,12 @@ BLOCK
 【宣誓文】
 ---
 【調査】コードベースを実際に読み、事実に基づいた調査結果を報告しました。出典: [ファイルパスまたはURL]
-BLOCK
-    exit 2
+
+※注意事項を満たしていない場合、この宣誓文をつけることは禁止です。'
   fi
 
   if [ "$CATEGORY" = "4" ]; then
-    # 第1.5段階: 相談
-    cat >&2 <<'BLOCK'
-[reviw-plugin] 「4. 相談」ですね。
+    block_with_reason '[reviw-plugin] 「4. 相談」ですね。
 
 以下の注意事項を確認し、すべて満たしている場合のみ宣誓文を末尾につけて再度返答してください。
 
@@ -148,20 +138,17 @@ BLOCK
 【宣誓文】
 ---
 【相談】知識とネットの情報を総動員し、矛盾のない回答をしました。出典: [URL等]
-BLOCK
-    exit 2
+
+※注意事項を満たしていない場合、この宣誓文をつけることは禁止です。'
   fi
 fi
 
 # 宣誓文なし & 番号回答でもない → 第1段階メッセージ
-cat >&2 <<'BLOCK'
-[reviw-plugin] 返答の分類が必要です。
+block_with_reason '[reviw-plugin] 返答の分類が必要です。
 
 あなたの返答は以下のどれに該当しますか？番号だけ回答してください。
 
 1. 実装     - 新機能の実装を完了した
 2. バグ修正 - 既存の問題を修正した
 3. 調査     - コードベース調査・原因調査の結果を報告
-4. 相談     - 計画・質問・提案をしている
-BLOCK
-exit 2
+4. 相談     - 計画・質問・提案をしている'
