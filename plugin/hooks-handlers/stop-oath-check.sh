@@ -37,12 +37,7 @@ LATEST_ASSISTANT_TEXT=$(printf '%s' "$RECENT" | "$JQ" -rs '
   .message.content[]? | select(.type == "text") | .text // empty
 ' 2>/dev/null || true)
 
-# デバッグ出力
-echo "[DEBUG] LATEST_ASSISTANT_TEXT: '$LATEST_ASSISTANT_TEXT'" >&2
-echo "[DEBUG] Length: $(printf '%s' "$LATEST_ASSISTANT_TEXT" | wc -c)" >&2
-
 if [ -z "$LATEST_ASSISTANT_TEXT" ]; then
-  echo "[DEBUG] Empty text, exiting" >&2
   exit 0
 fi
 
@@ -57,14 +52,10 @@ fi
 # 番号のみの回答かチェック（短い返答で1-4で始まる）
 ANSWER_LENGTH=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | wc -c | tr -d ' ')
 
-echo "[DEBUG] ANSWER_LENGTH: $ANSWER_LENGTH" >&2
-
 if [ "$ANSWER_LENGTH" -lt 50 ]; then
   # 先頭の数字を抽出（空白をトリムしてから）
   TRIMMED=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
   CATEGORY=$(printf '%s' "$TRIMMED" | grep -oE '^[1-4]' || true)
-  echo "[DEBUG] TRIMMED: '$TRIMMED'" >&2
-  echo "[DEBUG] CATEGORY: '$CATEGORY'" >&2
 
   if [ "$CATEGORY" = "1" ]; then
     # 第1.5段階: 実装
