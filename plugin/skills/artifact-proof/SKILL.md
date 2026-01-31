@@ -1,13 +1,13 @@
 ---
 name: artifact-proof
-description: Accumulate evidence (screenshots, videos, logs) under .artifacts/<feature>/ for visual regression and PR documentation workflow. [MANDATORY] Before saying "implementation complete", you MUST use this skill to collect evidence and present a report with proof. Completion reports without evidence are PROHIBITED.
+description: Accumulate evidence (screenshots, videos, logs) under .artifacts/<feature=branch_name>/ for visual regression and PR documentation workflow. [MANDATORY] Before saying "implementation complete", you MUST use this skill to collect evidence and present a report with proof. Completion reports without evidence are PROHIBITED.
 allowed-tools:
   - Shell
 ---
 
 # Artifact Proof
 
-An operational workflow for preserving development evidence (screenshots, videos, logs) in `.artifacts/<feature>/` and reusing it for PR descriptions.
+An operational workflow for preserving development evidence (screenshots, videos, logs) in `.artifacts/<feature=branch_name>/` and reusing it for PR descriptions.
 Assumes human-in-the-loop visual regression, requiring screenshots to be retaken and verified before commits and PR pushes.
 
 ## Report Creation Rules (MANDATORY - 4 Rules)
@@ -52,6 +52,12 @@ Assumes human-in-the-loop visual regression, requiring screenshots to be retaken
 - **Register as TODO immediately** upon receiving feedback (指摘された直後にTodo化がベター)
 - Accumulate across ALL iterations - never delete previous rounds
 
+### Rule 5: TodoList Management (CRITICAL)
+- **When user adds new requests/tasks during the session, IMMEDIATELY add them to TodoList**
+- TodoList is the contract with the user - never skip this step
+- Update todo status in real-time as you work
+- Mark tasks complete ONLY after user approval
+
 ```
 When user says: "ボタンの色が仕様と違う"
 Record exactly: "ボタンの色が仕様と違う" ✅
@@ -66,7 +72,7 @@ NOT: "Button color issue" ❌ (summarized)
 - When E2E/Playwright execution results need to be preserved
 
 ## Core Principles
-- Use `.artifacts/<feature>/` for evidence (screenshots, videos, REPORT.md) to avoid polluting the repository.
+- Use `.artifacts/<feature=branch_name>/` for evidence (screenshots, videos, REPORT.md) to avoid polluting the repository.
 - **IMPORTANT**: E2E test scripts belong in `tests/e2e/` (permanent project assets), NOT in `.artifacts/` (temporary evidence only).
 - Treat screenshots as semi-automated human-in-the-loop visual regression. After making changes, **retake all screenshots before commits and PR pushes to replace them**. Human verification ensures the changes are intentional before committing.
 - Browsers should primarily use Playwright's bundled Chromium. Chrome-based browsers are a last resort.
@@ -74,16 +80,16 @@ NOT: "Button color issue" ❌ (summarized)
 
 ## Directory and Naming
 - Decide on a FEATURE and create the following:
-  - `.artifacts/<feature>/REPORT.md`
-  - `.artifacts/<feature>/images/`
-  - `.artifacts/<feature>/videos/`
+  - `.artifacts/<feature=branch_name>/REPORT.md`
+  - `.artifacts/<feature=branch_name>/images/`
+  - `.artifacts/<feature=branch_name>/videos/`
 - Naming examples: `20251130-login-before.png`, `20251130-login-after.png`, `20251130-login-run.webm`
 - **Video files (.webm, .mp4, etc.) must be managed with Git LFS** (details below)
 
 ## Artifact Template (REPORT.md)
 
 ```markdown
-# <feature> / <ticket>
+# <feature=branch_name> / <ticket>
 
 Created: YYYY-MM-DD
 Branch: <branch-name>
@@ -276,7 +282,7 @@ npx playwright test tests/e2e/<spec>.spec.ts \
 ## Operational Flow
 1) Create an Artifact md for the target task when starting work. Write Context and plans.
 2) Continuously append executed commands and logs.
-3) After UI changes, retake all screenshots and save to `.artifacts/<feature>/images/` (videos to `videos/`).
+3) After UI changes, retake all screenshots and save to `.artifacts/<feature=branch_name>/images/` (videos to `videos/`).
 4) Verify differences visually (human-in-the-loop). If intentional, paste into README.
 5) **Start review with reviw** (see "Review with reviw" section below)
 6) If rejected, re-implement, retake screenshots and videos as long as there are changes, update REPORT.md if necessary, execute step 5 again, and loop until approved
@@ -290,11 +296,11 @@ reviw is a CLI tool that reviews CSV/TSV/Markdown/Diff/text files in a browser a
 
 ```bash
 # Open a report (must run in foreground)
-npx reviw .artifacts/<feature>/REPORT.md
+npx reviw .artifacts/<feature=branch_name>/REPORT.md
 
 # If there's a video, open it first
-open .artifacts/<feature>/videos/demo.webm
-npx reviw .artifacts/<feature>/REPORT.md
+open .artifacts/<feature=branch_name>/videos/demo.webm
+npx reviw .artifacts/<feature=branch_name>/REPORT.md
 
 # Review git diff
 git diff HEAD | npx reviw
@@ -322,7 +328,7 @@ npx reviw file1.md file2.csv data.tsv
 ### Review Workflow
 
 ```
-npx reviw .artifacts/<feature>/REPORT.md  # Launch in foreground
+npx reviw .artifacts/<feature=branch_name>/REPORT.md  # Launch in foreground
     ↓
 Browser opens
     ↓
@@ -379,12 +385,12 @@ COMMIT_HASH=$(git rev-parse --short HEAD)
 
 **Correct URL format (using commit hash):**
 ```
-![alt](https://github.com/<org>/<repo>/blob/<commit-hash>/.artifacts/<feature>/images/screenshot.png?raw=true)
+![alt](https://github.com/<org>/<repo>/blob/<commit-hash>/.artifacts/<feature=branch_name>/images/screenshot.png?raw=true)
 ```
 
 **Wrong URL format (using branch name - 404 after deletion):**
 ```
-![alt](https://github.com/<org>/<repo>/blob/<branch-name>/.artifacts/<feature>/images/screenshot.png?raw=true)
+![alt](https://github.com/<org>/<repo>/blob/<branch-name>/.artifacts/<feature=branch_name>/images/screenshot.png?raw=true)
 ```
 
 ### Screenshot Layout (Preventing Vertical Stacking)
@@ -577,7 +583,7 @@ Note: Place Mermaid blocks outside tables, not inside table cells.
 - **Never put code fences inside table cells - it breaks the parser**.
 
 ## Expected Outputs
-- `.artifacts/<feature>/` contains task-specific READMEs with linked evidence (screenshots, videos, logs).
+- `.artifacts/<feature=branch_name>/` contains task-specific READMEs with linked evidence (screenshots, videos, logs).
 - Screenshots are updated to the latest before commits and PR pushes, with visual diffs verified by human eyes.
 - Artifacts can be directly reused as PR descriptions.
 - PR images use commit hash-based blob URLs that remain visible after branch deletion post-merge.

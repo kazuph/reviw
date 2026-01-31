@@ -221,19 +221,28 @@ git worktree list
 cd .worktree/<branch-name>
 
 # Check progress
-cat .artifacts/<feature-name>/REPORT.md
+cat .artifacts/<feature=branch_name>/REPORT.md
 ```
 
 **Check TODOs in REPORT.md and resume work from incomplete items.**
+**If user adds new requests during the session, ALWAYS add them to TodoList immediately.**
 
 ### Report Location
 
 ```
-<worktree>/.artifacts/<feature-name>/REPORT.md
+<worktree>/.artifacts/<feature=branch_name>/REPORT.md
 ```
 
 - `<worktree>` = Directory created by git wt (e.g., `.worktree/feature-auth/`)
-- `<feature-name>` = part after removing prefix from branch name (e.g., `feature/auth` → `auth`)
+- `<feature=branch_name>` = part after removing prefix from branch name (e.g., `feature/auth` → `auth`)
+
+### TodoList Management (CRITICAL)
+
+When the user adds new requests/tasks during the session:
+1. **IMMEDIATELY add them to TodoList** - do not delay
+2. TodoList is the contract with the user - never skip this step
+3. Update todo status in real-time as you work
+4. Mark tasks complete ONLY after user approval
 
 ## Execution Steps (For New Tasks)
 
@@ -252,7 +261,7 @@ Next, create a worktree for the task. Branch name is automatically generated app
 
 | Type | Branch Name | Example |
 |------|-----------|-----|
-| New feature | `feature/<feature-name>` | `feature/auth`, `feature/events` |
+| New feature | `feature/<feature=branch_name>` | `feature/auth`, `feature/events` |
 | Bug fix | `fix/<content>` | `fix/login-error`, `fix/validation` |
 | Refactoring | `refactor/<target>` | `refactor/api-client` |
 | Documentation | `docs/<target>` | `docs/readme` |
@@ -367,25 +376,25 @@ The recommended approach is to exclude by default and explicitly commit only wha
 
 ### 3. Deliverables Directory Preparation
 
-Create `.artifacts/<feature-name>/` directory within the worktree.
+Create `.artifacts/<feature=branch_name>/` directory within the worktree.
 
 **Directory Structure:**
 ```
 <worktree>/                   # e.g., .worktree/feature-auth/
 └── .artifacts/
-    └── <feature-name>/       # e.g., auth (from feature/auth)
+    └── <feature=branch_name>/       # e.g., auth (from feature/auth)
         ├── REPORT.md         # Plan, progress, and evidence links
         ├── images/           # Screenshots
         └── videos/           # Video files
 ```
 
 ```bash
-mkdir -p .artifacts/<feature-name>/{images,videos}
+mkdir -p .artifacts/<feature=branch_name>/{images,videos}
 ```
 
 ### 4. Planning (REPORT.md)
 
-Create `.artifacts/<feature-name>/REPORT.md` and write the plan in the following format:
+Create `.artifacts/<feature=branch_name>/REPORT.md` and write the plan in the following format:
 
 ```markdown
 # <Task Name>

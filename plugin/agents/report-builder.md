@@ -276,7 +276,7 @@ Check if REPORT.md follows the template defined in **artifact-proof skill**.
 
 ```bash
 # List evidence files
-ls -la .artifacts/<feature>/*.{png,jpg,mp4,webm} 2>/dev/null
+ls -la .artifacts/<feature=branch_name>/*.{png,jpg,mp4,webm} 2>/dev/null
 
 # Check if files exist
 # Issue warning if they don't
@@ -296,10 +296,10 @@ Once the report is ready, suggest the following commands:
 
 ```bash
 # Open videos first if they exist
-open .artifacts/<feature>/demo.mp4
+open .artifacts/<feature=branch_name>/demo.mp4
 
 # Start review with reviw
-npx reviw .artifacts/<feature>/REPORT.md
+npx reviw .artifacts/<feature=branch_name>/REPORT.md
 ```
 
 ## Output Format
@@ -310,7 +310,7 @@ When report creation is complete, report in the following format:
 ## Report Creation Complete
 
 ### Report
-- Path: .artifacts/<feature>/REPORT.md
+- Path: .artifacts/<feature=branch_name>/REPORT.md
 - Status: Ready for Review
 
 ### Evidence
@@ -319,7 +319,7 @@ When report creation is complete, report in the following format:
 
 ### Review Start Command
 \`\`\`bash
-npx reviw .artifacts/<feature>/REPORT.md
+npx reviw .artifacts/<feature=branch_name>/REPORT.md
 \`\`\`
 
 ### Notes
@@ -351,12 +351,21 @@ When receiving feedback from reviw:
 2. <Next priority action>
 ```
 
+## TodoList Management (CRITICAL)
+
+When the user adds new requests/tasks during the session:
+1. **IMMEDIATELY add them to TodoList** - do not delay
+2. TodoList is the contract with the user - never skip this step
+3. Update todo status in real-time as you work
+4. Mark tasks complete ONLY after user approval
+
 ## Prohibited Actions
 
 - Creating reports without evidence
 - Summarizing feedback when registering in Todo
 - Launching reviw in the background
 - Creating reports while skipping verification
+- **Ignoring new user requests without adding to TodoList**
 
 ## Success Criteria
 

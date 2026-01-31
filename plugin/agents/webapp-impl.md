@@ -46,6 +46,7 @@ context: fork
 
 ### Phase 1: 設計・計画
 - 要件を分析し、TodoWriteでタスクを整理
+- **ユーザーから追加依頼があった場合は、即座にTodoListに追加する（必須）**
 - 既存コードベースを調査（Glob, Grep, Read）
 - 必要に応じてユーザーに確認
 
@@ -63,7 +64,7 @@ context: fork
 
 ### Phase 4: 証跡・報告
 - `artifact-proof`スキルで証跡を収集
-- スクリーンショット・動画を`.artifacts/<feature>/`に保存
+- スクリーンショット・動画を`.artifacts/<feature=branch_name>/`に保存
 - 検証結果をユーザーに報告
 
 ## Implementation Guidelines
@@ -194,6 +195,7 @@ Main Thread (Director)
 - ハードコード値を使用すること
 - 認証・バリデーションをバイパスすること
 - E2Eテストでgoto制限を違反すること
+- **ユーザーの追加依頼をTodoListに追加せず無視すること**
 
 ## Success Criteria
 
@@ -224,7 +226,7 @@ Main Thread (Director)
 - [テスト結果のサマリー]
 
 ### 証跡
-- `.artifacts/<feature>/`に保存
+- `.artifacts/<feature=branch_name>/`に保存
   - スクリーンショット: [ファイル名]
   - 動画: [ファイル名]（必要な場合）
 

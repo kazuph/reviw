@@ -108,7 +108,7 @@ Good pattern (execution via subagent):
 
 ## Handoff from /do
 
-Tasks started with `/do` have their PLAN recorded in `.artifacts/<feature>/REPORT.md`.
+Tasks started with `/do` have their PLAN recorded in `.artifacts/<feature=branch_name>/REPORT.md`.
 First, verify the TODO status:
 
 ```bash
@@ -277,10 +277,10 @@ subagent_type: "reviw-plugin:report-builder"
 
 ```bash
 # Open video file first (if exists)
-open .artifacts/<feature>/demo.mp4
+open .artifacts/<feature=branch_name>/demo.mp4
 
 # Open report with reviw (foreground)
-npx reviw .artifacts/<feature>/REPORT.md
+npx reviw .artifacts/<feature=branch_name>/REPORT.md
 ```
 
 When reviw review starts:
@@ -344,6 +344,14 @@ git diff HEAD | npx reviw
 npx reviw report.md --port 5000
 ```
 
+## TodoList Management (CRITICAL)
+
+When the user adds new requests/tasks during the session:
+1. **IMMEDIATELY add them to TodoList** - do not delay
+2. TodoList is the contract with the user - never skip this step
+3. Update todo status in real-time as you work
+4. Mark tasks complete ONLY after user approval
+
 ## Prohibited Actions
 
 - Reporting only "Implementation complete!"
@@ -352,6 +360,7 @@ npx reviw report.md --port 5000
 - Omitting verification via mock/skip/bypass
 - **Checking TODO just for implementing**
 - **Launching reviw in background**
+- **Ignoring new user requests without adding to TodoList**
 
 ## Report Template
 
