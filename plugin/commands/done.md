@@ -301,6 +301,38 @@ subagent_type: "reviw-plugin:report-builder"
    → Ready to start reviw review
 ```
 
+### 6.5. Report Validation (artifact-proof 5 Rules Check)
+
+**After report-builder completes, validate REPORT.md against artifact-proof rules:**
+
+```
+Launch ONE agent with Task tool:
+
+subagent_type: "reviw-plugin:report-validator"
+prompt: |
+  .artifacts/ 配下のREPORT.mdを検証してください。
+  artifact-proofスキルの5ルールに準拠しているか確認し、
+  違反があれば具体的な修正方法を提示してください。
+```
+
+**5 Rules Checklist:**
+
+| # | Rule | Check |
+|---|------|-------|
+| 1 | 言語ポリシー | ユーザーの依頼言語と一致しているか |
+| 2 | メディアフォーマット | `![]()` 構文 + テーブル配置（縦積み禁止） |
+| 3 | 優先順位 | 📌 Attention Required → 📋 Previous Feedback の順序 |
+| 4 | フィードバック累積 | 原文記録 + `<details>` タグ + 累積形式 |
+| 5 | TodoList連携 | User Request ⇄ Response セクションの存在 |
+
+**Validation Result Actions:**
+
+| Result | Action |
+|--------|--------|
+| 5/5 Pass | ✅ Proceed to Step 7 (reviw review) |
+| 3-4/5 Pass | ⚠️ Warning displayed, recommend fixes before proceeding |
+| 0-2/5 Pass | ❌ Return to Step 6, request report-builder to fix violations |
+
 ### 7. Start reviw Review
 
 **Important: Launch reviw in foreground**
