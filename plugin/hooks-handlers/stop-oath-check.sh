@@ -52,10 +52,14 @@ fi
 # 番号のみの回答かチェック（短い返答で1-4で始まる）
 ANSWER_LENGTH=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | wc -c | tr -d ' ')
 
-if [ "$ANSWER_LENGTH" -lt 50 ]; then
-  # 先頭の数字を抽出（空白をトリムしてから）
-  TRIMMED=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
-  CATEGORY=$(printf '%s' "$TRIMMED" | grep -oE '^[1-4]' || true)
+# 最後の非空行を取得
+LAST_LINE=$(printf '%s' "$LATEST_ASSISTANT_TEXT" | grep -v '^[[:space:]]*$' | tail -1 | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+echo "[DEBUG] LAST_LINE: '$LAST_LINE'" >&2
+
+# 最後の行が数字だけ（1-4）かチェック
+if printf '%s' "$LAST_LINE" | grep -qE '^[1-4]$'; then
+  CATEGORY="$LAST_LINE"
+  echo "[DEBUG] CATEGORY: '$CATEGORY'" >&2
 
   if [ "$CATEGORY" = "1" ]; then
     # 第1.5段階: 実装
