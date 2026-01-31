@@ -178,6 +178,36 @@ On rejection, display:
    - Use `webapp-testing` skill to actually operate in browser
    - Verify expected behavior
 
+### 3.5. E2E Test Verification BEFORE Screenshots (CRITICAL)
+
+**スクショ・動画を撮影する前に、以下を必ず確認する：**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  E2E Test Pre-Screenshot Checklist                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  □ ユーザーの修正依頼を直接確認できるE2Eテストになっているか？  │
+│    → 依頼内容がアサートされていないならテストを修正する         │
+│    → コード修正だけでスクショを撮っても意味がない              │
+│                                                                 │
+│  □ UI操作をせずAPIを直接呼ぶだけでPassするテストはないか？      │
+│    → fetch()やaxiosでデータ作成していないか                    │
+│    → 本来UIフォームを経由すべき操作を省略していないか          │
+│                                                                 │
+│  □ レコード変化のアサーションがあるか？                         │
+│    → UIチェックだけでなくDB/データの状態変化も検証             │
+│                                                                 │
+│  上記を満たさないE2Eで撮影したスクショ・動画は即リジェクト      │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**なぜこれが重要か：**
+- コードを修正しただけでE2Eを回すと「何も変わっていない」スクショが撮れる
+- ユーザーは変化を確認できず、無駄なレビューサイクルが発生する
+- E2Eテスト自体が依頼内容を検証していないと、バグを見逃す
+
 ### 4. Comprehensive Review (3 Integrated Review Agents in Parallel)
 
 **Launch all 3 review agents simultaneously with Task tool:**

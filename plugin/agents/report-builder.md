@@ -136,6 +136,31 @@ Record: "Fixed UI alignment" (summarized - PROHIBITED)
 ---
 ```
 
+### 1.5. User Request ⇄ Response Section (CRITICAL - MUST BE VISIBLE)
+
+**修正依頼がある場合、報告書の冒頭（Attention Requiredの直後）に「依頼→対処」の交互表示を必ず入れる。**
+
+```markdown
+## 🔄 User Request ⇄ Response (修正依頼と対処)
+
+| # | User Request (原文) | Response (対処内容) | 検証方法 |
+|---|---------------------|---------------------|----------|
+| 1 | 「ボタンの色を青に変更して」 | `Button`コンポーネントの`className`を`bg-blue-500`に変更 | E2E: `toHaveCSS('background-color', 'rgb(59, 130, 246)')` |
+| 2 | 「エラー時にメッセージを表示」 | `ErrorMessage`コンポーネントを追加、APIエラー時に表示 | E2E: エラー発生後`[data-testid="error-message"]`がvisible |
+
+---
+```
+
+**このセクションがないと：**
+- ユーザーは自分の依頼がどう対処されたか一目で分からない
+- E2Eを回しても「何も変わっていない」状態になりやすい
+- スクショ・動画を見ても変化が分からない
+
+**必須要素：**
+1. **User Request (原文)**: ユーザーの依頼をほぼそのまま記載（要約禁止）
+2. **Response (対処内容)**: 具体的にどのファイル・どのコードを変更したか
+3. **検証方法**: E2Eテストでどうアサートしているか（これがないとリジェクト）
+
 ### 2. Previous Feedback Section Template (ACCUMULATION FORMAT)
 
 **IMPORTANT: Feedback history must ACCUMULATE across iterations.**
