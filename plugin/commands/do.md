@@ -207,6 +207,72 @@ Launch subagent with Task tool
 
 $ARGUMENTS = Request text for what to do, specification explanation, etc.
 
+## When Receiving Feedback from reviw (YAML format)
+
+When `/do` is called with YAML-formatted feedback from reviw (after user submits review), follow this flow:
+
+### Detecting reviw Feedback
+
+If $ARGUMENTS contains YAML with `file:`, `mode:`, `comments:` fields, this is reviw feedback:
+
+```yaml
+file: REPORT.md
+mode: view
+summary: |
+  Overall feedback from user
+comments:
+  - id: 1
+    lines: "10-15"
+    comment: "Fix this logic"
+```
+
+### Processing Flow
+
+1. **Parse feedback and register in TodoList**
+   - Each comment becomes a todo item
+   - Summary becomes overall context
+
+2. **Apply mandatory rules (previously checkbox items)**
+   - **Delegate to sub-agents**: ALL implementation MUST be delegated to subagents via Task tool
+   - **Update screenshots/videos**: ALL visual evidence MUST be updated after changes
+   - **Require user approval**: FORBIDDEN to mark tasks complete without explicit user approval
+   - **Probe requirements**: Before implementation, deeply clarify any ambiguous feedback using AskUserQuestion
+
+3. **Implementation loop**
+   ```
+   For each feedback item:
+     1. Clarify if needed (AskUserQuestion)
+     2. Delegate implementation (Task tool with subagent)
+     3. Verify with webapp-testing
+     4. Collect evidence with artifact-proof
+     5. Mark todo as completed (after user approval)
+   ```
+
+4. **Final verification**
+   - Run /reviw-plugin:done to open report in reviw for user review
+   - Get explicit user approval before completing
+
+### Example
+
+```
+/do
+file: .artifacts/auth/REPORT.md
+mode: view
+summary: |
+  Overall looks good, but fix the login button position
+comments:
+  - id: 1
+    lines: "45-50"
+    comment: "Move button to the right side"
+```
+
+This triggers:
+1. Register "Move login button to right side" as todo
+2. Ask clarifying question if needed ("Should it align with the form or the header?")
+3. Delegate fix to webapp-impl subagent
+4. Update screenshots showing new position
+5. Wait for user approval
+
 ## When Resuming a Task
 
 **At session startup / after compact, check existing worktrees before creating new ones.**

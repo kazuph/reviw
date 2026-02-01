@@ -1846,13 +1846,6 @@ function diffHtmlTemplate(diffData, history = []) {
         <label>📎 Attach images (⌘V to paste, max 5)</label>
         <div class="image-preview-list" id="submit-image-preview"></div>
       </div>
-      <div class="modal-checkboxes">
-        <label><input type="checkbox" id="prompt-subagents" checked /> 🤖 Delegate to sub-agents (implement, verify, report)</label>
-        <label><input type="checkbox" id="prompt-reviw" checked /> 👁️ Open in REVIW next time</label>
-        <label><input type="checkbox" id="prompt-screenshots" checked /> 📸 Update all screenshots/videos</label>
-        <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> ✅ Add feedback to Todo (require approval)</label>
-        <label><input type="checkbox" id="prompt-deep-dive" checked /> 🔍 Probe requirements before implementing</label>
-      </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
         <button class="primary" id="modal-submit">Submit</button>
@@ -2472,64 +2465,10 @@ function diffHtmlTemplate(diffData, history = []) {
     const modalSummary = document.getElementById('modal-summary');
     const globalCommentInput = document.getElementById('global-comment');
 
-    // Prompt checkboxes - text is the strong enforcement prompt for YAML output
-    const promptCheckboxes = [
-      { id: 'prompt-subagents', text: 'MANDATORY: You MUST delegate ALL implementation, verification, and report creation to sub-agents. Direct execution on the main thread is PROHIBITED.' },
-      { id: 'prompt-reviw', text: 'REQUIRED: Before reporting completion, you MUST open the result in REVIW for user review. Skipping this step is NOT allowed.' },
-      { id: 'prompt-screenshots', text: 'MANDATORY: You MUST update ALL screenshots and videos as evidence. Reports without visual proof are REJECTED.' },
-      { id: 'prompt-user-feedback-todo', text: "STRICT RULE: Add ALL user feedback to the Todo list. You are FORBIDDEN from marking any item complete without explicit user approval." },
-      { id: 'prompt-deep-dive', text: "REQUIRED: Before ANY implementation, you MUST deeply probe the user's requirements using AskUserQuestion and EnterPlanMode. Starting implementation without thorough requirement analysis is PROHIBITED." }
-    ];
-    const PROMPT_STORAGE_KEY = 'reviw-prompt-prefs';
-
-    // Load saved preferences
-    function loadPromptPrefs() {
-      try {
-        const saved = localStorage.getItem(PROMPT_STORAGE_KEY);
-        if (saved) {
-          const prefs = JSON.parse(saved);
-          promptCheckboxes.forEach(p => {
-            const el = document.getElementById(p.id);
-            if (el && typeof prefs[p.id] === 'boolean') el.checked = prefs[p.id];
-          });
-        }
-      } catch (e) {}
-    }
-
-    // Save preferences
-    function savePromptPrefs() {
-      try {
-        const prefs = {};
-        promptCheckboxes.forEach(p => {
-          const el = document.getElementById(p.id);
-          if (el) prefs[p.id] = el.checked;
-        });
-        localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(prefs));
-      } catch (e) {}
-    }
-
-    // Initialize checkbox listeners
-    promptCheckboxes.forEach(p => {
-      const el = document.getElementById(p.id);
-      if (el) el.addEventListener('change', savePromptPrefs);
-    });
-    loadPromptPrefs();
-
-    function getSelectedPrompts() {
-      const prompts = [];
-      promptCheckboxes.forEach(p => {
-        const el = document.getElementById(p.id);
-        if (el && el.checked) prompts.push(p.text);
-      });
-      return prompts;
-    }
-
     function payload(reason) {
       const data = { file: FILE_NAME, mode: MODE, submittedBy: reason, submittedAt: new Date().toISOString(), comments: Object.values(comments) };
       if (globalComment.trim()) data.summary = globalComment.trim();
       if (submitImages.length > 0) data.summaryImages = submitImages;
-      const prompts = getSelectedPrompts();
-      if (prompts.length > 0) data.prompts = prompts;
       return data;
     }
     async function sendAndExit(reason = 'button') {
@@ -4519,13 +4458,6 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         <label>📎 Attach images (⌘V to paste, max 5)</label>
         <div class="image-preview-list" id="submit-image-preview"></div>
       </div>
-      <div class="modal-checkboxes">
-        <label><input type="checkbox" id="prompt-subagents" checked /> 🤖 Delegate to sub-agents (implement, verify, report)</label>
-        <label><input type="checkbox" id="prompt-reviw" checked /> 👁️ Open in REVIW next time</label>
-        <label><input type="checkbox" id="prompt-screenshots" checked /> 📸 Update all screenshots/videos</label>
-        <label><input type="checkbox" id="prompt-user-feedback-todo" checked /> ✅ Add feedback to Todo (require approval)</label>
-        <label><input type="checkbox" id="prompt-deep-dive" checked /> 🔍 Probe requirements before implementing</label>
-      </div>
       <div class="modal-actions">
         <button id="modal-cancel">Cancel</button>
         <button class="primary" id="modal-submit">Submit</button>
@@ -5181,46 +5113,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         isDragging = false;
         document.body.classList.remove('dragging');
         if (selection) {
-          // Copy selected text to clipboard
-          copySelectionToClipboard(selection);
           openCardForSelection();
         }
       });
-    }
-
-    // Copy selected range to clipboard
-    function copySelectionToClipboard(sel) {
-      const { startRow, endRow, startCol, endCol } = sel;
-      const lines = [];
-      for (let r = startRow; r <= endRow; r++) {
-        const rowData = [];
-        for (let c = startCol; c <= endCol; c++) {
-          const td = tbody.querySelector('td[data-row="' + r + '"][data-col="' + c + '"]');
-          if (td) {
-            // Get text content (strip HTML tags from inline code highlighting)
-            rowData.push(td.textContent || '');
-          }
-        }
-        lines.push(rowData.join('\\t'));
-      }
-      const text = lines.join('\\n');
-      if (text && navigator.clipboard) {
-        navigator.clipboard.writeText(text).then(() => {
-          showCopyToast();
-        }).catch(() => {
-          // Fallback: silent fail
-        });
-      }
-    }
-
-    // Show copy toast notification
-    function showCopyToast() {
-      const toast = document.getElementById('copy-toast');
-      if (!toast) return;
-      toast.classList.add('visible');
-      setTimeout(() => {
-        toast.classList.remove('visible');
-      }, 1500);
     }
 
     function openCardForSelection(previewElement) {
@@ -8468,7 +8363,7 @@ function openBrowser(url, delay = 0) {
 }
 
 function outputAllResults() {
-  console.log("=== All comments received ===");
+  console.log("/do");
   if (allResults.length === 1) {
     const yamlOut = yaml.dump(allResults[0], { noRefs: true, lineWidth: 120 });
     console.log(yamlOut.trim());
