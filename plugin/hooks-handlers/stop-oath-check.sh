@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# TEMPORARY: disabled to break infinite loop
+exit 0
 # Stop hook - 完了割合チェックシステム
 #
 # フロー:
