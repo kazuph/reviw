@@ -178,6 +178,93 @@ After completing the interview, add the following section to REPORT.md:
 - Enables traceability of decisions
 - Helps when resuming work
 
+### Step 0-5: Project Type Auto-Detection
+
+**Automatically detect the project type to select appropriate implementation and verification strategies.**
+
+Run the following detection script:
+
+```bash
+# --- Project Type Auto-Detection ---
+PROJECT_TYPE="unknown"
+HAS_WEB=false
+HAS_BACKEND=false
+HAS_MOBILE=false
+
+# 1. Check package.json for web dependencies
+if [ -f package.json ]; then
+  if grep -qE '"(react|vue|svelte|next|nuxt|@angular/core|solid-js|astro)"' package.json 2>/dev/null; then
+    HAS_WEB=true
+  fi
+  # 2. Check package.json for mobile dependencies
+  if grep -qE '"(expo|react-native|@expo/cli)"' package.json 2>/dev/null; then
+    HAS_MOBILE=true
+  fi
+  # 3. Check package.json for backend-only dependencies
+  if grep -qE '"(express|fastify|koa|hapi|@nestjs/core|hono)"' package.json 2>/dev/null; then
+    HAS_BACKEND=true
+  fi
+fi
+
+# 4. Check for frontend source files
+if find src/ -name '*.tsx' -o -name '*.vue' -o -name '*.svelte' 2>/dev/null | head -1 | grep -q .; then
+  HAS_WEB=true
+fi
+
+# 5. Check for mobile project markers
+if [ -f Podfile ] || ls *.xcodeproj 1>/dev/null 2>&1 || [ -f android/build.gradle ] || [ -f pubspec.yaml ]; then
+  HAS_MOBILE=true
+fi
+if [ -f app.json ] && grep -q '"expo"' app.json 2>/dev/null; then
+  HAS_MOBILE=true
+fi
+
+# 6. Check for backend project markers
+if [ -f go.mod ] || [ -f Cargo.toml ]; then
+  HAS_BACKEND=true
+fi
+if [ -f pyproject.toml ] || [ -f requirements.txt ]; then
+  if [ "$HAS_WEB" = false ]; then
+    HAS_BACKEND=true
+  fi
+fi
+
+# 7. Determine project type (priority: mobile > fullstack > web > backend)
+if [ "$HAS_MOBILE" = true ]; then
+  PROJECT_TYPE="mobile"
+elif [ "$HAS_WEB" = true ] && [ "$HAS_BACKEND" = true ]; then
+  PROJECT_TYPE="fullstack"
+elif [ "$HAS_WEB" = true ]; then
+  PROJECT_TYPE="web"
+elif [ "$HAS_BACKEND" = true ]; then
+  PROJECT_TYPE="backend"
+fi
+
+echo "Detected project type: $PROJECT_TYPE"
+```
+
+**If detection result is `unknown`:**
+
+Use AskUserQuestion to ask the user:
+
+```
+Question: "Could not auto-detect the project type. What type of project is this?"
+Header: "Project Type"
+Options:
+  1. "Web" - Frontend web application (React, Vue, Svelte, etc.)
+  2. "Backend" - API server, CLI tool, or backend service
+  3. "Mobile" - Mobile app (React Native, Expo, Flutter, native)
+  4. "Fullstack" - Both frontend and backend in one repo
+```
+
+**Record the detected type in REPORT.md header:**
+
+Add the following line to the REPORT.md header (after `Status:`):
+
+```markdown
+Project-Type: <web|backend|mobile|fullstack>
+```
+
 ## Important: Subagents Required
 
 **To prevent context exhaustion, the following tasks MUST be executed by subagents (Task tool):**
@@ -488,8 +575,29 @@ Status: In Progress
 - [ ] <Specific task 2>
 - [ ] <Specific task 3>
 - [ ] Execute build and type check
+
+#### Verification TODOs (select based on Project-Type)
+
+**Web:**
 - [ ] Start development server
-- [ ] Verify operation with webapp-testing
+- [ ] Verify operation with webapp-testing (Playwright screenshots)
+
+**Backend:**
+- [ ] Write integration tests (use project's test framework: jest/vitest/pytest/go test/cargo test)
+- [ ] Run full test suite and collect coverage report
+- [ ] Verify API endpoints respond correctly
+
+**Mobile:**
+- [ ] Write Maestro E2E flow for implemented feature
+- [ ] Run Maestro flow and take screenshots on simulator/device
+- [ ] Verify UI renders correctly on target screen sizes
+
+**Fullstack (both Web + Backend):**
+- [ ] Start both frontend dev server and backend API server
+- [ ] Verify frontend with webapp-testing
+- [ ] Run backend test suite and collect coverage
+
+#### Common
 - [ ] Collect evidence with artifact-proof
 - [ ] Complete report with /done (review in reviw)
 
@@ -555,14 +663,18 @@ Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent
 
 **Subagent Selection Criteria:**
 
-| Task Type | subagent_type | Notes |
-|-----------|---------------|------|
-| Web UI Implementation | `reviw-plugin:webapp-impl` | General frontend with zero-tolerance policy |
-| Expo/RN Implementation | `expo-app-maker` | Mobile apps |
-| Code Investigation | `Explore` | Understanding existing code |
-| Design Review | `Plan` | Architecture review |
-| Operation Verification | `general-purpose` + webapp-testing skill | Verification phase |
-| Evidence Collection | `general-purpose` + artifact-proof skill | Completion report preparation |
+| Task Type | subagent_type | Project Types | Notes |
+|-----------|---------------|---------------|------|
+| Web UI Implementation | `reviw-plugin:webapp-impl` | web, fullstack | General frontend with zero-tolerance policy |
+| Backend Implementation | `reviw-plugin:backend-impl` | backend, fullstack | API/service implementation |
+| Mobile Implementation | `reviw-plugin:mobile-impl` | mobile | Mobile app implementation |
+| Expo/RN Implementation | `expo-app-maker` | mobile | Expo/React Native specific |
+| Code Investigation | `Explore` | ALL | Understanding existing code |
+| Design Review | `Plan` | ALL | Architecture review |
+| Web Verification | `general-purpose` + webapp-testing skill | web, fullstack | Browser-based verification |
+| Backend Verification | `general-purpose` + backend-testing skill | backend, fullstack | Test suite execution, API verification |
+| Mobile Verification | `general-purpose` + mobile-testing skill | mobile | Maestro MCP E2E flows |
+| Evidence Collection | `general-purpose` + artifact-proof skill | ALL | Completion report preparation |
 
 ### 7. Confirm Action Guidelines Focused on Deliverables
 

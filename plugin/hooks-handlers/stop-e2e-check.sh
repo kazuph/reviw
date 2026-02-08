@@ -141,26 +141,49 @@ TEST_RUN=$(printf '%s' "$RECENT" | "$JQ" -r '
   .input.command // empty
 ' 2>/dev/null | grep -cE 'vitest|playwright|jest|npm test|npx test|npm run test|pnpm test|yarn test|pytest|go test|cargo test' || true)
 
-# webapp-testing skill の使用痕跡を確認
-WEBAPP_TEST=$(printf '%s' "$RECENT" | "$JQ" -r '
+# webapp-testing / backend-testing / mobile-testing skill の使用痕跡を確認
+SKILL_TEST=$(printf '%s' "$RECENT" | "$JQ" -r '
   select(.type == "assistant") |
   .message.content[]? |
   select(.type == "tool_use") |
   select(.name == "Skill") |
   .input.skill // empty
-' 2>/dev/null | grep -c 'webapp-testing' || true)
+' 2>/dev/null | grep -cE 'webapp-testing|backend-testing|mobile-testing' || true)
+
+# Maestro MCP ツールの使用痕跡を確認
+MAESTRO_TEST=$(printf '%s' "$RECENT" | "$JQ" -r '
+  select(.type == "assistant") |
+  .message.content[]? |
+  select(.type == "tool_use") |
+  .name // empty
+' 2>/dev/null | grep -cE 'maestro.*run_flow|maestro.*take_screenshot' || true)
 
 # テスト実行もwebapp-testingも使われていない場合
-if [ "${TEST_RUN:-0}" -eq 0 ] && [ "${WEBAPP_TEST:-0}" -eq 0 ]; then
+if [ "${TEST_RUN:-0}" -eq 0 ] && [ "${SKILL_TEST:-0}" -eq 0 ] && [ "${MAESTRO_TEST:-0}" -eq 0 ]; then
   cat >&2 <<BLOCK
 [reviw-plugin] テスト未実行での完了宣言を検出しました。
 
 【トリガー】"${COMPLETION_TRIGGER}" という完了宣言がありました
 【変更ファイル】${CODE_CHANGED}
 
-完了宣言する前に以下を実施してください:
+完了宣言する前に以下のいずれかを実施してください:
+
+[Webプロジェクト]
 1. E2Eテストまたは結合テストを書いて実行する（モック禁止）
 2. webapp-testing skill でブラウザ検証する
+
+[Backendプロジェクト]
+1. テストフレームワークでテストを書いて実行する（curl禁止）
+   - Node.js: vitest/jest + supertest
+   - Go: go test + httptest
+   - Python: pytest + httpx/TestClient
+   - Rust: cargo test
+2. backend-testing skill でテスト検証する
+
+[Mobileプロジェクト]
+1. Maestro E2Eフロー(.yaml)を書いて実行する
+2. mobile-testing skill でMaestro MCP検証する
+
 3. テスト結果のエビデンスを収集する
 
 ※相談中・作業途中のやり取りではこのチェックは発動しません。

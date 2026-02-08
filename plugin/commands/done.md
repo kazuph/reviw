@@ -154,6 +154,16 @@ Conditions for checking:
 
 Do NOT say "complete" until all of the following are executed:
 
+### Pre-Check: Read Project Type
+
+```bash
+PROJECT_TYPE=$(grep -m1 '^Project-Type:' .artifacts/*/REPORT.md 2>/dev/null | awk '{print $2}')
+if [ -z "$PROJECT_TYPE" ]; then PROJECT_TYPE="web"; fi
+echo "Project type: $PROJECT_TYPE"
+```
+
+**This value determines which verification and review steps to execute below.**
+
 ### 0. Verify TODO Current Status (Rejection Determination)
 
 ```
@@ -171,12 +181,23 @@ On rejection, display:
    - Verify no errors with `npm run build` / `pnpm build` etc.
    - Check for type errors, lint errors
 
-### 2. Start Development Server (for Web projects)
-   - Actually start the server
+### 2. Start Development Server / Prepare Runtime (project-type-aware)
 
-### 3. Operation Verification
-   - Use `webapp-testing` skill to actually operate in browser
-   - Verify expected behavior
+| Project Type | Action |
+|-------------|--------|
+| **web** | Start frontend dev server (`npm run dev` / `pnpm dev` / etc.) |
+| **fullstack** | Start both frontend dev server AND backend API server |
+| **backend** | Start API server OR run test suite directly (no browser needed) |
+| **mobile** | Ensure simulator/device is running and app is built (`npx expo start`, `flutter run`, etc.) |
+
+### 3. Operation Verification (branch by project type)
+
+| Project Type | Verification Method |
+|-------------|---------------------|
+| **web** | Use `webapp-testing` skill - Playwright browser operation and screenshots |
+| **backend** | Use `backend-testing` skill - Run test framework (jest/vitest/pytest/go test/cargo test), NO curl, NO manual API calls |
+| **mobile** | Use `mobile-testing` skill - Maestro MCP for E2E flows, `take_screenshot` for evidence |
+| **fullstack** | Use BOTH `webapp-testing` (frontend) AND `backend-testing` (backend API tests) |
 
 ### 3.5. E2E Test Verification BEFORE Screenshots (CRITICAL)
 
@@ -208,14 +229,66 @@ On rejection, display:
 - ユーザーは変化を確認できず、無駄なレビューサイクルが発生する
 - E2Eテスト自体が依頼内容を検証していないと、バグを見逃す
 
+### 3.6. Backend Test Pre-Evidence Checklist (for backend / fullstack)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Backend Test Pre-Evidence Checklist                             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  □ テストがユーザーの修正依頼を直接検証しているか？             │
+│    → 依頼内容がアサートされていないならテストを追加する         │
+│                                                                 │
+│  □ curl や手動APIコールではなくテストフレームワークを使用か？   │
+│    → jest/vitest/pytest/go test/cargo test を使うこと           │
+│    → curl でのAPI確認は禁止                                     │
+│                                                                 │
+│  □ モック・スタブを使用していないか？                           │
+│    → 実際のDB（エミュレータ可）に対してテストすること           │
+│    → DI経由のローカルエミュレータは許可                         │
+│                                                                 │
+│  □ カバレッジレポートを生成しているか？                         │
+│    → テスト実行時に --coverage フラグを付与                     │
+│                                                                 │
+│  上記を満たさないテストで撮影したエビデンスは即リジェクト        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 3.7. Mobile Test Pre-Evidence Checklist (for mobile)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Mobile Test Pre-Evidence Checklist                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  □ Maestro E2Eフローがユーザーの依頼内容を検証しているか？      │
+│    → ユーザーが求めた動作がフロー内でアサートされていること     │
+│                                                                 │
+│  □ アサーション（assertVisible, assertText等）が含まれているか？│
+│    → タップだけでアサーションなしのフローは無効                 │
+│                                                                 │
+│  □ スクリーンショットが各ステップで撮影されているか？           │
+│    → Maestro MCP take_screenshot を使用                         │
+│    → 操作前/操作後の比較ができること                            │
+│                                                                 │
+│  □ 対象の画面サイズ・デバイスで実行しているか？                 │
+│    → シミュレータ/実機が正しく設定されていること               │
+│                                                                 │
+│  上記を満たさないフローで撮影したスクショは即リジェクト          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ### 4. Comprehensive Review (3 Integrated Review Agents in Parallel)
 
 **Launch all 3 review agents simultaneously with Task tool:**
 
 ```
-Launch THREE agents simultaneously with Task tool:
+Launch review agents simultaneously with Task tool (selection depends on PROJECT_TYPE):
 
 1. subagent_type: "reviw-plugin:review-code-security"
+   → Applies to: ALL project types
    → Type safety (any type detection)
    → Error handling adequacy
    → DRY principle violations
@@ -224,9 +297,11 @@ Launch THREE agents simultaneously with Task tool:
    → Append "Code & Security Review" section to REPORT.md
 
 2. subagent_type: "reviw-plugin:review-e2e"
-   → goto restrictions (only first "/" allowed)
+   → Applies to: ALL project types (adapted per type)
+   → Web/Fullstack: goto restrictions, UI flow fidelity, Playwright assertions
+   → Backend: test framework assertions, no curl, API contract verification
+   → Mobile: Maestro flow assertions, screen state verification
    → Mock/stub detection (ALL mocks prohibited)
-   → User flow reproduction fidelity
    → DI (Dependency Injection) adequacy
    → Record change assertions
    → Wait strategy verification (no fixed sleeps)
@@ -234,16 +309,25 @@ Launch THREE agents simultaneously with Task tool:
    → Append "E2E Test Review" section to REPORT.md
 
 3. subagent_type: "reviw-plugin:review-ui-ux"
+   → Applies to: web, mobile (if UI changes), fullstack (if frontend changes)
+   → SKIP for: backend (no UI to review)
    → WCAG 2.2 AA compliance
    → Keyboard navigation, focus management
    → Design token compliance
    → Text/copy consistency
    → i18n coverage (if applicable)
    → Append "UI/UX Review" section to REPORT.md
-   → **Note: Only execute if UI changes are included**
 ```
 
-**Important: Execute all 3 agents in a single Task tool call for parallel execution.**
+**Project Type → Review Agent Matrix:**
+
+| Review Agent | web | backend | mobile | fullstack |
+|-------------|-----|---------|--------|-----------|
+| review-code-security | YES | YES | YES | YES |
+| review-e2e | YES | YES (test suite) | YES (Maestro) | YES (both) |
+| review-ui-ux | YES | SKIP | YES (if UI changes) | YES (frontend only) |
+
+**Important: Execute applicable agents in a single Task tool call for parallel execution.**
 
 **Agent name mapping (for reference):**
 | Old name (deprecated) | New integrated agent |

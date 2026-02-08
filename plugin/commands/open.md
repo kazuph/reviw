@@ -1,3 +1,9 @@
+---
+description: Open files or URLs with macOS open command
+argument-hint: <file-or-url>
+allowed-tools: Bash, Read
+---
+
 # /reviw-plugin:open
 
 <command-name>open</command-name>

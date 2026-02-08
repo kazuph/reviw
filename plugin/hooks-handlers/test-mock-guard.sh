@@ -19,12 +19,12 @@ if [ -z "$FILE_PATH" ]; then
 fi
 
 # テストファイルでなければスキップ
-if ! printf '%s' "$FILE_PATH" | grep -qE '\.(test|spec|e2e)\.(ts|tsx|js|jsx)$|__tests__/'; then
+if ! printf '%s' "$FILE_PATH" | grep -qE '\.(test|spec|e2e)\.(ts|tsx|js|jsx)$|__tests__/|_test\.go$|test_.*\.py$|.*_test\.py$|tests/.*\.py$'; then
   exit 0
 fi
 
 # モックパターン定義
-MOCK_PATTERNS='jest\.fn|jest\.mock|jest\.spyOn|vi\.fn|vi\.mock|vi\.spyOn|sinon\.|\.stub\(|createMock|mockReturnValue|mockResolvedValue|mockImplementation|mockRejectedValue|nock\(|setupServer|fake[A-Z]'
+MOCK_PATTERNS='jest\.fn|jest\.mock|jest\.spyOn|vi\.fn|vi\.mock|vi\.spyOn|sinon\.|\.stub\(|createMock|mockReturnValue|mockResolvedValue|mockImplementation|mockRejectedValue|nock\(|setupServer|fake[A-Z]|unittest\.mock|@mock\.|@patch\(|MagicMock|AsyncMock|monkeypatch\.|gomock\.NewController|mock\.NewMock|testify/mock'
 
 # 書き込もうとしている内容にモックパターンがあるか検出
 if [ -n "$CONTENT" ] && printf '%s' "$CONTENT" | grep -qE "$MOCK_PATTERNS"; then
