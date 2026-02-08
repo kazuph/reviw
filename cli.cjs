@@ -3150,7 +3150,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       width: 100%;
       height: 100%;
       padding: 2px;
-      background: #fff;
+      background: var(--panel);
       overflow: hidden;
     }
     .media-sidebar-thumb-mermaid svg {
@@ -3159,9 +3159,6 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       max-width: 100%;
       max-height: 100%;
       display: block;
-    }
-    [data-theme="dark"] .media-sidebar-thumb-mermaid {
-      background: #1e293b;
     }
     .media-sidebar-thumb-index {
       position: absolute;
@@ -3218,12 +3215,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       overflow: auto;
       display: flex;
       justify-content: center;
-      background: #fff;
+      background: var(--panel);
       border-radius: 8px;
       padding: 16px;
-    }
-    [data-theme="dark"] .media-sidebar-viewer-content .viewer-mermaid-wrap {
-      background: #f8fafc;
     }
     .media-sidebar-viewer-content .viewer-mermaid-wrap svg {
       width: 100% !important;
@@ -3269,12 +3263,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       overflow: hidden;
       position: relative;
       cursor: grab;
-      background: #fff;
+      background: var(--panel);
       border-radius: 8px;
       border: 1px solid var(--border);
-    }
-    [data-theme="dark"] .sidebar-mermaid-viewport {
-      background: #f8fafc;
     }
     .sidebar-mermaid-viewport:active { cursor: grabbing; }
     .sidebar-mermaid-wrapper {
@@ -5458,6 +5449,10 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         if (hljsLight) hljsLight.disabled = true;
       }
       localStorage.setItem('reviw-theme', theme);
+      // Re-render mermaid diagrams with new theme
+      if (window.__reRenderMermaid) {
+        window.__reRenderMermaid(theme);
+      }
     }
 
     function toggleTheme() {
@@ -7050,6 +7045,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         mermaidDiv.className = 'mermaid';
         mermaidDiv.id = 'mermaid-' + idx;
         mermaidDiv.textContent = text;
+        mermaidDiv.setAttribute('data-source', text);
 
         // Click anywhere on container to open fullscreen
         container.addEventListener('click', () => openFullscreen(mermaidDiv));
@@ -7062,6 +7058,59 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       mermaid.run().catch(err => {
         showError('Mermaid Syntax Error: ' + (err.message || err));
       });
+
+      // Re-render all mermaid diagrams with a new theme
+      window.__reRenderMermaid = function(theme) {
+        var isDark = theme !== 'light';
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: isDark ? 'dark' : 'default',
+          securityLevel: 'loose',
+          logLevel: 'error'
+        });
+        var mermaidDivs = document.querySelectorAll('.mermaid[data-source]');
+        mermaidDivs.forEach(function(div) {
+          div.removeAttribute('data-processed');
+          div.innerHTML = '';
+          div.textContent = div.getAttribute('data-source');
+        });
+        if (mermaidDivs.length > 0) {
+          mermaid.run({ nodes: Array.from(mermaidDivs) }).then(function() {
+            // Update sidebar thumbnails with re-rendered SVGs
+            var thumbWraps = document.querySelectorAll('.media-sidebar-thumb-mermaid');
+            var srcSvgs = document.querySelectorAll('.mermaid-container .mermaid svg');
+            var thumbArr = Array.from(thumbWraps);
+            for (var t = 0; t < thumbArr.length && t < srcSvgs.length; t++) {
+              var clone = srcSvgs[t].cloneNode(true);
+              var origId = srcSvgs[t].getAttribute('id');
+              if (origId) {
+                var newId = origId + '-rethumb-' + t;
+                clone.setAttribute('id', newId);
+                var styleEl = clone.querySelector('style');
+                if (styleEl && styleEl.textContent) {
+                  styleEl.textContent = styleEl.textContent.split(origId).join(newId);
+                }
+              }
+              if (!clone.getAttribute('viewBox') && clone.getAttribute('width') && clone.getAttribute('height')) {
+                clone.setAttribute('viewBox', '0 0 ' + parseFloat(clone.getAttribute('width')) + ' ' + parseFloat(clone.getAttribute('height')));
+              }
+              clone.removeAttribute('width');
+              clone.removeAttribute('height');
+              clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+              thumbArr[t].innerHTML = '';
+              thumbArr[t].appendChild(clone);
+            }
+            // If sidebar viewer is showing mermaid, refresh it
+            var activeThumb = document.querySelector('.media-sidebar-thumb.active');
+            if (activeThumb) {
+              var wrap = activeThumb.querySelector('.media-sidebar-thumb-mermaid');
+              if (wrap) {
+                setTimeout(function() { activeThumb.click(); }, 100);
+              }
+            }
+          }).catch(function() {});
+        }
+      };
 
       // Watch for render errors in DOM
       setTimeout(() => {
@@ -8841,13 +8890,19 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
 
       // Helper: find source line for image by src
-      function findImageSourceLine(src) {
+      function findImageSourceLine(src, startFromLine) {
         if (!src) return -1;
+        startFromLine = startFromLine || 0;
         const filename = src.split('/').pop().split('?')[0];
-        for (let i = 0; i < DATA.length; i++) {
-          const lineText = DATA[i][0] || '';
-          if (lineText.includes(filename) || lineText.includes(src)) {
-            return i + 1;
+        var searchPasses = startFromLine > 0 ? [startFromLine, 0] : [0];
+        for (var pass = 0; pass < searchPasses.length; pass++) {
+          var searchStart = searchPasses[pass];
+          var searchEnd = pass === 0 && startFromLine > 0 ? DATA.length : (startFromLine > 0 ? startFromLine : DATA.length);
+          for (let i = searchStart; i < searchEnd; i++) {
+            const lineText = DATA[i][0] || '';
+            if (lineText.includes(filename) || lineText.includes(src)) {
+              return i + 1;
+            }
           }
         }
         return -1;
@@ -8913,7 +8968,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       preview.addEventListener('click', (e) => {
         // Handle image clicks - always select, even if modal is showing
         if (e.target.tagName === 'IMG') {
-          const line = findImageSourceLine(e.target.src);
+          const closestH = findClosestHeadingAbove(e.target);
+          const hLine = getHeadingSourceLine(closestH);
+          const line = findImageSourceLine(e.target.src, hLine);
           if (line > 0) {
             selectSourceRange(line, null, e.target);
           }
@@ -8945,7 +9002,9 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
             // Use video src to find the source line
             const video = videoElement || parentCell.querySelector('video');
             if (video && video.src) {
-              const line = findImageSourceLine(video.src);
+              const vClosestH = findClosestHeadingAbove(parentCell);
+              const vHLine = getHeadingSourceLine(vClosestH);
+              const line = findImageSourceLine(video.src, vHLine);
               if (line > 0) {
                 selectSourceRange(line, null, parentCell);
                 // Return if this is a post-fullscreen click (for selection only)
