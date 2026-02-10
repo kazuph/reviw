@@ -1432,6 +1432,16 @@ function diffHtmlTemplate(diffData, history = []) {
       border: none;
       cursor: pointer;
     }
+    .floating button.icon-only {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      line-height: 1;
+    }
     .floating textarea {
       width: 100%;
       min-height: 100px;
@@ -1457,6 +1467,25 @@ function diffHtmlTemplate(diffData, history = []) {
     .floating .actions button.primary {
       background: #238636;
       color: #fff;
+    }
+    .copy-toast {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--accent);
+      color: var(--text-inverse);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease, transform 200ms ease;
+      z-index: 1000;
+    }
+    .copy-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
     }
 
     .comment-list {
@@ -1823,6 +1852,7 @@ function diffHtmlTemplate(diffData, history = []) {
     <header>
       <h2 id="card-title">Line Comment</h2>
       <div style="display:flex; gap:6px;">
+        <button class="icon-only" id="copy-selection" title="Copy selected lines" aria-label="Copy selected lines">📋</button>
         <button id="close-card">Close</button>
         <button id="clear-comment">Delete</button>
       </div>
@@ -1860,6 +1890,7 @@ function diffHtmlTemplate(diffData, history = []) {
       </div>
     </div>
   </div>
+  <div class="copy-toast" id="copy-toast">Copied selected lines</div>
 
   <script>
     const DATA = ${serialized};
@@ -2054,6 +2085,7 @@ function diffHtmlTemplate(diffData, history = []) {
     const commentCount = document.getElementById('comment-count');
     const commentPanel = document.querySelector('.comment-list');
     const pillComments = document.getElementById('pill-comments');
+    const copyToast = document.getElementById('copy-toast');
 
     const comments = {};
     let currentKey = null;
@@ -2062,6 +2094,7 @@ function diffHtmlTemplate(diffData, history = []) {
     let dragStart = null;
     let dragEnd = null;
     let selection = null;
+    let copyToastTimer = null;
 
     // Image attachment state
     const submitImages = []; // base64 images for submit modal (max 5)
@@ -2150,6 +2183,54 @@ function diffHtmlTemplate(diffData, history = []) {
       }
       const n = parseInt(key, 10);
       return { start: n, end: n };
+    }
+
+    function showCopyToast(message) {
+      if (!copyToast) return;
+      copyToast.textContent = message;
+      copyToast.classList.add('visible');
+      if (copyToastTimer) clearTimeout(copyToastTimer);
+      copyToastTimer = setTimeout(() => copyToast.classList.remove('visible'), 1400);
+    }
+
+    async function copyTextToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (_) {
+        try {
+          const hidden = document.createElement('textarea');
+          hidden.value = text;
+          hidden.style.position = 'fixed';
+          hidden.style.opacity = '0';
+          document.body.appendChild(hidden);
+          hidden.select();
+          const ok = document.execCommand('copy');
+          hidden.remove();
+          return ok;
+        } catch (_) {
+          return false;
+        }
+      }
+    }
+
+    async function copySelectionLines() {
+      if (!selection) {
+        showCopyToast('No lines selected');
+        return;
+      }
+      const lines = [];
+      for (let r = selection.start; r <= selection.end; r++) {
+        const row = DATA[r];
+        if (!row || row.type === 'file' || row.type === 'hunk') continue;
+        lines.push(row.content || '');
+      }
+      if (lines.length === 0) {
+        showCopyToast('No lines selected');
+        return;
+      }
+      const copied = await copyTextToClipboard(lines.join('\\n'));
+      showCopyToast(copied ? 'Copied selected lines' : 'Copy failed');
     }
 
     // localStorage
@@ -2432,6 +2513,7 @@ function diffHtmlTemplate(diffData, history = []) {
     document.getElementById('save-comment').addEventListener('click', saveCurrent);
     document.getElementById('clear-comment').addEventListener('click', clearCurrent);
     document.getElementById('close-card').addEventListener('click', closeCard);
+    document.getElementById('copy-selection').addEventListener('click', () => { void copySelectionLines(); });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         // Don't close card if any fullscreen overlay is open
@@ -2923,6 +3005,16 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       font-weight: 600;
       cursor: pointer;
       transition: background 120ms ease, opacity 120ms ease;
+    }
+    .floating button.icon-only {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      line-height: 1;
     }
     .floating button:hover { opacity: 0.85; }
     .floating textarea {
@@ -4856,6 +4948,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     <header>
       <h2 id="card-title">Cell Comment</h2>
       <div style="display:flex; gap:6px;">
+        <button class="icon-only" id="copy-selection" title="Copy selected lines" aria-label="Copy selected lines">📋</button>
         <button id="close-card">Close</button>
         <button id="clear-comment">Delete</button>
       </div>
@@ -4936,7 +5029,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     </div>
   </div>
   <div class="mermaid-error-toast" id="mermaid-error-toast"></div>
-  <div class="copy-toast" id="copy-toast">Copied to clipboard!</div>
+  <div class="copy-toast" id="copy-toast">Copied selected lines</div>
   <div class="image-fullscreen-overlay" id="image-fullscreen">
     <div class="fullscreen-header">
       <h3>Image <span id="image-fs-counter" style="font-weight:normal;color:var(--muted)"></span></h3>
@@ -5726,6 +5819,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     let dragStart = null; // {row, col}
     let dragEnd = null;   // {row, col}
     let selection = null; // {startRow, endRow, startCol, endCol}
+    let copyToastTimer = null;
 
     // Image attachment state
     const submitImages = []; // base64 images for submit modal (max 5)
@@ -5734,6 +5828,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     // Image attachment handlers
     const submitImagePreview = document.getElementById('submit-image-preview');
     const commentImagePreview = document.getElementById('comment-image-preview');
+    const copyToast = document.getElementById('copy-toast');
 
     function addImageToPreview(container, images, maxCount, base64) {
       if (images.length >= maxCount) return;
@@ -6362,6 +6457,56 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       return { startRow, startCol, endRow, endCol };
     }
 
+    function showCopyToast(message) {
+      if (!copyToast) return;
+      copyToast.textContent = message;
+      copyToast.classList.add('visible');
+      if (copyToastTimer) clearTimeout(copyToastTimer);
+      copyToastTimer = setTimeout(() => copyToast.classList.remove('visible'), 1400);
+    }
+
+    async function copyTextToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (_) {
+        try {
+          const hidden = document.createElement('textarea');
+          hidden.value = text;
+          hidden.style.position = 'fixed';
+          hidden.style.opacity = '0';
+          document.body.appendChild(hidden);
+          hidden.select();
+          const ok = document.execCommand('copy');
+          hidden.remove();
+          return ok;
+        } catch (_) {
+          return false;
+        }
+      }
+    }
+
+    async function copySelectionLines() {
+      if (!selection) {
+        showCopyToast('No lines selected');
+        return;
+      }
+      const lines = [];
+      for (let r = selection.startRow; r <= selection.endRow; r++) {
+        const row = [];
+        for (let c = selection.startCol; c <= selection.endCol; c++) {
+          row.push(DATA[r - 1]?.[c - 1] || '');
+        }
+        lines.push(row.join('\\t'));
+      }
+      if (lines.length === 0) {
+        showCopyToast('No lines selected');
+        return;
+      }
+      const copied = await copyTextToClipboard(lines.join('\\n'));
+      showCopyToast(copied ? 'Copied selected lines' : 'Copy failed');
+    }
+
     function saveCurrent() {
       if (!currentKey) return;
       const text = commentInput.value.trim();
@@ -6440,6 +6585,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     document.getElementById('save-comment').addEventListener('click', saveCurrent);
     document.getElementById('clear-comment').addEventListener('click', clearCurrent);
     document.getElementById('close-card').addEventListener('click', closeCard);
+    document.getElementById('copy-selection').addEventListener('click', () => { void copySelectionLines(); });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         // Don't close card if any fullscreen overlay is open
