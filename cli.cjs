@@ -7,7 +7,7 @@
  *
  * Multiple files can be specified. Each file opens on a separate port.
  * Click cells in the browser to add comments.
- * Close the tab or click "Submit & Exit" to send comments to the server.
+ * Click "Submit & Exit" to send comments to the server.
  * When all files are closed, outputs combined YAML to stdout and exits.
  */
 
@@ -1871,7 +1871,7 @@ function diffHtmlTemplate(diffData, history = []) {
   <aside class="comment-list collapsed">
     <h3>Comments</h3>
     <ol id="comment-list"></ol>
-    <p class="hint">Click "Submit & Exit" to finish review.</p>
+    <p class="hint">Click "Submit & Exit" to finish review and output results.</p>
   </aside>
 
   <div class="modal-overlay" id="submit-modal">
@@ -4967,7 +4967,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
   <aside class="comment-list collapsed">
     <h3>Comments</h3>
     <ol id="comment-list"></ol>
-    <p class="hint">Close the tab or click "Submit & Exit" to send comments and stop the server.</p>
+    <p class="hint">Click "Submit & Exit" to send comments and stop the server.</p>
   </aside>
   <div class="filter-menu" id="filter-menu">
     <label class="menu-check"><input type="checkbox" id="freeze-col-check" /> Freeze up to this column</label>
@@ -9702,6 +9702,7 @@ function checkExistingServer(filePath) {
 
 // --- History File Management ---
 const HISTORY_DIR = path.join(os.homedir(), '.reviw', 'history');
+const OUTPUT_DIR = path.join(os.homedir(), '.reviw', 'outputs');
 const HISTORY_MAX = 50;
 
 function getHistoryFilePath(filePath) {
@@ -9714,6 +9715,16 @@ function ensureHistoryDir() {
   try {
     if (!fs.existsSync(HISTORY_DIR)) {
       fs.mkdirSync(HISTORY_DIR, { recursive: true, mode: 0o700 });
+    }
+  } catch (err) {
+    // Ignore errors
+  }
+}
+
+function ensureOutputDir() {
+  try {
+    if (!fs.existsSync(OUTPUT_DIR)) {
+      fs.mkdirSync(OUTPUT_DIR, { recursive: true, mode: 0o700 });
     }
   } catch (err) {
     // Ignore errors
@@ -9746,6 +9757,16 @@ function saveHistoryToFile(filePath, historyEntry) {
   } catch (err) {
     // Ignore errors - history is optional
   }
+}
+
+function shouldSaveHistory(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  if (Array.isArray(payload.comments) && payload.comments.length > 0) return true;
+  if (typeof payload.summary === "string" && payload.summary.trim().length > 0) return true;
+  if (Array.isArray(payload.reviwAnswers) && payload.reviwAnswers.length > 0) return true;
+  if (Array.isArray(payload.summaryImages) && payload.summaryImages.length > 0) return true;
+  if (Array.isArray(payload.prompts) && payload.prompts.length > 0) return true;
+  return false;
 }
 
 // Try to activate an existing browser tab with the given URL (macOS only)
@@ -9874,14 +9895,14 @@ function openBrowser(url, delay = 0) {
 }
 
 function outputAllResults() {
-  console.log("/do");
+  const outLines = ["/do"];
   if (allResults.length === 1) {
     const yamlOut = yaml.dump(allResults[0], { noRefs: true, lineWidth: 120 });
-    console.log(yamlOut.trim());
+    outLines.push(yamlOut.trim());
   } else {
     const combined = { files: allResults };
     const yamlOut = yaml.dump(combined, { noRefs: true, lineWidth: 120 });
-    console.log(yamlOut.trim());
+    outLines.push(yamlOut.trim());
   }
 
   // Output answered questions if any
@@ -9892,10 +9913,27 @@ function outputAllResults() {
     }
   }
   if (allAnswers.length > 0) {
-    console.log("\n[REVIW_ANSWERS]");
+    outLines.push("");
+    outLines.push("[REVIW_ANSWERS]");
     const answersYaml = yaml.dump(allAnswers, { noRefs: true, lineWidth: 120 });
-    console.log(answersYaml.trim());
-    console.log("[/REVIW_ANSWERS]");
+    outLines.push(answersYaml.trim());
+    outLines.push("[/REVIW_ANSWERS]");
+  }
+
+  const outputText = outLines.join("\n");
+  console.log(outputText);
+
+  // Durable fallback: persist final output to file for recovery.
+  try {
+    ensureOutputDir();
+    const latestPath = path.join(OUTPUT_DIR, "latest.yaml");
+    fs.writeFileSync(latestPath, outputText + "\n", { mode: 0o600 });
+
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const archivePath = path.join(OUTPUT_DIR, `output-${ts}.yaml`);
+    fs.writeFileSync(archivePath, outputText + "\n", { mode: 0o600 });
+  } catch (err) {
+    // Keep stdout behavior even if file backup fails.
   }
 }
 
@@ -10041,8 +10079,8 @@ function createFileServer(filePath, fileIndex = 0) {
           if (payload) {
             payload = processPayloadImages(payload, ctx.baseDir);
           }
-          // Save to file-based history (only if there are comments)
-          if (payload && (payload.comments?.length > 0 || payload.submitComment)) {
+          // Save to file-based history when review includes any meaningful submission.
+          if (shouldSaveHistory(payload)) {
             saveHistoryToFile(ctx.filePath, payload);
           }
           res.writeHead(200, { "Content-Type": "text/plain" });
@@ -10397,9 +10435,9 @@ function createDiffServer(diffContent) {
           if (payload) {
             payload = processPayloadImages(payload, process.cwd());
           }
-          // Save to file-based history (only if there are comments)
-          // For diff mode, use relativePath as identifier
-          if (payload && (payload.comments?.length > 0 || payload.submitComment)) {
+          // Save to file-based history when review includes any meaningful submission.
+          // For diff mode, use relativePath as identifier.
+          if (shouldSaveHistory(payload)) {
             const filePath = ctx.diffData?.relativePath || 'stdin-diff';
             saveHistoryToFile(filePath, payload);
           }
@@ -10516,7 +10554,7 @@ if (require.main === module) {
       console.log("Starting diff viewer from stdin...");
       serversRunning = 1;
       await createDiffServer(stdinContent);
-      console.log("Close the browser tab or Submit & Exit to finish.");
+      console.log('Click "Submit & Exit" to finish.');
     } else {
       // Treat as plain text
       console.log("Starting text viewer from stdin...");
@@ -10553,7 +10591,7 @@ if (require.main === module) {
     for (let i = 0; i < filesToStart.length; i++) {
       await createFileServer(filesToStart[i], i);
     }
-    console.log("Close all browser tabs or Submit & Exit to finish.");
+    console.log('Click "Submit & Exit" in each opened viewer to finish.');
   } else {
     // No files and no stdin: try auto git diff
     console.log(`reviw v${VERSION}`);
@@ -10575,7 +10613,7 @@ if (require.main === module) {
       console.log("Starting diff viewer...");
       serversRunning = 1;
       await createDiffServer(gitDiff);
-      console.log("Close the browser tab or Submit & Exit to finish.");
+      console.log('Click "Submit & Exit" to finish.');
     } catch (err) {
       console.error(err.message);
       console.log("");
