@@ -8867,13 +8867,43 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       }
 
       // Helper: find matching source line for table cell (prioritizes table rows)
-      function findTableSourceLine(text, startFromLine) {
+      function findTableSourceLine(text, startFromLine, element = null) {
         if (!text) return -1;
         startFromLine = startFromLine || 0;
         // Remove toggle icon characters (▼, ▶) that may be included from heading toggles
         const cleanText = text.replace(/[▼▶]/g, '').trim();
         const normalized = cleanText.replace(/\\s+/g, ' ').slice(0, 100);
         if (!normalized) return -1;
+        const normalizedLower = normalized.toLowerCase();
+
+        function escapeRegExp(s) {
+          return s.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&');
+        }
+
+        function normalizeCellText(cellText) {
+          return stripMarkdown(cellText)
+            .replace(/\\s+/g, ' ')
+            .trim()
+            .slice(0, 100);
+        }
+
+        // If this click comes from a linked table cell, prefer matching by href for stable mapping.
+        if (element) {
+          const linkEl = element.querySelector('a[href]') || (element.matches?.('a[href]') ? element : null);
+          const href = linkEl ? linkEl.getAttribute('href') : '';
+          if (href) {
+            var hrefSearchPasses = startFromLine > 0 ? [startFromLine, 0] : [0];
+            for (var hrefPass = 0; hrefPass < hrefSearchPasses.length; hrefPass++) {
+              var hrefSearchStart = hrefSearchPasses[hrefPass];
+              var hrefSearchEnd = hrefPass === 0 && startFromLine > 0 ? DATA.length : (startFromLine > 0 ? startFromLine : DATA.length);
+              for (let i = hrefSearchStart; i < hrefSearchEnd; i++) {
+                const lineText = (DATA[i][0] || '').trim();
+                if (!lineText || !lineText.startsWith('|')) continue;
+                if (lineText.includes(href)) return i + 1;
+              }
+            }
+          }
+        }
 
         // Two-pass strategy: search from startFromLine first, then fallback to 0
         var searchPasses = startFromLine > 0 ? [startFromLine, 0] : [0];
@@ -8886,27 +8916,37 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
             const lineText = (DATA[i][0] || '').trim();
             if (!lineText || !lineText.startsWith('|')) continue;
 
-            // Split into cells and check for exact match (excluding markdown syntax)
+            // Split into cells and check for exact match, including markdown link display text.
             const cells = lineText.split('|').map(c => c.trim());
             for (const cell of cells) {
-              // Skip cells that are markdown images/links (start with ![, contain []())
-              if (cell.match(/^!?\\[.*\\]\\(.*\\)$/)) continue;
+              if (!cell) continue;
+              const plainCell = normalizeCellText(cell);
 
-              // Check for exact cell text match
+              // Exact raw-cell or rendered-cell text match.
               if (cell === normalized) return i + 1;
+              if (plainCell === normalized) return i + 1;
+              if (plainCell.toLowerCase() === normalizedLower) return i + 1;
 
-              // For short text (like header cells), require exact word match
-              if (normalized.length <= 5 && cell === normalized) return i + 1;
+              // For short labels (e.g. Go/OK), allow whole-word match in rendered cell.
+              if (normalized.length <= 5 && plainCell) {
+                const wordPattern = new RegExp('(^|\\s)' + escapeRegExp(normalizedLower) + '(\\s|$)', 'i');
+                if (wordPattern.test(plainCell.toLowerCase())) return i + 1;
+              }
             }
           }
 
-          // Second pass: look for partial matches (including inside markdown syntax)
+          // Second pass: partial rendered-cell matching.
           for (let i = searchStart; i < searchEnd; i++) {
             const lineText = (DATA[i][0] || '').trim();
             if (!lineText || !lineText.startsWith('|')) continue;
 
-            const lineNorm = lineText.replace(/\\s+/g, ' ').slice(0, 100);
-            if (lineNorm.includes(normalized.slice(0, 30)) && normalized.length > 5) return i + 1;
+            const cells = lineText.split('|').map(c => normalizeCellText(c));
+            for (const plainCell of cells) {
+              if (!plainCell) continue;
+              const plainLower = plainCell.toLowerCase();
+              if (normalized.length > 5 && plainLower.includes(normalizedLower.slice(0, 30))) return i + 1;
+              if (normalized.length > 5 && normalizedLower.includes(plainLower.slice(0, 30)) && plainLower.length > 5) return i + 1;
+            }
           }
         }
 
@@ -9172,7 +9212,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
             const isTableCell = parentBlock.tagName === 'TD' || parentBlock.tagName === 'TH';
             const closestH = findClosestHeadingAbove(parentBlock);
             const hLine = getHeadingSourceLine(closestH);
-            const line = isTableCell ? findTableSourceLine(parentBlock.textContent, hLine) : findSourceLine(parentBlock.textContent, null, hLine);
+            const line = isTableCell ? findTableSourceLine(parentBlock.textContent, hLine, parentBlock) : findSourceLine(parentBlock.textContent, null, hLine);
             if (line > 0) {
               selectSourceRange(line, null, parentBlock);
             }
@@ -9233,7 +9273,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
 
         // Use table-specific search for table cells, otherwise use element-aware search
         const isTableCell = target.tagName === 'TD' || target.tagName === 'TH';
-        const line = isTableCell ? findTableSourceLine(searchText, headingLine) : findSourceLine(searchText, target, headingLine);
+        const line = isTableCell ? findTableSourceLine(searchText, headingLine, target) : findSourceLine(searchText, target, headingLine);
         if (line <= 0) return;
 
         // Don't prevent default for summary elements - let native <details> toggle work
