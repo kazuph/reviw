@@ -2591,7 +2591,7 @@ function diffHtmlTemplate(diffData, history = []) {
     document.getElementById('modal-cancel').addEventListener('click', hideSubmitModal);
     async function doSubmit() {
       globalComment = globalCommentInput.value;
-      savePromptPrefs();
+      if (typeof savePromptPrefs === 'function') savePromptPrefs();
       hideSubmitModal();
       await sendAndExit('button');
       // Try to close window; if it fails (browser security), show completion message
@@ -2956,6 +2956,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     td:hover:not(.selected) { background: var(--hover-bg); box-shadow: inset 0 0 0 1px rgba(96,165,250,0.25); }
     td.has-comment { background: rgba(34,197,94,0.12); box-shadow: inset 0 0 0 1px rgba(34,197,94,0.35); }
     td.selected, tbody th.selected { background: rgba(99,102,241,0.22) !important; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.45); }
+    .preview-highlight { background: rgba(167,139,250,0.18) !important; box-shadow: inset 0 0 0 2px rgba(139,92,246,0.35); border-radius: 4px; transition: background 150ms ease, box-shadow 150ms ease; padding-left: 8px; margin-left: -8px; }
     thead th.selected { background: #c7d2fe !important; box-shadow: inset 0 0 0 1px rgba(99,102,241,0.45); }
     [data-theme="dark"] thead th.selected { background: #3730a3 !important; }
     body.dragging { user-select: none; cursor: crosshair; }
@@ -3525,6 +3526,18 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       border-radius: 8px;
       line-height: 1.4;
     }
+    .view-toggle {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      color: var(--text);
+      font-size: 14px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .view-toggle:hover { background: rgba(96,165,250,0.2); }
+    .view-toggle.active { background: var(--accent); color: #fff; }
     @media (max-width: 1200px) {
       .media-sidebar-viewer.open {
         width: 40vw;
@@ -4431,10 +4444,13 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     }
     @media (max-width: 960px) {
       .md-layout { flex-direction: column; }
-      .md-left { max-width: 100%; flex: 0 0 auto; }
+      .md-left { max-width: 100%; flex: 1 1 0; min-height: 0; }
+      .md-right { display: none; }
       .media-sidebar { display: none; }
       .media-sidebar-toggle { display: none !important; }
     }
+    .md-layout.preview-only .md-right { display: none; }
+    .md-layout.preview-only .md-left { flex: 1 1 0; min-height: 0; max-width: 100%; }
     .filter-menu {
       position: absolute;
       background: var(--panel-solid);
@@ -4867,6 +4883,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
     </div>
     <div class="actions">
       <button class="media-sidebar-toggle" id="media-sidebar-toggle" title="Media Gallery" aria-label="Toggle media gallery">🖼<span class="toggle-count" id="media-toggle-count"></span></button>
+      <button class="view-toggle" id="view-toggle" title="Hide source panel" aria-label="Toggle source panel">📝</button>
       <button class="history-toggle" id="history-toggle" title="Review History">☰</button>
       <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
         <span id="theme-icon">🌙</span>
@@ -6133,10 +6150,17 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       commentInput.value = existingComment?.text || '';
 
       card.style.display = 'block';
-      // 常にソーステーブルの選択セル位置を基準にカードを配置
-      // これにより、プレビューからクリックしてもソースからクリックしても
-      // 同じ行に対しては同じ位置にダイアログが表示される
-      positionCardForSelection(startRow, endRow, startCol, endCol);
+      // Check if source panel is hidden (preview-only mode or narrow viewport)
+      const mdRight = document.querySelector('.md-right');
+      const isSourceHidden = mdRight && (mdRight.offsetParent === null || getComputedStyle(mdRight).display === 'none');
+
+      if (isSourceHidden && previewElement) {
+        // In preview-only mode, position card below the clicked preview element
+        positionCardBelowElement(previewElement);
+      } else {
+        // 常にソーステーブルの選択セル位置を基準にカードを配置
+        positionCardForSelection(startRow, endRow, startCol, endCol);
+      }
       commentInput.focus();
     }
 
@@ -6173,6 +6197,61 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       top = Math.max(margin, Math.min(top, vh - cardHeight - margin));
       left = Math.max(margin, Math.min(left, vw - cardWidth - margin));
 
+      card.style.left = left + 'px';
+      card.style.top = top + 'px';
+    }
+
+    // Position card below a clicked element (used in preview-only / narrow mode)
+    // Falls back to above the element if below doesn't fit
+    function positionCardBelowElement(element) {
+      const cardWidth = card.offsetWidth || 380;
+      const cardHeight = card.offsetHeight || 220;
+      const margin = 12;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      const mdLeft = document.querySelector('.md-left');
+      let rect = element.getBoundingClientRect();
+
+      // Try below first: scroll to make room if needed
+      const spaceBelow = vh - rect.bottom - margin;
+      if (spaceBelow < cardHeight && mdLeft) {
+        const scrollNeeded = cardHeight - spaceBelow + margin;
+        const scrollBefore = mdLeft.scrollTop;
+        mdLeft.scrollBy({ top: scrollNeeded, behavior: 'instant' });
+        // Recalculate after scroll
+        rect = element.getBoundingClientRect();
+      }
+
+      // Horizontal: ensure card fits
+      let left = rect.left;
+      if (left + cardWidth > vw - margin) {
+        left = vw - cardWidth - margin;
+      }
+      left = Math.max(margin, left);
+
+      // Vertical: prefer below, fallback to above
+      const spaceBelowAfterScroll = vh - rect.bottom - margin;
+      const spaceAbove = rect.top - margin;
+      let top;
+
+      if (spaceBelowAfterScroll >= cardHeight) {
+        // Fits below
+        top = rect.bottom + margin;
+      } else if (spaceAbove >= cardHeight) {
+        // Doesn't fit below, but fits above
+        top = rect.top - cardHeight - margin;
+      } else {
+        // Doesn't fit either way: choose the side with more space
+        if (spaceAbove > spaceBelowAfterScroll) {
+          top = Math.max(margin, rect.top - cardHeight - margin);
+        } else {
+          top = rect.bottom + margin;
+          top = Math.min(top, vh - cardHeight - margin);
+        }
+      }
+
+      top = Math.max(margin, top);
       card.style.left = left + 'px';
       card.style.top = top + 'px';
     }
@@ -6255,6 +6334,8 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
       card.style.display = 'none';
       currentKey = null;
       clearSelection();
+      // Clear preview highlight
+      document.querySelectorAll('.preview-highlight').forEach(el => el.classList.remove('preview-highlight'));
       // Re-enable scroll sync when card is closed
       window._disableScrollSync = false;
     }
@@ -7144,6 +7225,52 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         };
       }
     }
+
+    // --- Panel State (Preview-Only Toggle) ---
+    const PANEL_STATE_KEY = 'reviw-panel-state';
+    (function initPanelState() {
+      const viewToggle = document.getElementById('view-toggle');
+      const mdLayout = document.querySelector('.md-layout');
+      if (!viewToggle || !mdLayout) return;
+
+      function applyPanelState(isPreviewOnly) {
+        if (isPreviewOnly) {
+          mdLayout.classList.add('preview-only');
+          viewToggle.textContent = '\u{1F441}';
+          viewToggle.title = 'Show source panel';
+          viewToggle.classList.add('active');
+        } else {
+          mdLayout.classList.remove('preview-only');
+          viewToggle.textContent = '\u{1F4DD}';
+          viewToggle.title = 'Hide source panel';
+          viewToggle.classList.remove('active');
+        }
+      }
+
+      // Load saved state
+      const saved = localStorage.getItem(PANEL_STATE_KEY);
+      if (saved === 'preview-only') {
+        applyPanelState(true);
+      }
+
+      // Also apply preview-only for narrow viewports (auto-detect)
+      function checkNarrowMode() {
+        if (window.innerWidth <= 960) {
+          // In narrow mode, always act as preview-only (source is hidden by CSS)
+          viewToggle.style.display = 'none';
+        } else {
+          viewToggle.style.display = '';
+        }
+      }
+      checkNarrowMode();
+      window.addEventListener('resize', checkNarrowMode);
+
+      viewToggle.addEventListener('click', () => {
+        const isNowPreviewOnly = !mdLayout.classList.contains('preview-only');
+        applyPanelState(isNowPreviewOnly);
+        localStorage.setItem(PANEL_STATE_KEY, isNowPreviewOnly ? 'preview-only' : 'both');
+      });
+    })();
 
     // --- Mermaid Initialization ---
     (function initMermaid() {
@@ -9117,6 +9244,12 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         selection = { startRow, endRow: endRow || startRow, startCol: 1, endCol: 1 };
         updateSelectionVisual();
 
+        // Highlight the clicked preview element
+        document.querySelectorAll('.preview-highlight').forEach(el => el.classList.remove('preview-highlight'));
+        if (clickedPreviewElement) {
+          clickedPreviewElement.classList.add('preview-highlight');
+        }
+
         // Clear header selection
         document.querySelectorAll('thead th.selected').forEach(el => el.classList.remove('selected'));
 
@@ -9137,7 +9270,7 @@ function htmlTemplate(dataRows, cols, projectRoot, relativePath, mode, previewHt
         }
 
         // Open the card (synchronously) - now target cell should be visible for positioning
-        openCardForSelection();
+        openCardForSelection(clickedPreviewElement);
 
         // Re-add scroll handlers after a delay to allow scroll to settle
         setTimeout(() => {
