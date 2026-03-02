@@ -1,0 +1,10 @@
+{
+  "is-main": true,
+  "import": [],
+  "link": {
+    "js": {
+      "exports": ["init_app"],
+      "format": "esm"
+    }
+  }
+}
