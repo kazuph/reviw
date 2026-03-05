@@ -19,12 +19,6 @@ extern "js" fn query_all(selector : String) -> Array[Element] =
 extern "js" fn get_attr(el : Element, name : String) -> String =
   #|(el, name) => el?.getAttribute(name) || ""
 
-extern "js" fn set_attr(el : Element, name : String, value : String) -> Unit =
-  #|(el, name, val) => el?.setAttribute(name, val)
-
-extern "js" fn get_inner_html(el : Element) -> String =
-  #|(el) => el?.innerHTML || ""
-
 extern "js" fn set_inner_html(el : Element, html : String) -> Unit =
   #|(el, html) => { if (el) el.innerHTML = html; }
 
@@ -42,12 +36,6 @@ extern "js" fn add_class(el : Element, cls : String) -> Unit =
 
 extern "js" fn remove_class(el : Element, cls : String) -> Unit =
   #|(el, cls) => el?.classList.remove(cls)
-
-extern "js" fn has_class(el : Element, cls : String) -> Bool =
-  #|(el, cls) => el?.classList.contains(cls) || false
-
-extern "js" fn toggle_class(el : Element, cls : String) -> Unit =
-  #|(el, cls) => el?.classList.toggle(cls)
 
 ///| Event handling
 extern "js" fn on(el : Element, event : String, handler : (Event) -> Unit) -> Unit =
@@ -83,9 +71,6 @@ extern "js" fn get_bounding_rect_left(el : Element) -> Double =
 
 extern "js" fn get_bounding_rect_bottom(el : Element) -> Double =
   #|(el) => el?.getBoundingClientRect().bottom || 0
-
-extern "js" fn get_offset_height(el : Element) -> Int =
-  #|(el) => el?.offsetHeight || 0
 
 extern "js" fn window_inner_height() -> Int =
   #|() => window.innerHeight
@@ -139,6 +124,9 @@ extern "js" fn get_reviw_port() -> Int =
 extern "js" fn get_reviw_mode() -> String =
   #|() => window.__REVIW_MODE__ || "text"
 
+extern "js" fn get_reviw_filename() -> String =
+  #|() => window.__REVIW_FILENAME__ || ""
+
 ///| Focus
 extern "js" fn focus_element(el : Element) -> Unit =
   #|(el) => el?.focus()
@@ -147,18 +135,30 @@ extern "js" fn focus_element(el : Element) -> Unit =
 extern "js" fn is_null(el : Element) -> Bool =
   #|(el) => el == null || el == undefined
 
-///| Scroll into view
-extern "js" fn scroll_into_view(el : Element) -> Unit =
-  #|(el) => el?.scrollIntoView({ behavior: "smooth", block: "center" })
-
-///| Parse stored comments JSON and return array of [key, row, col, text]
+///| Parse stored comments JSON (cli.cjs { comments, timestamp } format)
 extern "js" fn parse_stored_comments(json : String) -> Array[Array[String]] =
   #|(json) => {
   #|  try {
-  #|    const obj = JSON.parse(json);
-  #|    return Object.entries(obj).map(([k, v]) => [k, String(v.row||0), String(v.col||0), v.text||""]);
+  #|    const data = JSON.parse(json);
+  #|    const comments = data.comments;
+  #|    if (!comments || typeof comments !== "object") return [];
+  #|    return Object.entries(comments).map(([k, v]) => [k, String(v.row||0), String(v.col||0), v.text||""]);
   #|  } catch(e) { return []; }
   #|}
+
+///| Check if stored comments JSON has expired (TTL: 3 hours)
+extern "js" fn is_storage_expired(json : String) -> Bool =
+  #|(json) => {
+  #|  try {
+  #|    const data = JSON.parse(json);
+  #|    const TTL = 3 * 60 * 60 * 1000;
+  #|    return !data.timestamp || (Date.now() - data.timestamp > TTL);
+  #|  } catch(e) { return true; }
+  #|}
+
+///| Current timestamp as string for JSON embedding
+extern "js" fn date_now_string() -> String =
+  #|() => String(Date.now())
 
 ///| Window close
 extern "js" fn window_close() -> Unit =

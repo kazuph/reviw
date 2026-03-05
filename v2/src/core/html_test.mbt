@@ -61,12 +61,16 @@ test "build diff html shows additions and deletions" {
       {
         old_path: "a.txt",
         new_path: "a.txt",
+        is_new: false,
+        is_deleted: false,
+        is_binary: false,
         hunks: [
           {
             old_start: 1,
             old_count: 1,
             new_start: 1,
             new_count: 1,
+            context: "",
             lines: [
               { kind: Deletion, content: "old" },
               { kind: Addition, content: "new" },

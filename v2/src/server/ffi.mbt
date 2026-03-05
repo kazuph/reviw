@@ -86,12 +86,6 @@ extern "js" fn read_body(req : JsValue, callback : (String) -> Unit) -> Unit =
 extern "js" fn res_write_head(res : JsValue, status : Int, content_type : String) -> Unit =
   #|(res, status, ct) => res.writeHead(status, {"Content-Type": ct})
 
-extern "js" fn res_write_head_with_headers(res : JsValue, status : Int, headers : String) -> Unit =
-  #|(res, status, hdrs) => res.writeHead(status, JSON.parse(hdrs))
-
-extern "js" fn res_write(res : JsValue, data : String) -> Unit =
-  #|(res, data) => res.write(data)
-
 extern "js" fn res_end(res : JsValue, data : String) -> Unit =
   #|(res, data) => res.end(data)
 
@@ -116,9 +110,6 @@ extern "js" fn on_close(obj : JsValue, callback : () -> Unit) -> Unit =
 ///| Timer
 extern "js" fn set_interval(callback : () -> Unit, ms : Int) -> JsValue =
   #|(cb, ms) => setInterval(cb, ms)
-
-extern "js" fn clear_interval(id : JsValue) -> Unit =
-  #|(id) => clearInterval(id)
 
 ///| Open browser - import exec via #module
 #module("node:child_process")
@@ -149,9 +140,6 @@ extern "js" fn console_error(msg : String) -> Unit =
 ///| JSON
 extern "js" fn json_parse_string(key : String, json_str : String) -> String =
   #|(key, s) => { try { return JSON.parse(s)[key] || ""; } catch(e) { return ""; } }
-
-extern "js" fn json_parse_int(key : String, json_str : String) -> Int =
-  #|(key, s) => { try { return JSON.parse(s)[key] || 0; } catch(e) { return 0; } }
 
 ///| Create options object for mkdirSync recursive
 extern "js" fn mkdir_recursive_opts() -> JsValue =
@@ -186,23 +174,11 @@ extern "js" fn json_parse_comments(json_str : String) -> Array[Array[String]] =
 #module("node:os")
 extern "js" fn os_homedir() -> String = "homedir"
 
-///|
-fn get_home_dir() -> String {
-  os_homedir()
-}
+///| Get environment variable value (empty string if not set)
+extern "js" fn get_env_var(name : String) -> String =
+  #|(name) => process.env[name] || ""
 
 ///| Process signal handler
 extern "js" fn on_process_signal(signal : String, handler : () -> Unit) -> Unit =
   #|(sig, handler) => process.on(sig, handler)
 
-///| Crypto - createHash returns an object, need inline wrapper
-extern "js" fn sha256_hex(data : String) -> String =
-  #|(data) => {
-  #|  const encoder = new TextEncoder();
-  #|  const bytes = encoder.encode(data);
-  #|  let hash = 0;
-  #|  for (let i = 0; i < bytes.length; i++) {
-  #|    hash = ((hash << 5) - hash + bytes[i]) | 0;
-  #|  }
-  #|  return (hash >>> 0).toString(16).padStart(8, "0");
-  #|}

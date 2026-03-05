@@ -57,6 +57,7 @@ pub(all) struct DiffHunk {
   old_count : Int
   new_start : Int
   new_count : Int
+  context : String
   lines : Array[DiffLine]
 } derive(Show)
 
@@ -77,6 +78,9 @@ pub(all) enum DiffLineKind {
 pub(all) struct DiffFile {
   old_path : String
   new_path : String
+  is_new : Bool
+  is_deleted : Bool
+  is_binary : Bool
   hunks : Array[DiffHunk]
 } derive(Show)
 

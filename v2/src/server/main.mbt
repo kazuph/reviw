@@ -39,8 +39,12 @@ fn load_ui_js() -> String {
 
 ///| Get lock file directory
 fn lock_dir() -> String {
-  let home = os_homedir()
-  path_join(home, ".reviw/locks")
+  let override_dir = get_env_var("REVIW_LOCK_DIR")
+  if override_dir.length() > 0 {
+    override_dir
+  } else {
+    path_join(os_homedir(), ".reviw/locks")
+  }
 }
 
 ///| Get lock file path for a port
@@ -200,20 +204,10 @@ fn detect_mode(file_path : String) -> @core.FileMode {
 fn load_and_build_html(ctx : ServerContext) -> String {
   let content = read_file_sync(ctx.file_path, "utf-8")
   match ctx.mode {
-    @core.FileMode::Csv => {
-      let data = try {
-        @core.parse_csv(content, ',')
-      } catch {
-        _ => { headers: ["Error"], rows: [["Failed to parse CSV"]] }
-      }
-      @core.build_csv_html(data, ctx.filename, ctx.port)
-    }
-    @core.FileMode::Tsv => {
-      let data = try {
-        @core.parse_csv(content, '\t')
-      } catch {
-        _ => { headers: ["Error"], rows: [["Failed to parse TSV"]] }
-      }
+    @core.FileMode::Csv | @core.FileMode::Tsv => {
+      let delimiter = if ctx.mode == @core.FileMode::Tsv { '\t' } else { ',' }
+      let flat = @core.parse_csv(content, delimiter)
+      let data = @core.csv_data_from_flat(flat)
       @core.build_csv_html(data, ctx.filename, ctx.port)
     }
     @core.FileMode::Diff => {

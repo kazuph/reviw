@@ -484,60 +484,60 @@ fn render_inline(text : String) -> String {
   buf.to_string()
 }
 
-///| Build HTML page for markdown viewer (side-by-side preview + source)
+fn build_mermaid_fullscreen(buf : StringBuilder) -> Unit {
+  buf.write_string("<div id=\"mermaid-fullscreen\" class=\"modal-overlay hidden\">")
+  buf.write_string("<div class=\"fullscreen-content\">")
+  buf.write_string("<button class=\"btn\" id=\"mermaid-fullscreen-close\">Close</button>")
+  buf.write_string("<div id=\"mermaid-fullscreen-body\"></div>")
+  buf.write_string("</div></div>")
+}
+
+fn build_image_fullscreen(buf : StringBuilder) -> Unit {
+  buf.write_string("<div id=\"image-fullscreen\" class=\"modal-overlay hidden\">")
+  buf.write_string("<div class=\"fullscreen-content\">")
+  buf.write_string("<button class=\"btn\" id=\"image-fullscreen-close\">Close</button>")
+  buf.write_string("<img id=\"image-fullscreen-img\" src=\"\" alt=\"\" />")
+  buf.write_string("</div></div>")
+}
+
+///| Build HTML page for markdown viewer (cli.cjs-compatible structure)
 pub fn build_markdown_html(
   md : MarkdownData,
   filename : String,
   port : Int
 ) -> String {
   let buf = StringBuilder::new()
-  buf.write_string("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>reviw - ")
-  buf.write_string(escape_html(filename))
-  buf.write_string("</title><style>")
-  buf.write_string(build_css())
-  buf.write_string("</style></head><body>")
-  // Toolbar
-  buf.write_string("<div class=\"toolbar\"><h1>reviw <span class=\"filename\">")
-  buf.write_string(escape_html(filename))
-  buf.write_string("</span></h1><div style=\"flex:1\"></div>")
-  buf.write_string("<button class=\"btn\" id=\"theme-toggle\">Theme</button>")
-  buf.write_string("<button class=\"btn btn-primary\" id=\"submit-btn\">Submit &amp; Exit</button></div>")
-  // Side-by-side container
-  buf.write_string("<div class=\"md-container\">")
-  // Preview pane
+  build_page_start(buf, filename)
+  // View and comment toolbar buttons
+  buf.write_string("<button class=\"btn\" id=\"view-toggle\">View</button>")
+  buf.write_string("<button class=\"btn\" id=\"comment-toggle\">Comments</button>")
+  // Side-by-side layout: md-left = preview, md-right = source table
+  buf.write_string("<div class=\"md-layout\">")
+  // Left panel: rendered markdown preview
+  buf.write_string("<div class=\"md-left\">")
   buf.write_string("<div class=\"md-preview\" id=\"md-preview\">")
   buf.write_string(md.html)
-  buf.write_string("</div>")
-  // Source pane
-  buf.write_string("<div class=\"md-source\" id=\"md-source\">")
+  buf.write_string("</div></div>")
+  // Right panel: source as table (mirrors #csv-table structure for click events)
+  buf.write_string("<div class=\"md-right\">")
+  buf.write_string("<table id=\"csv-table\"><tbody id=\"tbody\">")
   let source_lines = split_to_lines(md.source)
   for i, line in source_lines {
-    buf.write_string("<span class=\"line\" data-row=\"")
+    buf.write_string("<tr data-row=\"")
     buf.write_string(i.to_string())
-    buf.write_string("\">")
+    buf.write_string("\"><td data-row=\"")
+    buf.write_string(i.to_string())
+    buf.write_string("\" data-col=\"1\">")
     buf.write_string(escape_html(line))
-    buf.write_string("</span>\n")
+    buf.write_string("</td></tr>")
   }
+  buf.write_string("</tbody></table>")
   buf.write_string("</div></div>")
-  // Comment card + modal
-  buf.write_string("<div id=\"comment-card\" class=\"comment-card hidden\">")
-  buf.write_string("<textarea id=\"comment-text\" placeholder=\"Add your comment...\"></textarea>")
-  buf.write_string("<div class=\"actions\">")
-  buf.write_string("<button class=\"btn\" id=\"comment-cancel\">Cancel</button>")
-  buf.write_string("<button class=\"btn btn-primary\" id=\"comment-save\">Save</button>")
-  buf.write_string("</div></div>")
-  buf.write_string("<div id=\"submit-modal\" class=\"modal-overlay hidden\">")
-  buf.write_string("<div class=\"modal\"><h2>Submit Review</h2>")
-  buf.write_string("<ul id=\"comment-list\" class=\"comment-list\"></ul>")
-  buf.write_string("<textarea id=\"summary-text\" placeholder=\"Overall summary...\"></textarea>")
-  buf.write_string("<div style=\"display:flex;gap:8px;justify-content:flex-end\">")
-  buf.write_string("<button class=\"btn\" id=\"modal-cancel\">Cancel</button>")
-  buf.write_string("<button class=\"btn btn-primary\" id=\"modal-submit\">Submit &amp; Exit</button>")
-  buf.write_string("</div></div></div>")
-  buf.write_string("<script type=\"module\" src=\"/ui.js\"></script>")
-  buf.write_string("<script>window.__REVIW_PORT__=")
-  buf.write_string(port.to_string())
-  buf.write_string(";window.__REVIW_MODE__=\"markdown\";</script>")
-  buf.write_string("</body></html>")
+  build_mermaid_fullscreen(buf)
+  build_image_fullscreen(buf)
+  build_comment_card(buf)
+  build_submit_modal(buf)
+  build_recovery_modal(buf)
+  build_script_footer(buf, port, "markdown", filename)
   buf.to_string()
 }

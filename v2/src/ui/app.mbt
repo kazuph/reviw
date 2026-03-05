@@ -11,16 +11,9 @@ let comments : Map[String, AppComment] = {}
 ///| Currently active comment card target
 let active_key : Ref[String] = Ref::new("")
 
-///| Simple string-to-int parser
+///| Delegate to core's parse_int_safe
 fn str_to_int(s : String) -> Int {
-  let mut n = 0
-  let chars = s.to_array()
-  for ch in chars {
-    if ch >= '0' && ch <= '9' {
-      n = n * 10 + (ch.to_int() - '0'.to_int())
-    }
-  }
-  n
+  @core.parse_int_safe(s)
 }
 
 ///| Truncate string to max length
@@ -35,6 +28,12 @@ fn truncate(s : String, max : Int) -> String {
     }
     buf.to_string()
   }
+}
+
+///| Get localStorage key for comment storage (cli.cjs compatible)
+fn get_storage_key() -> String {
+  let filename = get_reviw_filename()
+  "reviw:comments:\{filename}"
 }
 
 ///| Initialize the app - called on page load
@@ -58,7 +57,7 @@ pub fn init_app() -> Unit {
     )
   }
   // Setup submit button
-  let submit_btn = query("#submit-btn")
+  let submit_btn = query("#send-and-exit")
   if not(is_null(submit_btn)) {
     on(submit_btn, "click", fn(_e) { show_submit_modal() })
   }
@@ -67,7 +66,7 @@ pub fn init_app() -> Unit {
   if not(is_null(cancel_btn)) {
     on(cancel_btn, "click", fn(_e) { hide_comment_card() })
   }
-  let save_btn = query("#comment-save")
+  let save_btn = query("#save-comment")
   if not(is_null(save_btn)) {
     on(save_btn, "click", fn(_e) { save_comment() })
   }
@@ -83,6 +82,15 @@ pub fn init_app() -> Unit {
       "click",
       fn(_e) { submit_review(port) },
     )
+  }
+  // Setup recovery modal buttons
+  let recovery_restore = query("#recovery-restore")
+  if not(is_null(recovery_restore)) {
+    on(recovery_restore, "click", fn(_e) { restore_comments() })
+  }
+  let recovery_discard = query("#recovery-discard")
+  if not(is_null(recovery_discard)) {
+    on(recovery_discard, "click", fn(_e) { discard_comments() })
   }
   // Keyboard shortcut: Cmd/Ctrl+Enter to open submit modal
   on_doc(
@@ -102,11 +110,11 @@ pub fn init_app() -> Unit {
   match mode {
     "csv" => setup_csv_clicks()
     "diff" => setup_diff_clicks()
-    "markdown" => setup_markdown_clicks()
+    "markdown" => setup_csv_clicks()
     _ => setup_text_clicks()
   }
-  // Restore comments from localStorage
-  load_comments(port)
+  // Check for saved comments and show recovery modal if present
+  check_recovery()
   // Setup SSE for live reload
   setup_sse(port)
 }
@@ -150,46 +158,6 @@ fn setup_diff_clicks() -> Unit {
 }
 
 ///|
-fn setup_markdown_clicks() -> Unit {
-  let lines = query_all(".md-source .line")
-  for line in lines {
-    on(
-      line,
-      "click",
-      fn(e) {
-        let target = closest(event_target(e), ".line")
-        if not(is_null(target)) {
-          let row_str = get_attr(target, "data-row")
-          let key = "\{row_str}:0"
-          show_comment_card(target, key, str_to_int(row_str), 0)
-        }
-      },
-    )
-  }
-}
-
-///|
-fn load_comments(port : Int) -> Unit {
-  let stored = ls_get("reviw_comments_\{port}")
-  if stored.length() == 0 {
-    return
-  }
-  let entries = parse_stored_comments(stored)
-  for entry in entries {
-    if entry.length() >= 4 {
-      let key = entry[0]
-      let row = str_to_int(entry[1])
-      let col = str_to_int(entry[2])
-      let text = entry[3]
-      if text.length() > 0 {
-        comments.set(key, { row, col, text })
-      }
-    }
-  }
-  update_comment_indicators()
-}
-
-///|
 fn setup_text_clicks() -> Unit {
   let lines = query_all(".text-line")
   for line in lines {
@@ -208,10 +176,63 @@ fn setup_text_clicks() -> Unit {
   }
 }
 
+///| Check for saved comments and show recovery modal (with TTL validation)
+fn check_recovery() -> Unit {
+  let key = get_storage_key()
+  let stored = ls_get(key)
+  if stored.length() == 0 {
+    return
+  }
+  if is_storage_expired(stored) {
+    ls_remove(key)
+    return
+  }
+  let modal = query("#recovery-modal")
+  if not(is_null(modal)) {
+    remove_class(modal, "hidden")
+  }
+}
+
+///|
+fn restore_comments() -> Unit {
+  let key = get_storage_key()
+  let stored = ls_get(key)
+  if stored.length() > 0 {
+    let entries = parse_stored_comments(stored)
+    for entry in entries {
+      if entry.length() >= 4 {
+        let k = entry[0]
+        let row = str_to_int(entry[1])
+        let col = str_to_int(entry[2])
+        let text = entry[3]
+        if text.length() > 0 {
+          comments.set(k, { row, col, text })
+        }
+      }
+    }
+    update_comment_indicators()
+  }
+  hide_recovery_modal()
+}
+
+///|
+fn discard_comments() -> Unit {
+  ls_remove(get_storage_key())
+  hide_recovery_modal()
+}
+
+///|
+fn hide_recovery_modal() -> Unit {
+  let modal = query("#recovery-modal")
+  if not(is_null(modal)) {
+    add_class(modal, "hidden")
+  }
+}
+
 ///|
 fn show_comment_card(target : Element, key : String, row : Int, col : Int) -> Unit {
   let card = query("#comment-card")
-  let textarea = query("#comment-text")
+  let textarea = query("#comment-input")
   if is_null(card) || is_null(textarea) {
     return
   }
@@ -248,7 +269,7 @@ fn hide_comment_card() -> Unit {
 
 ///|
 fn save_comment() -> Unit {
-  let textarea = query("#comment-text")
+  let textarea = query("#comment-input")
   if is_null(textarea) {
     return
   }
@@ -270,9 +291,9 @@ fn save_comment() -> Unit {
 
 ///|
 fn update_comment_indicators() -> Unit {
-  let all_commented = query_all(".commented")
+  let all_commented = query_all(".has-comment")
   for el in all_commented {
-    remove_class(el, "commented")
+    remove_class(el, "has-comment")
   }
   comments.each(
     fn(_key, comment) {
@@ -280,7 +301,7 @@ fn update_comment_indicators() -> Unit {
         let selector = "[data-row=\"\{comment.row}\"][data-col=\"\{comment.col}\"]"
         let el = query(selector)
         if not(is_null(el)) {
-          add_class(el, "commented")
+          add_class(el, "has-comment")
         }
       }
     },
@@ -290,7 +311,7 @@ fn update_comment_indicators() -> Unit {
 ///|
 fn show_submit_modal() -> Unit {
   let modal = query("#submit-modal")
-  let list = query("#comment-list")
+  let list = query("#modal-summary")
   if is_null(modal) || is_null(list) {
     return
   }
@@ -299,9 +320,9 @@ fn show_submit_modal() -> Unit {
     fn(key, comment) {
       if comment.text.length() > 0 {
         buf.write_string("<li><span class=\"location\">")
-        buf.write_string(key)
+        buf.write_string(@core.escape_html(key))
         buf.write_string("</span>: ")
-        buf.write_string(comment.text)
+        buf.write_string(@core.escape_html(comment.text))
         buf.write_string("</li>")
       }
     },
@@ -313,7 +334,8 @@ fn show_submit_modal() -> Unit {
     set_inner_html(list, html)
   }
   remove_class(modal, "hidden")
-  let summary = query("#summary-text")
+  add_class(modal, "visible")
+  let summary = query("#global-comment")
   if not(is_null(summary)) {
     focus_element(summary)
   }
@@ -324,12 +346,13 @@ fn hide_submit_modal() -> Unit {
   let modal = query("#submit-modal")
   if not(is_null(modal)) {
     add_class(modal, "hidden")
+    remove_class(modal, "visible")
   }
 }
 
 ///|
 fn submit_review(port : Int) -> Unit {
-  let summary_el = query("#summary-text")
+  let summary_el = query("#global-comment")
   let summary = if is_null(summary_el) { "" } else { get_value(summary_el) }
   let buf = StringBuilder::new()
   buf.write_string("{\"summary\":")
@@ -359,7 +382,7 @@ fn submit_review(port : Int) -> Unit {
     url,
     buf.to_string(),
     fn(_response) {
-      ls_remove("reviw_comments_\{port}")
+      ls_remove(get_storage_key())
       window_close()
     },
   )
@@ -367,21 +390,7 @@ fn submit_review(port : Int) -> Unit {
 
 ///|
 fn json_encode_string(s : String) -> String {
-  let buf = StringBuilder::new()
-  buf.write_char('"')
-  let chars = s.to_array()
-  for ch in chars {
-    match ch {
-      '"' => buf.write_string("\\\"")
-      '\\' => buf.write_string("\\\\")
-      '\n' => buf.write_string("\\n")
-      '\r' => buf.write_string("\\r")
-      '\t' => buf.write_string("\\t")
-      _ => buf.write_char(ch)
-    }
-  }
-  buf.write_char('"')
-  buf.to_string()
+  "\"" + @core.escape_js_string(s) + "\""
 }
 
 ///|
@@ -391,18 +400,18 @@ fn setup_sse(port : Int) -> Unit {
   sse_on(es, "reload", fn(_e) { location_reload() })
 }
 
-///|
+///| Save comments to localStorage in cli.cjs-compatible { comments, timestamp } format
 fn persist_comments() -> Unit {
-  let port = get_reviw_port()
+  let key = get_storage_key()
   let buf = StringBuilder::new()
-  buf.write_char('{')
+  buf.write_string("{\"comments\":{")
   let first = Ref::new(true)
   comments.each(
-    fn(key, comment) {
+    fn(k, comment) {
       if not(first.val) {
         buf.write_char(',')
       }
-      buf.write_string(json_encode_string(key))
+      buf.write_string(json_encode_string(k))
       buf.write_string(":{\"row\":")
       buf.write_string(comment.row.to_string())
       buf.write_string(",\"col\":")
@@ -413,8 +422,10 @@ fn persist_comments() -> Unit {
       first.val = false
     },
   )
+  buf.write_string("},\"timestamp\":")
+  buf.write_string(date_now_string())
   buf.write_char('}')
-  ls_set("reviw_comments_\{port}", buf.to_string())
+  ls_set(key, buf.to_string())
 }
 
 ///| Entry point: auto-init on module load
