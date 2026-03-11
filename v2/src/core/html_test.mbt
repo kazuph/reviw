@@ -28,7 +28,7 @@ test "build csv html contains table" {
   inspect(html.contains("Alice"), content=(
     #|true
   ))
-  inspect(html.contains("reviw - test.csv"), content=(
+  inspect(html.contains("test.csv | reviw"), content=(
     #|true
   ))
 }
@@ -51,6 +51,20 @@ test "build text html line numbers" {
     #|true
   ))
   inspect(html.contains("hello"), content=(
+    #|true
+  ))
+}
+
+test "build page includes highlight.js CDN" {
+  let data : CsvData = { headers: ["a"], rows: [["1"]] }
+  let html = build_csv_html(data, "test.csv", 4989)
+  inspect(html.contains("id=\"hljs-theme-dark\""), content=(
+    #|true
+  ))
+  inspect(html.contains("id=\"hljs-theme-light\""), content=(
+    #|true
+  ))
+  inspect(html.contains("highlight.min.js"), content=(
     #|true
   ))
 }

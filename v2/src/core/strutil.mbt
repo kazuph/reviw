@@ -1,11 +1,13 @@
 ///| Safe substring from start index to end (returns empty if out of range)
+///  Uses chars array length (code points) not String.length() (UTF-16 units)
+///  to avoid index-out-of-bounds with emoji/surrogate pairs.
 pub fn safe_slice(s : String, start : Int) -> String {
-  let len = s.length()
+  let chars = s.to_array()
+  let len = chars.length()
   if start >= len || start < 0 {
     ""
   } else {
     let buf = StringBuilder::new()
-    let chars = s.to_array()
     for i in start..<len {
       buf.write_char(chars[i])
     }
@@ -14,15 +16,16 @@ pub fn safe_slice(s : String, start : Int) -> String {
 }
 
 ///| Safe substring from start to end index
+///  Uses chars array length (code points) not String.length() (UTF-16 units).
 pub fn safe_slice_range(s : String, start : Int, end : Int) -> String {
-  let len = s.length()
+  let chars = s.to_array()
+  let len = chars.length()
   let actual_start = if start < 0 { 0 } else { start }
   let actual_end = if end > len { len } else { end }
   if actual_start >= actual_end {
     ""
   } else {
     let buf = StringBuilder::new()
-    let chars = s.to_array()
     for i in actual_start..<actual_end {
       buf.write_char(chars[i])
     }

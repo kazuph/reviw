@@ -11,6 +11,9 @@ struct ServerContext {
 ///| All active server contexts
 let active_servers : Array[ServerContext] = []
 
+///| Encoding override from CLI --encoding / -e flag
+let encoding_override : Ref[String] = Ref::new("")
+
 ///| Results collected from submissions
 let all_results : Array[@core.ReviewResult] = []
 
@@ -123,6 +126,11 @@ fn main {
       }
     } else if arg == "--no-open" {
       no_open = true
+    } else if arg == "--encoding" || arg == "-e" {
+      i = i + 1
+      if i < args.length() {
+        encoding_override.val = args[i]
+      }
     } else if not(arg.has_prefix("-")) {
       files.push(arg)
     }
@@ -167,10 +175,11 @@ fn print_usage() -> Unit {
     #|Usage: reviw <file...> [options]
     #|
     #|Options:
-    #|  --port <n>   Base port (default: 4989)
-    #|  --no-open    Don't open browser
-    #|  -h, --help   Show help
-    #|  -v, --version Show version
+    #|  --port <n>        Base port (default: 4989)
+    #|  --no-open         Don't open browser
+    #|  -e, --encoding <enc>  Force encoding (e.g. shift-jis, euc-jp)
+    #|  -h, --help        Show help
+    #|  -v, --version     Show version
     #|
     #|Supported formats: CSV, TSV, Markdown, Diff, Plain text
     #|Pipe stdin for diff: git diff | reviw
@@ -189,6 +198,116 @@ fn parse_port(s : String) -> Int {
   if n == 0 { 4989 } else { n }
 }
 
+///| Detect encoding from buffer: BOM → UTF-8 validate → heuristic
+fn detect_encoding(buf : JsValue) -> String {
+  let len = buffer_length(buf)
+  if len == 0 {
+    return "utf-8"
+  }
+  // BOM check
+  if len >= 3 &&
+    buffer_at(buf, 0) == 0xEF &&
+    buffer_at(buf, 1) == 0xBB &&
+    buffer_at(buf, 2) == 0xBF {
+    return "utf-8"
+  }
+  if len >= 2 && buffer_at(buf, 0) == 0xFF && buffer_at(buf, 1) == 0xFE {
+    return "utf-16le"
+  }
+  if len >= 2 && buffer_at(buf, 0) == 0xFE && buffer_at(buf, 1) == 0xFF {
+    return "utf-16be"
+  }
+  // Try UTF-8 validation
+  let mut i = 0
+  let mut is_utf8 = true
+  let check_limit = if len < 4096 { len } else { 4096 }
+  while i < check_limit {
+    let b = buffer_at(buf, i)
+    if b < 0x80 {
+      i = i + 1
+      continue
+    }
+    // Multi-byte UTF-8
+    let expected = if b >= 0xF0 {
+      4
+    } else if b >= 0xE0 {
+      3
+    } else if b >= 0xC0 {
+      2
+    } else {
+      0
+    }
+    if expected == 0 {
+      is_utf8 = false
+      break
+    }
+    if i + expected > check_limit {
+      break
+    }
+    let mut valid = true
+    for j in 1..<expected {
+      let cb = buffer_at(buf, i + j)
+      if cb < 0x80 || cb >= 0xC0 {
+        valid = false
+        break
+      }
+    }
+    if not(valid) {
+      is_utf8 = false
+      break
+    }
+    i = i + expected
+    continue
+  }
+  if is_utf8 {
+    return "utf-8"
+  }
+  // Heuristic: Shift-JIS vs EUC-JP
+  let mut sjis_score = 0
+  let mut euc_score = 0
+  i = 0
+  while i < check_limit - 1 {
+    let b1 = buffer_at(buf, i)
+    let b2 = buffer_at(buf, i + 1)
+    // Shift-JIS: lead byte 0x81-0x9F or 0xE0-0xFC, trail 0x40-0x7E or 0x80-0xFC
+    if (b1 >= 0x81 && b1 <= 0x9F) || (b1 >= 0xE0 && b1 <= 0xFC) {
+      if (b2 >= 0x40 && b2 <= 0x7E) || (b2 >= 0x80 && b2 <= 0xFC) {
+        sjis_score = sjis_score + 1
+        i = i + 2
+        continue
+      }
+    }
+    // EUC-JP: lead byte 0xA1-0xFE, trail 0xA1-0xFE
+    if b1 >= 0xA1 && b1 <= 0xFE && b2 >= 0xA1 && b2 <= 0xFE {
+      euc_score = euc_score + 1
+      i = i + 2
+      continue
+    }
+    i = i + 1
+  }
+  if sjis_score > euc_score && sjis_score > 0 {
+    return "shift-jis"
+  }
+  if euc_score > sjis_score && euc_score > 0 {
+    return "euc-jp"
+  }
+  "utf-8"
+}
+
+///| Decode file with optional encoding override
+fn decode_file(path : String, override_enc : String) -> String {
+  let buf = read_file_buffer(path)
+  let encoding = if override_enc.length() > 0 {
+    override_enc
+  } else {
+    detect_encoding(buf)
+  }
+  if encoding != "utf-8" {
+    console_log("Detected encoding: \{encoding}")
+  }
+  decode_buffer(buf, encoding)
+}
+
 ///|
 fn detect_mode(file_path : String) -> @core.FileMode {
   let ext = path_extname(file_path)
@@ -202,7 +321,7 @@ fn detect_mode(file_path : String) -> @core.FileMode {
 
 ///|
 fn load_and_build_html(ctx : ServerContext) -> String {
-  let content = read_file_sync(ctx.file_path, "utf-8")
+  let content = decode_file(ctx.file_path, encoding_override.val)
   match ctx.mode {
     @core.FileMode::Csv | @core.FileMode::Tsv => {
       let delimiter = if ctx.mode == @core.FileMode::Tsv { '\t' } else { ',' }
@@ -216,7 +335,7 @@ fn load_and_build_html(ctx : ServerContext) -> String {
     }
     @core.FileMode::Markdown => {
       let md = @core.parse_markdown(content)
-      @core.build_markdown_html(md, ctx.filename, ctx.port)
+      @core.build_markdown_html(md, ctx.filename, ctx.port, file_path=ctx.file_path)
     }
     @core.FileMode::Text => {
       let lines = @core.split_to_lines(content)
@@ -273,6 +392,101 @@ fn start_file_server(file_path : String, port : Int, no_open : Bool) -> Unit {
     )
   }
   start_http_server(ctx, no_open)
+}
+
+///| History constants
+let history_max : Int = 50
+
+///| Get history directory path
+fn history_dir() -> String {
+  path_join(os_homedir(), ".reviw/history")
+}
+
+///| Ensure history directory exists
+fn ensure_history_dir() -> Unit {
+  let dir = history_dir()
+  if not(exists_sync(dir)) {
+    mkdir_sync(dir, mkdir_recursive_opts())
+    chmod_sync(dir, 448) // 0o700
+  }
+}
+
+///| Get history file path for a given file
+fn history_path(file_path : String) -> String {
+  let hash = crypto_sha256(path_resolve(file_path))
+  path_join(history_dir(), hash + ".json")
+}
+
+///| Load history from file
+fn load_history(file_path : String) -> String {
+  let hp = history_path(file_path)
+  if not(exists_sync(hp)) {
+    return "[]"
+  }
+  let data = read_file_safe(hp)
+  if data.length() == 0 {
+    "[]"
+  } else {
+    data
+  }
+}
+
+///| Save history entry (with trim to history_max)
+fn save_history(file_path : String, entry_json : String) -> Unit {
+  ensure_history_dir()
+  let hp = history_path(file_path)
+  let existing = read_file_safe(hp)
+  let new_data = if existing.length() > 2 {
+    "[" + entry_json + "," + @core.safe_slice(existing, 1)
+  } else {
+    "[" + entry_json + "]"
+  }
+  let trimmed = trim_json_array(new_data, history_max)
+  write_file_secure(hp, trimmed)
+  chmod_sync(hp, 384) // 0o600
+}
+
+///| Trim a JSON array to at most max_entries objects
+fn trim_json_array(json : String, max_entries : Int) -> String {
+  let chars = json.to_array()
+  let len = chars.length()
+  let mut depth = 0
+  let mut count = 0
+  let mut cut_pos = -1
+  let mut i = 0
+  while i < len {
+    match chars[i] {
+      '{' => depth = depth + 1
+      '}' => {
+        depth = depth - 1
+        if depth == 0 {
+          count = count + 1
+          if count == max_entries {
+            cut_pos = i + 1
+            break
+          }
+        }
+      }
+      _ => ()
+    }
+    i = i + 1
+  }
+  if cut_pos > 0 && count >= max_entries {
+    @core.safe_slice_range(json, 0, cut_pos) + "]"
+  } else {
+    json
+  }
+}
+
+///| Find first occurrence of char in string, -1 if not found
+fn index_of(s : String, target : Char) -> Int {
+  let chars = s.to_array()
+  for i, ch in chars {
+    if ch == target {
+      return i
+    }
+  }
+  -1
 }
 
 ///| Max port retry attempts
@@ -352,6 +566,12 @@ fn handle_request(ctx : ServerContext, req : JsValue, res : JsValue) -> Unit {
         remove_sse_client(ctx, res)
       },
     )
+  } else if http_method == "GET" && url == "/history" {
+    let history_json = load_history(ctx.file_path)
+    res_write_head(res, 200, "application/json")
+    res_end(res, history_json)
+  } else if http_method == "GET" && url.has_prefix("/video-timeline?") {
+    handle_video_timeline(ctx, url, res)
   } else if http_method == "POST" && url == "/exit" {
     read_body(
       req,
@@ -361,9 +581,150 @@ fn handle_request(ctx : ServerContext, req : JsValue, res : JsValue) -> Unit {
         res_end(res, "{\"ok\":true}")
       },
     )
+  } else if http_method == "HEAD" {
+    // HEAD: same as GET but no body
+    if url == "/" || url == "/index.html" {
+      res_write_head(res, 200, "text/html; charset=utf-8")
+      res_end(res, "")
+    } else if url == "/healthz" {
+      res_write_head(res, 200, "application/json")
+      res_end(res, "")
+    } else if url == "/ui.js" {
+      res_write_head(res, 200, "application/javascript; charset=utf-8")
+      res_end(res, "")
+    } else if url == "/history" {
+      res_write_head(res, 200, "application/json")
+      res_end(res, "")
+    } else {
+      serve_static_file_head(ctx, url, res)
+    }
+  } else if http_method == "GET" {
+    // Static file serving (images, videos, etc.) relative to file's directory
+    serve_static_file(ctx, url, req, res)
   } else {
     res_write_head(res, 404, "text/plain")
     res_end(res, "Not Found")
+  }
+}
+
+///| MIME type lookup by extension
+fn get_mime_type(ext : String) -> String {
+  match ext {
+    ".png" => "image/png"
+    ".jpg" | ".jpeg" => "image/jpeg"
+    ".gif" => "image/gif"
+    ".webp" => "image/webp"
+    ".svg" => "image/svg+xml"
+    ".ico" => "image/x-icon"
+    ".mp4" => "video/mp4"
+    ".webm" => "video/webm"
+    ".mov" => "video/quicktime"
+    ".avi" => "video/x-msvideo"
+    ".mkv" => "video/x-matroska"
+    ".m4v" => "video/x-m4v"
+    ".ogv" => "video/ogg"
+    ".css" => "text/css"
+    ".js" => "application/javascript"
+    ".json" => "application/json"
+    ".pdf" => "application/pdf"
+    ".woff" => "font/woff"
+    ".woff2" => "font/woff2"
+    _ => "application/octet-stream"
+  }
+}
+
+///| Serve static files relative to the reviewed file's directory
+fn serve_static_file(
+  ctx : ServerContext,
+  url : String,
+  req : JsValue,
+  res : JsValue
+) -> Unit {
+  // Decode URL path (strip query string)
+  let url_path = {
+    let qmark = index_of(url, '?')
+    if qmark >= 0 { @core.safe_slice_range(url, 0, qmark) } else { url }
+  }
+  // Remove leading slash
+  let relative_path = if url_path.has_prefix("/") {
+    @core.safe_slice(url_path, 1)
+  } else {
+    url_path
+  }
+  // Security: prevent path traversal
+  if relative_path.contains("..") {
+    res_write_head(res, 403, "text/plain")
+    res_end(res, "Forbidden")
+    return
+  }
+  // Resolve against file's directory
+  let base_dir = path_dirname(ctx.file_path)
+  let static_path = path_join(base_dir, relative_path)
+  // Ensure resolved path is under base_dir
+  let resolved_static = path_resolve(static_path)
+  let resolved_base = path_resolve(base_dir)
+  if not(resolved_static.has_prefix(resolved_base)) {
+    res_write_head(res, 403, "text/plain")
+    res_end(res, "Forbidden")
+    return
+  }
+  if exists_sync(resolved_static) && is_file_sync(resolved_static) {
+    let ext = path_extname(resolved_static).to_lower()
+    let content_type = get_mime_type(ext)
+    // Video files: support Range requests for seeking
+    let is_video = content_type.has_prefix("video/")
+    let range = req_range_header(req)
+    if is_video && range.length() > 0 {
+      pipe_file_range(resolved_static, res, content_type, range)
+    } else {
+      pipe_file_to_response(resolved_static, res, content_type)
+    }
+  } else {
+    res_write_head(res, 404, "text/plain")
+    res_end(res, "Not Found")
+  }
+}
+
+///| Serve static file HEAD request (headers only, no body)
+fn serve_static_file_head(
+  ctx : ServerContext,
+  url : String,
+  res : JsValue
+) -> Unit {
+  let url_path = {
+    let qmark = index_of(url, '?')
+    if qmark >= 0 { @core.safe_slice_range(url, 0, qmark) } else { url }
+  }
+  let relative_path = if url_path.has_prefix("/") {
+    @core.safe_slice(url_path, 1)
+  } else {
+    url_path
+  }
+  if relative_path.contains("..") {
+    res_write_head(res, 403, "text/plain")
+    res_end(res, "")
+    return
+  }
+  let base_dir = path_dirname(ctx.file_path)
+  let static_path = path_join(base_dir, relative_path)
+  let resolved_static = path_resolve(static_path)
+  let resolved_base = path_resolve(base_dir)
+  if not(resolved_static.has_prefix(resolved_base)) {
+    res_write_head(res, 403, "text/plain")
+    res_end(res, "")
+    return
+  }
+  if exists_sync(resolved_static) && is_file_sync(resolved_static) {
+    let ext = path_extname(resolved_static).to_lower()
+    let content_type = get_mime_type(ext)
+    let stat = fs_stat_sync(resolved_static)
+    let size = js_stat_size(stat)
+    res_set_header(res, "Accept-Ranges", "bytes")
+    res_write_head_with_headers(res, 200, content_type, size, true)
+    res_end(res, "")
+  } else {
+    res_write_head(res, 404, "text/plain")
+    res_end(res, "")
   }
 }
 
@@ -401,13 +762,45 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
       })
     }
   }
+  let answers = json_parse_string("reviwAnswers", body)
   let result : @core.ReviewResult = {
     file: ctx.filename,
     mode: ctx.mode,
     comments,
     summary,
+    answers,
   }
   all_results.push(result)
+  // Save to history
+  if comments.length() > 0 || summary.length() > 0 {
+    let entry_buf = StringBuilder::new()
+    entry_buf.write_string("{\"timestamp\":\"")
+    entry_buf.write_string(iso_now())
+    entry_buf.write_string("\",\"file\":\"")
+    entry_buf.write_string(@core.escape_js_string(ctx.filename))
+    entry_buf.write_string("\",\"summary\":\"")
+    entry_buf.write_string(@core.escape_js_string(summary))
+    entry_buf.write_string("\",\"commentCount\":")
+    entry_buf.write_string(comments.length().to_string())
+    entry_buf.write_string("}")
+    save_history(ctx.file_path, entry_buf.to_string())
+  }
+  // Save summary images
+  let images = json_parse_images(body)
+  let output_dir = path_join(os_homedir(), ".reviw/outputs")
+  for i, img in images {
+    if img.length() > 0 {
+      ignore(base64_to_file(img, output_dir, i))
+    }
+  }
+  // Save per-comment images
+  let mut comment_img_idx = images.length()
+  for c in raw_comments {
+    if c.length() >= 5 && c[4].length() > 0 {
+      ignore(base64_to_file(c[4], output_dir, comment_img_idx))
+      comment_img_idx = comment_img_idx + 1
+    }
+  }
   console_log("Received review for \{ctx.filename} (\{comments.length()} comments)")
   if all_results.length() >= expected_count.val {
     let yaml = @core.reviews_to_yaml(all_results)
@@ -420,4 +813,82 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
     }
     process_exit(0)
   }
+}
+
+///| Handle video timeline SSE endpoint
+fn handle_video_timeline(
+  ctx : ServerContext,
+  url : String,
+  res : JsValue
+) -> Unit {
+  let video_path = parse_query_param(url, "path")
+  let scene_str = parse_query_param(url, "scene")
+  // Security: prevent path traversal
+  if video_path.contains("..") {
+    res_write_head(res, 400, "text/plain")
+    res_end(res, "Invalid path")
+    return
+  }
+  // Security: resolve and constrain to base_dir (same as serve_static_file)
+  let base_dir = path_dirname(ctx.file_path)
+  let resolved_video = path_resolve(path_join(base_dir, video_path))
+  let resolved_base = path_resolve(base_dir)
+  if not(resolved_video.has_prefix(resolved_base)) {
+    res_write_head(res, 403, "text/plain")
+    res_end(res, "Forbidden")
+    return
+  }
+  // Use resolved path from here
+  let video_path = resolved_video
+  if not(exists_sync(video_path)) {
+    res_write_head(res, 404, "text/plain")
+    res_end(res, "File not found")
+    return
+  }
+  if not(command_exists("ffmpeg")) {
+    res_write_head(res, 500, "text/plain")
+    res_end(res, "ffmpeg not available")
+    return
+  }
+  // Setup SSE response
+  setup_sse(res)
+  let tmp_dir = make_temp_dir()
+  // Extract first frame
+  let first_frame = path_join(tmp_dir, "first_frame.jpg")
+  ignore(spawn_sync_stdout("ffmpeg", "[\"-y\", \"-i\", " + json_encode_value(video_path) + ", \"-vf\", \"scale=160:-1\", \"-vframes\", \"1\", \"-q:v\", \"5\", " + json_encode_value(first_frame) + "]"))
+  // Send first frame
+  if exists_sync(first_frame) {
+    let b64 = read_file_base64(first_frame)
+    if b64.length() > 0 {
+      sse_send(res, "message", "{\"type\":\"thumbnail\",\"time\":0,\"index\":0,\"data\":\"data:image/jpeg;base64," + b64 + "\"}")
+    }
+  }
+  // Scene detection with ffmpeg
+  let scene_threshold = if scene_str.length() > 0 { scene_str } else { "0.01" }
+  let ffmpeg_proc = spawn_async("ffmpeg", "[\"-i\", " + json_encode_value(video_path) + ", \"-vf\", \"select='gt(scene," + scene_threshold + ")',showinfo,scale=160:-1\", \"-vsync\", \"vfr\", \"-q:v\", \"5\", " + json_encode_value(path_join(tmp_dir, "scene_%04d.jpg")) + "]")
+  let scene_index = Ref::new(1)
+  on_spawn_close(ffmpeg_proc, fn(_code) {
+    // Read scene files and send them
+    let files = readdir_sync(tmp_dir)
+    for file in files {
+      if file.has_prefix("scene_") && file.has_suffix(".jpg") {
+        let fpath = path_join(tmp_dir, file)
+        let b64 = read_file_base64(fpath)
+        if b64.length() > 0 {
+          sse_send(res, "message", "{\"type\":\"thumbnail\",\"time\":" + scene_index.val.to_string() + ",\"index\":" + scene_index.val.to_string() + ",\"data\":\"data:image/jpeg;base64," + b64 + "\"}")
+          scene_index.val = scene_index.val + 1
+        }
+      }
+    }
+    // Send completion
+    sse_send(res, "message", "{\"type\":\"complete\",\"total\":" + scene_index.val.to_string() + "}")
+    res_end(res, "")
+    // Cleanup
+    rm_dir_recursive(tmp_dir)
+  })
+  on_spawn_error(ffmpeg_proc, fn() {
+    sse_send(res, "message", "{\"type\":\"complete\",\"total\":1}")
+    res_end(res, "")
+    rm_dir_recursive(tmp_dir)
+  })
 }

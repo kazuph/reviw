@@ -43,6 +43,7 @@ pub(all) struct ReviewResult {
   mode : FileMode
   comments : Array[Comment]
   summary : String
+  answers : String
 } derive(Show)
 
 ///| Parsed CSV data
@@ -89,9 +90,19 @@ pub(all) struct DiffData {
   files : Array[DiffFile]
 } derive(Show)
 
+///| A reviw question from frontmatter
+pub(all) struct ReviwQuestion {
+  id : String
+  question : String
+  resolved : Bool
+  answer : String
+  options : Array[String]
+} derive(Show)
+
 ///| Parsed markdown data
 pub(all) struct MarkdownData {
   source : String
   html : String
   frontmatter : Map[String, String]
+  questions : Array[ReviwQuestion]
 } derive(Show)

@@ -1,7 +1,7 @@
 ///| Parse markdown source into MarkdownData with HTML and frontmatter
 pub fn parse_markdown(input : String) -> MarkdownData {
   if input.length() == 0 {
-    return { source: "", html: "", frontmatter: {} }
+    return { source: "", html: "", frontmatter: {}, questions: [] }
   }
   let lines = split_to_lines(input)
   let frontmatter : Map[String, String] = {}
@@ -44,7 +44,9 @@ pub fn parse_markdown(input : String) -> MarkdownData {
     }
     src_buf.write_string(line)
   }
-  { source: src_buf.to_string(), html, frontmatter }
+  // Parse reviw questions from frontmatter lines
+  let questions = parse_reviw_questions(lines, 0, if content_start > 0 { content_start } else { 0 })
+  { source: src_buf.to_string(), html, frontmatter, questions }
 }
 
 ///| Find index of first occurrence of a char in string, -1 if not found
@@ -88,8 +90,47 @@ fn is_whitespace(ch : Char) -> Bool {
   ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'
 }
 
+///| Counter for heading keys
+let heading_counter : Ref[Int] = Ref::new(0)
+
+///| Count heading level (number of # at start)
+fn count_heading_level(line : String) -> Int {
+  let chars = line.to_array()
+  let mut count = 0
+  while count < chars.length() && chars[count] == '#' {
+    count = count + 1
+  }
+  // Must have space after #s
+  if count > 0 && count < chars.length() && chars[count] == ' ' {
+    count
+  } else {
+    0
+  }
+}
+
+///| Make heading key for localStorage (slug + counter for uniqueness)
+fn make_heading_key(text : String, counter : Int) -> String {
+  let chars = text.to_array()
+  let buf = StringBuilder::new()
+  for ch in chars {
+    if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+      buf.write_char(ch)
+    } else if ch >= 'A' && ch <= 'Z' {
+      // Convert uppercase to lowercase: add 32 to ASCII code
+      let lower = Char::from_int(ch.to_int() + 32)
+      buf.write_char(lower)
+    } else if ch == ' ' || ch == '-' {
+      buf.write_char('-')
+    }
+  }
+  buf.write_char('-')
+  buf.write_string(counter.to_string())
+  buf.to_string()
+}
+
 ///| Render markdown lines to HTML
 fn render_markdown_lines(lines : Array[String]) -> String {
+  heading_counter.val = 0
   let buf = StringBuilder::new()
   let mut i = 0
   let len = lines.length()
@@ -100,48 +141,95 @@ fn render_markdown_lines(lines : Array[String]) -> String {
       i = i + 1
       continue
     }
+    // HTML block pass-through (e.g., <details>, <div>, etc.)
+    if line.has_prefix("<") && is_html_block_start(line) {
+      let tag_name = extract_html_tag_name(line)
+      if tag_name == "details" {
+        // Special handling: parse markdown inside <details> (except <summary>)
+        buf.write_string("<details>\n")
+        i = i + 1
+        // Collect summary line if present
+        while i < len {
+          let current = trim(lines[i])
+          if current.has_prefix("<summary>") {
+            buf.write_string(sanitize_html(lines[i]))
+            buf.write_string("\n")
+            i = i + 1
+            break
+          } else if current.has_prefix("</details>") {
+            break
+          }
+          i = i + 1
+        }
+        // Collect inner content lines (between summary and </details>)
+        let inner_lines : Array[String] = []
+        let mut depth = 1
+        while i < len && depth > 0 {
+          let current = lines[i]
+          if current.contains("</details>") {
+            depth = depth - 1
+            if depth == 0 {
+              i = i + 1
+              break
+            }
+          }
+          if current.contains("<details") {
+            depth = depth + 1
+          }
+          inner_lines.push(current)
+          i = i + 1
+        }
+        // Render inner content as markdown
+        if inner_lines.length() > 0 {
+          let inner_html = render_markdown_lines(inner_lines)
+          buf.write_string(inner_html)
+          buf.write_string("\n")
+        }
+        buf.write_string("</details>\n")
+      } else {
+        // Generic HTML block: pass through as-is
+        let html_buf = StringBuilder::new()
+        let mut depth = 1
+        html_buf.write_string(line)
+        html_buf.write_string("\n")
+        i = i + 1
+        while i < len && depth > 0 {
+          let current = lines[i]
+          if current.contains("<" + tag_name) {
+            depth = depth + 1
+          }
+          if current.contains("</" + tag_name + ">") {
+            depth = depth - 1
+          }
+          html_buf.write_string(current)
+          html_buf.write_string("\n")
+          i = i + 1
+        }
+        buf.write_string(sanitize_html(html_buf.to_string()))
+      }
+      continue
+    }
     // Heading
-    if line.has_prefix("######") {
-      buf.write_string("<h6>")
-      buf.write_string(render_inline(trim(safe_slice(line, 7))))
-      buf.write_string("</h6>\n")
-      i = i + 1
-      continue
-    }
-    if line.has_prefix("#####") {
-      buf.write_string("<h5>")
-      buf.write_string(render_inline(trim(safe_slice(line, 6))))
-      buf.write_string("</h5>\n")
-      i = i + 1
-      continue
-    }
-    if line.has_prefix("####") {
-      buf.write_string("<h4>")
-      buf.write_string(render_inline(trim(safe_slice(line, 5))))
-      buf.write_string("</h4>\n")
-      i = i + 1
-      continue
-    }
-    if line.has_prefix("###") {
-      buf.write_string("<h3>")
-      buf.write_string(render_inline(trim(safe_slice(line, 4))))
-      buf.write_string("</h3>\n")
-      i = i + 1
-      continue
-    }
-    if line.has_prefix("##") {
-      buf.write_string("<h2>")
-      buf.write_string(render_inline(trim(safe_slice(line, 3))))
-      buf.write_string("</h2>\n")
-      i = i + 1
-      continue
-    }
     if line.has_prefix("#") {
-      buf.write_string("<h1>")
-      buf.write_string(render_inline(trim(safe_slice(line, 2))))
-      buf.write_string("</h1>\n")
-      i = i + 1
-      continue
+      let level = count_heading_level(line)
+      if level >= 1 && level <= 6 {
+        let content = trim(safe_slice(line, level + 1))
+        let heading_key = make_heading_key(content, heading_counter.val)
+        heading_counter.val = heading_counter.val + 1
+        buf.write_string("<h")
+        buf.write_string(level.to_string())
+        buf.write_string(" class=\"md-heading-toggle\" data-heading-key=\"")
+        buf.write_string(escape_html(heading_key))
+        buf.write_string("\" data-heading-level=\"")
+        buf.write_string(level.to_string())
+        buf.write_string("\"><span class=\"heading-toggle-icon\">\u{25BC}</span>")
+        buf.write_string(render_inline(content))
+        buf.write_string("</h")
+        buf.write_string(level.to_string())
+        buf.write_string(">\n")
+        i = i + 1
+        continue
+      }
     }
     // Horizontal rule
     if is_horizontal_rule(line) {
@@ -151,21 +239,40 @@ fn render_markdown_lines(lines : Array[String]) -> String {
     }
     // Code block
     if line.has_prefix("```") {
+      let lang = trim(safe_slice(line, 3))
       i = i + 1
       let code_buf = StringBuilder::new()
+      let mut code_first = true
       while i < len && not(lines[i].has_prefix("```")) {
-        if code_buf.to_string().length() > 0 {
+        if not(code_first) {
           code_buf.write_string("\n")
         }
+        code_first = false
         code_buf.write_string(lines[i])
         i = i + 1
       }
       if i < len {
         i = i + 1 // skip closing ```
       }
-      buf.write_string("<pre><code>")
-      buf.write_string(escape_html(code_buf.to_string()))
-      buf.write_string("</code></pre>\n")
+      let code_text = code_buf.to_string()
+      if lang == "mermaid" || is_mermaid_content(code_text) {
+        // Mermaid diagram: render as mermaid container for client-side rendering
+        buf.write_string("<div class=\"mermaid-container\"><div class=\"mermaid\" data-source=\"")
+        buf.write_string(escape_html(code_text))
+        buf.write_string("\">")
+        buf.write_string(escape_html(code_text))
+        buf.write_string("</div><button class=\"mermaid-fullscreen-btn\" title=\"Fullscreen\">\u{26F6}</button></div>\n")
+      } else {
+        buf.write_string("<pre><code")
+        if lang.length() > 0 {
+          buf.write_string(" class=\"language-")
+          buf.write_string(escape_html(lang))
+          buf.write_string("\"")
+        }
+        buf.write_string(">")
+        buf.write_string(escape_html(code_text))
+        buf.write_string("</code></pre>\n")
+      }
       continue
     }
     // Blockquote
@@ -185,12 +292,26 @@ fn render_markdown_lines(lines : Array[String]) -> String {
       buf.write_string("</blockquote>\n")
       continue
     }
-    // Unordered list
+    // Unordered list (with task list support)
     if line.has_prefix("- ") || line.has_prefix("* ") {
       buf.write_string("<ul>\n")
       while i < len && (lines[i].has_prefix("- ") || lines[i].has_prefix("* ")) {
-        buf.write_string("<li>")
-        buf.write_string(render_inline(safe_slice(lines[i], 2)))
+        let item_text = safe_slice(lines[i], 2)
+        // Task list: - [ ] or - [x]
+        if item_text.has_prefix("[ ] ") {
+          buf.write_string(
+            "<li class=\"task-list-item\"><input type=\"checkbox\" disabled /> ",
+          )
+          buf.write_string(render_inline(safe_slice(item_text, 4)))
+        } else if item_text.has_prefix("[x] ") || item_text.has_prefix("[X] ") {
+          buf.write_string(
+            "<li class=\"task-list-item\"><input type=\"checkbox\" checked disabled /> ",
+          )
+          buf.write_string(render_inline(safe_slice(item_text, 4)))
+        } else {
+          buf.write_string("<li>")
+          buf.write_string(render_inline(item_text))
+        }
         buf.write_string("</li>\n")
         i = i + 1
       }
@@ -212,6 +333,7 @@ fn render_markdown_lines(lines : Array[String]) -> String {
     }
     // Table
     if i + 1 < len && is_table_separator(lines[i + 1]) {
+      buf.write_string("<div class=\"table-container\">\n")
       buf.write_string("<table>\n<thead>\n<tr>\n")
       let headers = parse_table_row(line)
       for h in headers {
@@ -232,15 +354,17 @@ fn render_markdown_lines(lines : Array[String]) -> String {
         buf.write_string("</tr>\n")
         i = i + 1
       }
-      buf.write_string("</tbody>\n</table>\n")
+      buf.write_string("</tbody>\n</table>\n</div>\n")
       continue
     }
     // Paragraph (collect contiguous non-empty, non-block lines)
     let para_buf = StringBuilder::new()
+    let mut para_first = true
     while i < len && trim(lines[i]).length() > 0 && not(is_block_start(lines[i])) {
-      if para_buf.to_string().length() > 0 {
+      if not(para_first) {
         para_buf.write_string(" ")
       }
+      para_first = false
       para_buf.write_string(lines[i])
       i = i + 1
     }
@@ -258,7 +382,7 @@ fn render_markdown_lines(lines : Array[String]) -> String {
 fn is_block_start(line : String) -> Bool {
   line.has_prefix("#") || line.has_prefix("```") || line.has_prefix(">") ||
   line.has_prefix("- ") || line.has_prefix("* ") || is_ordered_list_item(line) ||
-  is_horizontal_rule(line)
+  is_horizontal_rule(line) || (line.has_prefix("<") && is_html_block_start(line))
 }
 
 ///| Check if line is a horizontal rule (---, ***, ___)
@@ -370,11 +494,20 @@ fn render_inline(text : String) -> String {
         if url_end > 0 {
           let alt = safe_slice_range(text, alt_start, alt_end)
           let src = safe_slice_range(text, url_start, url_end)
-          buf.write_string("<img src=\"")
-          buf.write_string(src)
-          buf.write_string("\" alt=\"")
-          buf.write_string(alt)
-          buf.write_string("\" />")
+          let escaped_src = escape_html(src)
+          if is_video_url(src) {
+            buf.write_string("<video class=\"video-preview\" controls preload=\"metadata\" src=\"")
+            buf.write_string(escaped_src)
+            buf.write_string("\" title=\"")
+            buf.write_string(escape_html(alt))
+            buf.write_string("\"></video>")
+          } else {
+            buf.write_string("<img src=\"")
+            buf.write_string(escaped_src)
+            buf.write_string("\" alt=\"")
+            buf.write_string(escape_html(alt))
+            buf.write_string("\" />")
+          }
           i = url_end + 1
           continue
         }
@@ -406,11 +539,17 @@ fn render_inline(text : String) -> String {
         if url_end > 0 {
           let link_text = safe_slice_range(text, text_start, text_end)
           let link_url = safe_slice_range(text, url_start, url_end)
-          buf.write_string("<a href=\"")
-          buf.write_string(link_url)
-          buf.write_string("\">")
-          buf.write_string(link_text)
-          buf.write_string("</a>")
+          // Block javascript: scheme to prevent XSS
+          let lower_url = link_url.to_lower()
+          if lower_url.has_prefix("javascript:") {
+            buf.write_string(escape_html(link_text))
+          } else {
+            buf.write_string("<a href=\"")
+            buf.write_string(escape_html(link_url))
+            buf.write_string("\">")
+            buf.write_string(escape_html(link_text))
+            buf.write_string("</a>")
+          }
           i = url_end + 1
           continue
         }
@@ -436,6 +575,26 @@ fn render_inline(text : String) -> String {
         continue
       }
     }
+    // Strikethrough: ~~text~~
+    if i + 1 < len && chars[i] == '~' && chars[i + 1] == '~' {
+      let del_start = i + 2
+      let mut del_end = -1
+      let mut j = del_start
+      while j + 1 < len {
+        if chars[j] == '~' && chars[j + 1] == '~' {
+          del_end = j
+          break
+        }
+        j = j + 1
+      }
+      if del_end > 0 {
+        buf.write_string("<del>")
+        buf.write_string(escape_html(safe_slice_range(text, del_start, del_end)))
+        buf.write_string("</del>")
+        i = del_end + 2
+        continue
+      }
+    }
     // Bold: **text**
     if i + 1 < len && chars[i] == '*' && chars[i + 1] == '*' {
       let bold_start = i + 2
@@ -451,7 +610,7 @@ fn render_inline(text : String) -> String {
       }
       if bold_end > 0 {
         buf.write_string("<strong>")
-        buf.write_string(safe_slice_range(text, bold_start, bold_end))
+        buf.write_string(escape_html(safe_slice_range(text, bold_start, bold_end)))
         buf.write_string("</strong>")
         i = bold_end + 2
         continue
@@ -471,61 +630,534 @@ fn render_inline(text : String) -> String {
       }
       if em_end > 0 {
         buf.write_string("<em>")
-        buf.write_string(safe_slice_range(text, em_start, em_end))
+        buf.write_string(escape_html(safe_slice_range(text, em_start, em_end)))
         buf.write_string("</em>")
         i = em_end + 1
         continue
       }
     }
-    // Regular character
-    buf.write_char(chars[i])
+    // Regular character — escape HTML-significant chars to prevent XSS
+    match chars[i] {
+      '<' => buf.write_string("&lt;")
+      '>' => buf.write_string("&gt;")
+      '&' => buf.write_string("&amp;")
+      '"' => buf.write_string("&quot;")
+      ch => buf.write_char(ch)
+    }
     i = i + 1
   }
   buf.to_string()
 }
 
+///| Check if line starts an HTML block element
+fn is_html_block_start(line : String) -> Bool {
+  let t = trim(line)
+  t.has_prefix("<details") || t.has_prefix("<div") || t.has_prefix("<section") ||
+  t.has_prefix("<article") || t.has_prefix("<aside") || t.has_prefix("<nav") ||
+  t.has_prefix("<header") || t.has_prefix("<footer")
+}
+
+///| Extract tag name from HTML opening tag
+fn extract_html_tag_name(line : String) -> String {
+  let chars = line.to_array()
+  let len = chars.length()
+  let mut start = 0
+  // Find '<'
+  while start < len && chars[start] != '<' {
+    start = start + 1
+  }
+  start = start + 1 // skip '<'
+  let mut end = start
+  while end < len && chars[end] != ' ' && chars[end] != '>' && chars[end] != '/' {
+    end = end + 1
+  }
+  safe_slice_range(line, start, end)
+}
+
+///| Check if a URL is safe (blocks javascript: and data:text/html)
+pub fn is_safe_url(url : String) -> Bool {
+  let lower = url.to_lower()
+  let trimmed = trim(lower)
+  if trimmed.has_prefix("javascript:") {
+    return false
+  }
+  if trimmed.has_prefix("data:text/html") {
+    return false
+  }
+  true
+}
+
+///| Allowlisted HTML tags for sanitization
+fn is_allowed_tag(tag : String) -> Bool {
+  match tag {
+    "b" | "i" | "em" | "strong" | "code" | "br" | "a" | "img" | "span" |
+    "div" | "p" | "ul" | "ol" | "li" | "table" | "tr" | "td" | "th" |
+    "thead" | "tbody" | "del" | "sup" | "sub" | "h1" | "h2" | "h3" |
+    "h4" | "h5" | "h6" | "blockquote" | "pre" | "hr" | "details" |
+    "summary" | "section" | "article" | "aside" | "nav" | "header" |
+    "footer" | "video" | "source" => true
+    _ => false
+  }
+}
+
+///| Dangerous tags that should be removed entirely
+fn is_dangerous_tag(tag : String) -> Bool {
+  match tag {
+    "script" | "iframe" | "object" | "embed" | "form" | "input" => true
+    _ => false
+  }
+}
+
+///| Allowed attributes for sanitization
+fn is_allowed_attr(name : String) -> Bool {
+  match name {
+    "class" | "id" | "style" | "href" | "src" | "alt" | "title" |
+    "width" | "height" | "colspan" | "rowspan" | "target" | "rel" |
+    "controls" | "preload" | "open" => true
+    _ => false
+  }
+}
+
+///| Check if CSS value contains dangerous expressions
+fn is_dangerous_css(value : String) -> Bool {
+  let lower = value.to_lower()
+  lower.contains("expression(") || lower.contains("url(") || lower.contains("-moz-binding") ||
+  lower.contains("behavior:") || lower.contains("behaviour:") || lower.contains("javascript:") ||
+  lower.contains("vbscript:") || lower.contains("@import")
+}
+
+///| Check if attribute name is an event handler (on*)
+fn is_event_handler_attr(name : String) -> Bool {
+  name.has_prefix("on")
+}
+
+///| Sanitize HTML string: remove dangerous tags, event handlers, dangerous URLs
+pub fn sanitize_html(input : String) -> String {
+  let chars = input.to_array()
+  let len = chars.length()
+  let buf = StringBuilder::new()
+  let mut i = 0
+  while i < len {
+    if chars[i] == '<' {
+      // Parse tag
+      let tag_start = i
+      i = i + 1
+      let is_closing = i < len && chars[i] == '/'
+      if is_closing { i = i + 1 }
+      // Extract tag name
+      let name_buf = StringBuilder::new()
+      while i < len && chars[i] != ' ' && chars[i] != '>' && chars[i] != '/' {
+        name_buf.write_char(chars[i])
+        i = i + 1
+      }
+      let tag_name = name_buf.to_string().to_lower()
+      // Find end of tag
+      let mut tag_end = i
+      while tag_end < len && chars[tag_end] != '>' {
+        tag_end = tag_end + 1
+      }
+      if tag_end < len { tag_end = tag_end + 1 }
+      if is_dangerous_tag(tag_name) {
+        // Skip dangerous tags entirely (including content for non-closing)
+        if not(is_closing) {
+          // Skip until closing tag
+          let close_tag = "</" + tag_name + ">"
+          let mut j = tag_end
+          while j + close_tag.length() <= len {
+            let close_chars = close_tag.to_array()
+            let close_len = close_chars.length()
+            let mut match_ = true
+            for k = 0; k < close_len; k = k + 1 {
+              if j + k >= len {
+                match_ = false
+                break
+              }
+              let ch_lower = if chars[j + k] >= 'A' && chars[j + k] <= 'Z' {
+                Char::from_int(chars[j + k].to_int() + 32)
+              } else {
+                chars[j + k]
+              }
+              if ch_lower != close_chars[k] {
+                match_ = false
+                break
+              }
+            }
+            if match_ {
+              i = j + close_len
+              break
+            }
+            j = j + 1
+          }
+          if j + close_tag.length() > len {
+            i = tag_end
+          }
+        } else {
+          i = tag_end
+        }
+        continue
+      }
+      if not(is_allowed_tag(tag_name)) && tag_name.length() > 0 {
+        // Unknown tag: pass through escaped
+        buf.write_string("&lt;")
+        let tag_content = safe_slice_range(input, tag_start + 1, tag_end)
+        let trimmed_content = if tag_content.has_suffix(">") {
+          safe_slice_range(tag_content, 0, tag_content.length() - 1)
+        } else {
+          tag_content
+        }
+        buf.write_string(escape_html(trimmed_content))
+        buf.write_string("&gt;")
+        i = tag_end
+        continue
+      }
+      // Allowed tag: rebuild with filtered attributes
+      buf.write_char('<')
+      if is_closing { buf.write_char('/') }
+      buf.write_string(tag_name)
+      // Parse and filter attributes
+      let attr_region = safe_slice_range(input, i, if tag_end > 0 { tag_end - 1 } else { i })
+      let filtered = filter_attributes(attr_region, tag_name)
+      if filtered.length() > 0 {
+        buf.write_string(filtered)
+      }
+      // Self-closing check
+      if tag_end > 1 && chars[tag_end - 2] == '/' {
+        buf.write_string(" /")
+      }
+      buf.write_char('>')
+      i = tag_end
+    } else {
+      buf.write_char(chars[i])
+      i = i + 1
+    }
+  }
+  buf.to_string()
+}
+
+///| Filter HTML attributes, removing event handlers and dangerous URLs
+fn filter_attributes(attr_str : String, _tag_name : String) -> String {
+  let chars = attr_str.to_array()
+  let len = chars.length()
+  let buf = StringBuilder::new()
+  let mut i = 0
+  while i < len {
+    // Skip whitespace
+    while i < len && is_whitespace(chars[i]) { i = i + 1 }
+    if i >= len { break }
+    // Parse attribute name
+    let name_buf = StringBuilder::new()
+    while i < len && chars[i] != '=' && chars[i] != ' ' && chars[i] != '>' && chars[i] != '/' {
+      name_buf.write_char(chars[i])
+      i = i + 1
+    }
+    let attr_name = name_buf.to_string().to_lower()
+    if attr_name.length() == 0 { break }
+    // Parse value if present
+    let mut attr_value = ""
+    if i < len && chars[i] == '=' {
+      i = i + 1 // skip =
+      if i < len && (chars[i] == '"' || chars[i] == '\'') {
+        let quote = chars[i]
+        i = i + 1
+        let val_buf = StringBuilder::new()
+        while i < len && chars[i] != quote {
+          val_buf.write_char(chars[i])
+          i = i + 1
+        }
+        if i < len { i = i + 1 } // skip closing quote
+        attr_value = val_buf.to_string()
+      } else {
+        // Unquoted value
+        let val_buf = StringBuilder::new()
+        while i < len && chars[i] != ' ' && chars[i] != '>' {
+          val_buf.write_char(chars[i])
+          i = i + 1
+        }
+        attr_value = val_buf.to_string()
+      }
+    }
+    // Filter: skip event handlers
+    if is_event_handler_attr(attr_name) {
+      continue
+    }
+    // Filter: skip disallowed attributes
+    if not(is_allowed_attr(attr_name)) {
+      continue
+    }
+    // Filter: check URLs in href/src
+    if (attr_name == "href" || attr_name == "src") && not(is_safe_url(attr_value)) {
+      continue
+    }
+    // Filter: sanitize dangerous CSS values in style attribute
+    if attr_name == "style" && is_dangerous_css(attr_value) {
+      continue
+    }
+    // Emit attribute
+    buf.write_char(' ')
+    buf.write_string(attr_name)
+    buf.write_string("=\"")
+    buf.write_string(escape_html(attr_value))
+    buf.write_char('"')
+  }
+  buf.to_string()
+}
+
+///| Check if code content looks like mermaid diagram
+fn is_mermaid_content(text : String) -> Bool {
+  let t = trim(text)
+  t.has_prefix("graph ") || t.has_prefix("flowchart ") || t.has_prefix("sequenceDiagram") ||
+  t.has_prefix("classDiagram") || t.has_prefix("stateDiagram") || t.has_prefix("erDiagram") ||
+  t.has_prefix("journey") || t.has_prefix("gantt") || t.has_prefix("pie") ||
+  t.has_prefix("gitGraph") || t.has_prefix("mindmap") || t.has_prefix("timeline")
+}
+
+///| Check if URL points to a video file
+fn is_video_url(url : String) -> Bool {
+  let lower = url.to_lower()
+  lower.has_suffix(".mp4") || lower.has_suffix(".webm") || lower.has_suffix(".mov") ||
+  lower.has_suffix(".avi") || lower.has_suffix(".mkv") || lower.has_suffix(".m4v") ||
+  lower.has_suffix(".ogv")
+}
+
+///| Parse reviw questions from frontmatter lines
+fn parse_reviw_questions(lines : Array[String], start : Int, end : Int) -> Array[ReviwQuestion] {
+  let questions : Array[ReviwQuestion] = []
+  let mut i = start
+  while i < end {
+    let line = lines[i]
+    if trim(line) == "reviw:" {
+      i = i + 1
+      while i < end {
+        let ql = lines[i]
+        let tql = trim(ql)
+        if tql == "questions:" || tql == "questions:" + " " {
+          i = i + 1
+          // Parse question items
+          while i < end {
+            let item_line = lines[i]
+            let trimmed = trim(item_line)
+            if trimmed.has_prefix("- ") {
+              let q = parse_single_question(lines, i, end)
+              questions.push(q.0)
+              i = q.1
+            } else if trimmed.length() == 0 || not(item_line.has_prefix("  ")) {
+              break
+            } else {
+              i = i + 1
+            }
+          }
+          break
+        }
+        i = i + 1
+      }
+      break
+    }
+    i = i + 1
+  }
+  questions
+}
+
+///| Parse a single question item starting at line i, returns (question, next_line_idx)
+fn parse_single_question(lines : Array[String], start : Int, end : Int) -> (ReviwQuestion, Int) {
+  let mut id = ""
+  let mut question = ""
+  let mut resolved = false
+  let mut answer = ""
+  let options : Array[String] = []
+  // First line: "    - id: xxx" or "    - question: xxx"
+  let first = trim(lines[start])
+  // Remove "- " prefix
+  let first_content = safe_slice(first, 2)
+  let colon = index_of_char(first_content, ':')
+  if colon >= 0 {
+    let key = trim(safe_slice_range(first_content, 0, colon))
+    let val = trim(safe_slice(first_content, colon + 1))
+    if key == "id" { id = val }
+    if key == "question" { question = val }
+    if key == "resolved" { resolved = val == "true" }
+    if key == "answer" { answer = val }
+  }
+  let mut i = start + 1
+  while i < end {
+    let line = lines[i]
+    let trimmed = trim(line)
+    // Next question item or end of block
+    if trimmed.has_prefix("- ") && line.has_prefix("    -") {
+      break
+    }
+    if trimmed.length() == 0 || (not(line.has_prefix("      ")) && not(line.has_prefix("    "))) {
+      break
+    }
+    let content_colon = index_of_char(trimmed, ':')
+    if content_colon >= 0 {
+      let key = trim(safe_slice_range(trimmed, 0, content_colon))
+      let val = trim(safe_slice(trimmed, content_colon + 1))
+      if key == "id" { id = val }
+      if key == "question" { question = val }
+      if key == "resolved" { resolved = val == "true" }
+      if key == "answer" { answer = val }
+      if key == "options" {
+        i = i + 1
+        while i < end {
+          let opt_line = lines[i]
+          let opt_trimmed = trim(opt_line)
+          if opt_trimmed.has_prefix("- ") && opt_line.has_prefix("        ") {
+            options.push(trim(safe_slice(opt_trimmed, 2)))
+            i = i + 1
+          } else {
+            break
+          }
+        }
+        continue
+      }
+    }
+    i = i + 1
+  }
+  ({ id, question, resolved, answer, options }, i)
+}
+
 fn build_mermaid_fullscreen(buf : StringBuilder) -> Unit {
-  buf.write_string("<div id=\"mermaid-fullscreen\" class=\"modal-overlay hidden\">")
-  buf.write_string("<div class=\"fullscreen-content\">")
-  buf.write_string("<button class=\"btn\" id=\"mermaid-fullscreen-close\">Close</button>")
-  buf.write_string("<div id=\"mermaid-fullscreen-body\"></div>")
+  buf.write_string("<div class=\"fullscreen-overlay\" id=\"mermaid-fullscreen\">")
+  buf.write_string("<div class=\"fullscreen-header\"><h3>Mermaid Diagram</h3>")
+  buf.write_string("<div class=\"fullscreen-controls\">")
+  buf.write_string("<button id=\"fs-zoom-out\">&minus;</button>")
+  buf.write_string("<span class=\"zoom-info\" id=\"fs-zoom-info\">100%</span>")
+  buf.write_string("<button id=\"fs-zoom-in\">+</button>")
+  buf.write_string("<button id=\"fs-reset\">Reset</button>")
+  buf.write_string("<button id=\"fs-close\">Close (ESC)</button>")
   buf.write_string("</div></div>")
+  buf.write_string("<div class=\"fullscreen-content\" id=\"fs-content\" style=\"overflow:hidden;position:relative;cursor:grab;flex:1;\">")
+  buf.write_string("<div id=\"fs-wrapper\" style=\"position:absolute;left:0;top:0;transform-origin:0 0;\"></div>")
+  buf.write_string("</div>")
+  buf.write_string("<div class=\"minimap\" id=\"fs-minimap\">")
+  buf.write_string("<div class=\"minimap-content\" id=\"fs-minimap-content\"></div>")
+  buf.write_string("<div class=\"minimap-viewport\" id=\"fs-minimap-viewport\"></div>")
+  buf.write_string("</div>")
+  buf.write_string("</div>")
 }
 
 fn build_image_fullscreen(buf : StringBuilder) -> Unit {
-  buf.write_string("<div id=\"image-fullscreen\" class=\"modal-overlay hidden\">")
-  buf.write_string("<div class=\"fullscreen-content\">")
-  buf.write_string("<button class=\"btn\" id=\"image-fullscreen-close\">Close</button>")
-  buf.write_string("<img id=\"image-fullscreen-img\" src=\"\" alt=\"\" />")
+  buf.write_string("<div class=\"fullscreen-overlay\" id=\"image-fullscreen\">")
+  buf.write_string("<div class=\"fullscreen-header\"><h3>Image</h3>")
+  buf.write_string("<div class=\"fullscreen-controls\">")
+  buf.write_string("<button id=\"img-fs-zoom-out\">&minus;</button>")
+  buf.write_string("<span class=\"zoom-info\" id=\"img-fs-zoom-info\">100%</span>")
+  buf.write_string("<button id=\"img-fs-zoom-in\">+</button>")
+  buf.write_string("<span id=\"img-fs-counter\" style=\"margin:0 8px;font-size:12px;color:var(--muted);\"></span>")
+  buf.write_string("<button id=\"img-fs-prev\" title=\"Previous\">&larr;</button>")
+  buf.write_string("<button id=\"img-fs-next\" title=\"Next\">&rarr;</button>")
+  buf.write_string("<button id=\"img-fs-reset\">Reset</button>")
+  buf.write_string("<button id=\"img-fs-close\">Close (ESC)</button>")
   buf.write_string("</div></div>")
+  buf.write_string("<div class=\"fullscreen-content\" id=\"image-fs-content\" style=\"overflow:hidden;position:relative;cursor:grab;flex:1;\">")
+  buf.write_string("<div id=\"image-fs-wrapper\" style=\"position:absolute;left:0;top:0;transform-origin:0 0;\"></div>")
+  buf.write_string("</div>")
+  buf.write_string("<div class=\"minimap\" id=\"image-fs-minimap\">")
+  buf.write_string("<div class=\"minimap-content\" id=\"image-fs-minimap-content\"></div>")
+  buf.write_string("<div class=\"minimap-viewport\" id=\"image-fs-minimap-viewport\"></div>")
+  buf.write_string("</div>")
+  buf.write_string("</div>")
+}
+
+///| Build media sidebar HTML structure
+fn build_media_sidebar(buf : StringBuilder) -> Unit {
+  // Toggle button is in header .actions (html.mbt build_header), matching cli.cjs:4885
+  // Sidebar container
+  buf.write_string("<div class=\"media-sidebar hidden\" id=\"media-sidebar\">")
+  buf.write_string("<div class=\"media-sidebar-thumbs\" id=\"media-sidebar-thumbs\"></div>")
+  buf.write_string("<div class=\"media-sidebar-viewer\" id=\"media-sidebar-viewer\"></div>")
+  buf.write_string("</div>")
+}
+
+///| Build video fullscreen overlay HTML
+fn build_video_fullscreen(buf : StringBuilder) -> Unit {
+  buf.write_string("<div class=\"video-fullscreen-overlay\" id=\"video-fullscreen\">")
+  buf.write_string("<button class=\"video-close-btn\" id=\"video-close\" aria-label=\"Close video\" title=\"Close (ESC)\">&#10005;</button>")
+  buf.write_string("<button class=\"video-settings-btn\" id=\"video-settings-btn\" aria-label=\"Timeline settings\" title=\"Timeline settings\">&#9881;</button>")
+  buf.write_string("<div class=\"video-settings-panel\" id=\"video-settings-panel\">")
+  buf.write_string("<h4>タイムライン設定</h4>")
+  buf.write_string("<p class=\"video-settings-desc\">シーン感度: 映像変化の検出しきい値</p>")
+  buf.write_string("<div class=\"video-settings-buttons\" id=\"scene-buttons\">")
+  buf.write_string("<button data-scene=\"0.3\">少なめ</button>")
+  buf.write_string("<button data-scene=\"0.1\">やや少</button>")
+  buf.write_string("<button data-scene=\"0.01\" class=\"selected\">標準</button>")
+  buf.write_string("<button data-scene=\"0.003\">やや多</button>")
+  buf.write_string("<button data-scene=\"0.001\">多め</button>")
+  buf.write_string("</div>")
+  buf.write_string("<p class=\"video-settings-desc\">グルーピング: 連続する変化をまとめる秒数</p>")
+  buf.write_string("<div class=\"video-settings-buttons\" id=\"stab-buttons\">")
+  buf.write_string("<button data-stab=\"0.5\">0.5s</button>")
+  buf.write_string("<button data-stab=\"0.3\">0.3s</button>")
+  buf.write_string("<button data-stab=\"0.1\" class=\"selected\">0.1s</button>")
+  buf.write_string("<button data-stab=\"0.05\">0.05s</button>")
+  buf.write_string("<button data-stab=\"0.02\">0.02s</button>")
+  buf.write_string("</div>")
+  buf.write_string("</div>")
+  buf.write_string("<div class=\"video-container\" id=\"video-container\">")
+  buf.write_string("<span id=\"vid-fs-counter\" style=\"position:absolute;bottom:100px;left:50%;transform:translateX(-50%);color:#fff;background:rgba(0,0,0,0.6);padding:8px 16px;border-radius:20px;font-size:14px;z-index:10;\"></span>")
+  buf.write_string("</div>")
+  buf.write_string("</div>")
 }
 
 ///| Build HTML page for markdown viewer (cli.cjs-compatible structure)
 pub fn build_markdown_html(
   md : MarkdownData,
   filename : String,
-  port : Int
+  port : Int,
+  file_path~ : String = ""
 ) -> String {
   let buf = StringBuilder::new()
-  build_page_start(buf, filename)
-  // View and comment toolbar buttons
-  buf.write_string("<button class=\"btn\" id=\"view-toggle\">View</button>")
-  buf.write_string("<button class=\"btn\" id=\"comment-toggle\">Comments</button>")
-  // Side-by-side layout: md-left = preview, md-right = source table
+  build_page_start(buf, filename, file_path~)
+  // History panel (must be after header, before wrap)
+  build_history_panel(buf)
+  // Main content wrap
+  buf.write_string("<div class=\"wrap\">")
+  // Side-by-side layout: media-sidebar (left) + md-left = preview + md-right = source table
   buf.write_string("<div class=\"md-layout\">")
+  // Media sidebar (left side, matching cli.cjs layout)
+  build_media_sidebar(buf)
   // Left panel: rendered markdown preview
   buf.write_string("<div class=\"md-left\">")
   buf.write_string("<div class=\"md-preview\" id=\"md-preview\">")
+  // Document Metadata table (frontmatter)
+  if md.frontmatter.size() > 0 {
+    buf.write_string("<div class=\"frontmatter-header\">Document Metadata</div>")
+    buf.write_string("<table class=\"frontmatter-table\"><tbody>")
+    md.frontmatter.each(fn(key, value) {
+      // Skip reviw: questions from metadata display
+      if key == "reviw" {
+        return
+      }
+      buf.write_string("<tr><th>")
+      buf.write_string(escape_html(key))
+      buf.write_string("</th><td>")
+      buf.write_string(escape_html(value))
+      buf.write_string("</td></tr>")
+    })
+    // Show questions preview in metadata if present
+    if md.questions.length() > 0 {
+      buf.write_string("<tr><th>reviw questions</th><td>")
+      buf.write_string(md.questions.length().to_string())
+      buf.write_string(" question(s)</td></tr>")
+    }
+    buf.write_string("</tbody></table>")
+  }
   buf.write_string(md.html)
   buf.write_string("</div></div>")
   // Right panel: source as table (mirrors #csv-table structure for click events)
-  buf.write_string("<div class=\"md-right\">")
-  buf.write_string("<table id=\"csv-table\"><tbody id=\"tbody\">")
+  buf.write_string("<div class=\"md-right\"><div class=\"table-box\">")
+  buf.write_string("<table id=\"csv-table\"><colgroup id=\"colgroup\"></colgroup>")
+  buf.write_string("<thead><tr><th aria-label=\"row/col corner\"></th>")
+  buf.write_string("<th data-col=\"1\"><div class=\"th-inner\">Text<span class=\"resizer\" data-col=\"1\"></span></div></th>")
+  buf.write_string("</tr></thead>")
+  buf.write_string("<tbody id=\"tbody\">")
   let source_lines = split_to_lines(md.source)
   for i, line in source_lines {
     buf.write_string("<tr data-row=\"")
     buf.write_string(i.to_string())
-    buf.write_string("\"><td data-row=\"")
+    buf.write_string("\"><th>")
+    buf.write_string((i + 1).to_string())
+    buf.write_string("</th><td data-row=\"")
     buf.write_string(i.to_string())
     buf.write_string("\" data-col=\"1\">")
     buf.write_string(escape_html(line))
@@ -533,11 +1165,28 @@ pub fn build_markdown_html(
   }
   buf.write_string("</tbody></table>")
   buf.write_string("</div></div>")
-  build_mermaid_fullscreen(buf)
-  build_image_fullscreen(buf)
+  buf.write_string("</div>")
+  // Close .wrap
+  buf.write_string("</div>")
   build_comment_card(buf)
+  build_comment_list_aside(buf)
   build_submit_modal(buf)
   build_recovery_modal(buf)
+  build_mermaid_fullscreen(buf)
+  build_image_fullscreen(buf)
+  build_video_fullscreen(buf)
+  build_questions_modal(buf, md.questions)
+  build_questions_notice(buf, md.questions)
+  // Inject DATA variable (source lines array for preview-to-source mapping)
+  buf.write_string("<script>window.__DATA__=")
+  buf.write_string(serialize_source_lines_json(source_lines))
+  buf.write_string(";</script>")
+  // Inject questions data
+  if md.questions.length() > 0 {
+    buf.write_string("<script>window.__REVIW_QUESTIONS__=")
+    buf.write_string(serialize_questions_json(md.questions))
+    buf.write_string(";</script>")
+  }
   build_script_footer(buf, port, "markdown", filename)
   buf.to_string()
 }

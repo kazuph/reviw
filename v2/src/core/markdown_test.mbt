@@ -3,10 +3,10 @@ test "parse markdown headings" {
   inspect(md.source.length() > 0, content=(
     #|true
   ))
-  inspect(md.html.contains("<h1>"), content=(
+  inspect(md.html.contains("<h1 "), content=(
     #|true
   ))
-  inspect(md.html.contains("<h2>"), content=(
+  inspect(md.html.contains("<h2 "), content=(
     #|true
   ))
 }
@@ -33,7 +33,7 @@ test "parse markdown bold and italic" {
 
 test "parse markdown code block" {
   let md = parse_markdown("```js\nconst x = 1;\n```")
-  inspect(md.html.contains("<pre><code>"), content=(
+  inspect(md.html.contains("<pre><code class=\"language-js\">"), content=(
     #|true
   ))
   inspect(md.html.contains("const x = 1;"), content=(
@@ -120,10 +120,10 @@ test "parse markdown frontmatter" {
   inspect(md.frontmatter.get("author"), content=(
     #|Some("Alice")
   ))
-  inspect(md.html.contains("<h1>"), content=(
+  inspect(md.html.contains("<h1 "), content=(
     #|true
   ))
-  // frontmatter should not appear in html
+  // frontmatter should not appear in html body (only in rendered md)
   inspect(md.html.contains("title:"), content=(
     #|false
   ))
@@ -133,4 +133,66 @@ test "parse markdown empty" {
   let md = parse_markdown("")
   inspect(md.html, content="")
   inspect(md.source, content="")
+  inspect(md.questions.length(), content="0")
+}
+
+test "parse markdown with reviw questions" {
+  let input = "---\ntitle: Test\nreviw:\n  questions:\n    - id: q1\n      question: What do you think?\n      resolved: false\n    - id: q2\n      question: Is this OK?\n      resolved: true\n      answer: Yes\n---\n\n# Content"
+  let md = parse_markdown(input)
+  inspect(md.questions.length(), content="2")
+  inspect(md.questions[0].id, content="q1")
+  inspect(md.questions[0].question, content="What do you think?")
+  inspect(md.questions[0].resolved, content="false")
+  inspect(md.questions[1].id, content="q2")
+  inspect(md.questions[1].resolved, content="true")
+  inspect(md.questions[1].answer, content="Yes")
+}
+
+test "parse markdown questions with options" {
+  let input = "---\nreviw:\n  questions:\n    - id: rating\n      question: How would you rate?\n      options:\n        - Good\n        - Bad\n        - Neutral\n---\n\nText"
+  let md = parse_markdown(input)
+  inspect(md.questions.length(), content="1")
+  inspect(md.questions[0].options.length(), content="3")
+  inspect(md.questions[0].options[0], content="Good")
+  inspect(md.questions[0].options[1], content="Bad")
+  inspect(md.questions[0].options[2], content="Neutral")
+}
+
+test "parse markdown no questions" {
+  let md = parse_markdown("---\ntitle: Hello\n---\n\n# Content")
+  inspect(md.questions.length(), content="0")
+}
+
+test "parse markdown link url escaped" {
+  let md = parse_markdown("[click](http://example.com/a\"b)")
+  inspect(md.html.contains("href=\"http://example.com/a&quot;b\""), content=(
+    #|true
+  ))
+}
+
+test "parse markdown blocks javascript links" {
+  let md = parse_markdown("[evil](javascript:alert(1))")
+  inspect(md.html.contains("href"), content=(
+    #|false
+  ))
+  inspect(md.html.contains("evil"), content=(
+    #|true
+  ))
+}
+
+test "parse markdown image src escaped" {
+  let md = parse_markdown("![alt](img\"bad.png)")
+  inspect(md.html.contains("src=\"img&quot;bad.png\""), content=(
+    #|true
+  ))
+}
+
+test "parse markdown table wrapped in table-container" {
+  let md = parse_markdown("| a | b |\n|---|---|\n| 1 | 2 |")
+  inspect(md.html.contains("<div class=\"table-container\">"), content=(
+    #|true
+  ))
+  inspect(md.html.contains("</table>\n</div>"), content=(
+    #|true
+  ))
 }

@@ -27,6 +27,11 @@ pub fn review_to_yaml(result : ReviewResult) -> String {
   buf.write_string("summary: ")
   buf.write_string(yaml_escape_string(result.summary))
   buf.write_char('\n')
+  if result.answers.length() > 2 {
+    buf.write_string("answers: ")
+    buf.write_string(yaml_escape_string(result.answers))
+    buf.write_char('\n')
+  }
   buf.to_string()
 }
 
@@ -59,6 +64,11 @@ pub fn reviews_to_yaml(results : Array[ReviewResult]) -> String {
       buf.write_string("    summary: ")
       buf.write_string(yaml_escape_string(result.summary))
       buf.write_char('\n')
+      if result.answers.length() > 2 {
+        buf.write_string("    answers: ")
+        buf.write_string(yaml_escape_string(result.answers))
+        buf.write_char('\n')
+      }
     }
     buf.to_string()
   }

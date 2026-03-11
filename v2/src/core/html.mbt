@@ -65,47 +65,286 @@ fn serialize_csv_data_json(data : CsvData) -> String {
   buf.to_string()
 }
 
-fn build_page_start(buf : StringBuilder, filename : String) -> Unit {
-  buf.write_string("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>reviw - ")
+///| Serialize source lines as JSON array of single-element arrays (cli.cjs DATA format)
+pub fn serialize_source_lines_json(lines : Array[String]) -> String {
+  let buf = StringBuilder::new()
+  buf.write_char('[')
+  for i, line in lines {
+    if i > 0 {
+      buf.write_char(',')
+    }
+    buf.write_string("[\"")
+    buf.write_string(escape_js_string(line))
+    buf.write_string("\"]")
+  }
+  buf.write_char(']')
+  buf.to_string()
+}
+
+fn build_page_start(
+  buf : StringBuilder,
+  filename : String,
+  file_path~ : String = ""
+) -> Unit {
+  buf.write_string("<!DOCTYPE html><html lang=\"en\" data-theme=\"light\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
+  buf.write_string("<meta http-equiv=\"Cache-Control\" content=\"no-store, no-cache, must-revalidate\">")
+  buf.write_string("<meta http-equiv=\"Pragma\" content=\"no-cache\">")
+  buf.write_string("<meta http-equiv=\"Expires\" content=\"0\">")
+  buf.write_string("<title>")
   buf.write_string(escape_html(filename))
-  buf.write_string("</title><style>")
+  buf.write_string(" | reviw</title>")
+  // highlight.js CDN stylesheets (dark/light theme support)
+  buf.write_string("<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css\" id=\"hljs-theme-dark\" disabled>")
+  buf.write_string("<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github.min.css\" id=\"hljs-theme-light\">")
+  buf.write_string("<script src=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/highlight.min.js\"></script>")
+  buf.write_string("<style>")
   buf.write_string(build_css())
   buf.write_string("</style></head><body>")
-  buf.write_string("<header class=\"toolbar\"><h1>reviw <span class=\"filename\">")
+  buf.write_string("<header><div class=\"meta\">")
+  buf.write_string("<h1>")
+  if file_path.length() > 0 {
+    // Show directory path above filename (like cli.cjs)
+    let dir_end = {
+      let mut last_slash = -1
+      let chars = file_path.to_array()
+      for i, ch in chars {
+        if ch == '/' {
+          last_slash = i
+        }
+      }
+      last_slash
+    }
+    if dir_end >= 0 {
+      let dir_path = file_path.substring(start=0, end=dir_end + 1)
+      buf.write_string("<span class=\"title-path\">")
+      buf.write_string(escape_html(dir_path))
+      buf.write_string("</span>")
+    }
+  }
+  buf.write_string("<span class=\"title-file\">")
   buf.write_string(escape_html(filename))
-  buf.write_string("</span></h1><div style=\"flex:1\"></div>")
-  buf.write_string("<button class=\"btn\" id=\"theme-toggle\">Theme</button>")
-  buf.write_string("<button class=\"btn btn-primary\" id=\"send-and-exit\">Submit &amp; Exit</button></header>")
+  buf.write_string("</span></h1>")
+  buf.write_string("<span class=\"badge\">Click to comment / ESC to cancel</span>")
+  buf.write_string("<button class=\"pill\" id=\"pill-comments\" title=\"Toggle comment panel\">Comments <strong id=\"comment-count\">0</strong></button>")
+  buf.write_string("</div><div class=\"actions\">")
+  buf.write_string("<button class=\"media-sidebar-toggle\" id=\"media-sidebar-toggle\" title=\"Media Gallery\" aria-label=\"Toggle media gallery\">\u{1F5BC}<span class=\"toggle-count\" id=\"media-toggle-count\"></span></button>")
+  buf.write_string("<button class=\"view-toggle\" id=\"view-toggle\" title=\"Hide source panel\">&#128221;</button>")
+  buf.write_string("<button class=\"history-toggle\" id=\"history-toggle\" title=\"Review History\">&#9776;</button>")
+  buf.write_string("<button class=\"theme-toggle\" id=\"theme-toggle\" title=\"Toggle theme\"><span id=\"theme-icon\">&#127769;</span></button>")
+  buf.write_string("<button id=\"send-and-exit\">Submit &amp; Exit</button>")
+  buf.write_string("</div></header>")
 }
 
 fn build_comment_card(buf : StringBuilder) -> Unit {
-  buf.write_string("<div id=\"comment-card\" class=\"comment-card hidden\">")
-  buf.write_string("<textarea id=\"comment-input\" placeholder=\"Add your comment...\"></textarea>")
-  buf.write_string("<div class=\"actions\">")
-  buf.write_string("<button class=\"btn\" id=\"comment-cancel\">Cancel</button>")
-  buf.write_string("<button class=\"btn btn-primary\" id=\"save-comment\">Save</button>")
-  buf.write_string("</div></div>")
+  buf.write_string("<div class=\"floating\" id=\"comment-card\">")
+  buf.write_string("<header><h2 id=\"card-title\">Cell Comment</h2>")
+  buf.write_string("<div style=\"display:flex; gap:6px;\">")
+  buf.write_string("<button class=\"icon-only\" id=\"copy-selection\" title=\"Copy selected lines\">&#128203;</button>")
+  buf.write_string("<button id=\"close-card\">Close</button>")
+  buf.write_string("<button id=\"clear-comment\">Delete</button>")
+  buf.write_string("</div></header>")
+  buf.write_string("<div id=\"cell-preview\" style=\"font-size:12px; color: var(--muted); margin-bottom:8px;\"></div>")
+  buf.write_string("<textarea id=\"comment-input\" placeholder=\"Enter your comment or note\"></textarea>")
+  buf.write_string("<div class=\"image-attach-area image-attach-small\" id=\"comment-image-area\">")
+  buf.write_string("<label>Image (Paste, max 1)</label>")
+  buf.write_string("<div class=\"image-preview-list\" id=\"comment-image-preview\"></div>")
+  buf.write_string("</div>")
+  buf.write_string("<div class=\"actions\"><button class=\"primary\" id=\"save-comment\">Save</button></div>")
+  buf.write_string("</div>")
 }
 
 fn build_submit_modal(buf : StringBuilder) -> Unit {
-  buf.write_string("<div id=\"submit-modal\" class=\"modal-overlay hidden\">")
-  buf.write_string("<div class=\"modal\"><h2>Submit Review</h2>")
-  buf.write_string("<ul id=\"modal-summary\" class=\"comment-list\"></ul>")
-  buf.write_string("<textarea id=\"global-comment\" placeholder=\"Overall summary...\"></textarea>")
-  buf.write_string("<div style=\"display:flex;gap:8px;justify-content:flex-end\">")
-  buf.write_string("<button class=\"btn\" id=\"modal-cancel\">Cancel</button>")
-  buf.write_string("<button class=\"btn btn-primary\" id=\"modal-submit\">Submit &amp; Exit</button>")
+  buf.write_string("<div class=\"modal-overlay\" id=\"submit-modal\">")
+  buf.write_string("<div class=\"modal-dialog\">")
+  buf.write_string("<h3>Submit Review</h3>")
+  buf.write_string("<p class=\"modal-summary\" id=\"modal-summary\"></p>")
+  buf.write_string("<label for=\"global-comment\">Overall comment (optional)</label>")
+  buf.write_string("<textarea id=\"global-comment\" placeholder=\"Add a summary or overall feedback...\"></textarea>")
+  buf.write_string("<div class=\"image-attach-area\" id=\"submit-image-area\">")
+  buf.write_string("<label>Attach images (Paste, max 5)</label>")
+  buf.write_string("<div class=\"image-preview-list\" id=\"submit-image-preview\"></div>")
+  buf.write_string("</div>")
+  buf.write_string("<div class=\"modal-actions\">")
+  buf.write_string("<button id=\"modal-cancel\">Cancel</button>")
+  buf.write_string("<button class=\"primary\" id=\"modal-submit\">Submit</button>")
   buf.write_string("</div></div></div>")
 }
 
+fn build_comment_list_aside(buf : StringBuilder) -> Unit {
+  buf.write_string("<aside class=\"comment-list collapsed\">")
+  buf.write_string("<h3>Comments</h3>")
+  buf.write_string("<ol id=\"comment-list\"></ol>")
+  buf.write_string("<p class=\"hint\">Click \"Submit &amp; Exit\" to send comments and stop the server.</p>")
+  buf.write_string("</aside>")
+}
+
+fn build_history_panel(buf : StringBuilder) -> Unit {
+  buf.write_string("<aside class=\"history-panel\" id=\"history-panel\">")
+  buf.write_string("<div class=\"history-panel-header\">")
+  buf.write_string("<h3>Review History</h3>")
+  buf.write_string("<button class=\"history-panel-close\" id=\"history-panel-close\">&#10005;</button>")
+  buf.write_string("</div>")
+  buf.write_string("<div class=\"history-panel-body\" id=\"history-panel-body\">")
+  buf.write_string("<div class=\"history-empty\">No review history yet.</div>")
+  buf.write_string("</div></aside>")
+}
+
 fn build_recovery_modal(buf : StringBuilder) -> Unit {
-  buf.write_string("<div id=\"recovery-modal\" class=\"modal-overlay hidden\">")
-  buf.write_string("<div class=\"modal\"><h2>Restore Previous Comments?</h2>")
-  buf.write_string("<p id=\"recovery-summary\">Found saved comments from a previous session.</p>")
-  buf.write_string("<div style=\"display:flex;gap:8px;justify-content:flex-end\">")
-  buf.write_string("<button class=\"btn\" id=\"recovery-discard\">Discard</button>")
-  buf.write_string("<button class=\"btn btn-primary\" id=\"recovery-restore\">Restore</button>")
+  buf.write_string("<div class=\"modal-overlay\" id=\"recovery-modal\">")
+  buf.write_string("<div class=\"modal-dialog\"><h3>Restore Previous Comments?</h3>")
+  buf.write_string("<p class=\"modal-summary\" id=\"recovery-summary\">Found saved comments from a previous session.</p>")
+  buf.write_string("<div class=\"modal-actions\">")
+  buf.write_string("<button id=\"recovery-discard\">Discard</button>")
+  buf.write_string("<button class=\"primary\" id=\"recovery-restore\">Restore</button>")
   buf.write_string("</div></div></div>")
+}
+
+///| Build questions modal HTML (cli.cjs compatible overlay structure)
+fn build_questions_modal(buf : StringBuilder, questions : Array[ReviwQuestion]) -> Unit {
+  if questions.length() == 0 {
+    return
+  }
+  // Overlay
+  buf.write_string("<div class=\"reviw-questions-overlay\" id=\"reviw-questions-overlay\">")
+  buf.write_string("<div class=\"reviw-questions-modal\" id=\"reviw-questions-modal\">")
+  buf.write_string("<div class=\"reviw-questions-header\"><h2>\u{1F4CB} AI\u{304B}\u{3089}\u{306E}\u{8CEA}\u{554F} <span id=\"reviw-questions-count\"></span></h2>")
+  buf.write_string("<button class=\"btn\" id=\"reviw-questions-close\">\u{2715}</button></div>")
+  buf.write_string("<div class=\"reviw-questions-body\" id=\"reviw-questions-body\">")
+  // Unresolved questions
+  let mut unresolved_count = 0
+  for q in questions {
+    if not(q.resolved) {
+      unresolved_count = unresolved_count + 1
+    }
+  }
+  for i, q in questions {
+    if q.resolved {
+      continue
+    }
+    buf.write_string("<div class=\"question-card\" data-qid=\"")
+    buf.write_string(escape_html(q.id))
+    buf.write_string("\">")
+    buf.write_string("<div class=\"q-header\">\u{23F3} <strong>")
+    buf.write_string(escape_html(if q.id.length() > 0 { q.id } else { "Q" + (i + 1).to_string() }))
+    buf.write_string("</strong> <span class=\"q-check\" id=\"q-check-")
+    buf.write_string(i.to_string())
+    buf.write_string("\"></span></div>")
+    buf.write_string("<div class=\"q-body\">")
+    buf.write_string(escape_html(q.question))
+    buf.write_string("</div>")
+    if q.options.length() > 0 {
+      buf.write_string("<div class=\"q-options\">")
+      for j, opt in q.options {
+        buf.write_string("<button class=\"q-option-btn\" data-qi=\"")
+        buf.write_string(i.to_string())
+        buf.write_string("\" data-oi=\"")
+        buf.write_string(j.to_string())
+        buf.write_string("\" data-val=\"")
+        buf.write_string(escape_html(opt))
+        buf.write_string("\">")
+        buf.write_string(escape_html(opt))
+        buf.write_string("</button>")
+      }
+      buf.write_string("</div>")
+    }
+    buf.write_string("<textarea class=\"q-answer\" data-qi=\"")
+    buf.write_string(i.to_string())
+    buf.write_string("\" placeholder=\"\u{56DE}\u{7B54}\u{3092}\u{5165}\u{529B}...\" style=\"width:100%;min-height:60px;margin-top:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:8px\">")
+    buf.write_string(escape_html(q.answer))
+    buf.write_string("</textarea>")
+    buf.write_string("</div>")
+  }
+  // Resolved questions (collapsible)
+  let resolved_count = questions.length() - unresolved_count
+  if resolved_count > 0 {
+    buf.write_string("<div class=\"reviw-resolved-section\">")
+    buf.write_string("<button class=\"reviw-resolved-toggle\">\u{2705} \u{89E3}\u{6C7A}\u{6E08}\u{307F} (")
+    buf.write_string(resolved_count.to_string())
+    buf.write_string(")</button><div class=\"reviw-resolved-list\">")
+    for i, q in questions {
+      if not(q.resolved) {
+        continue
+      }
+      buf.write_string("<div class=\"question-card resolved\"><div class=\"q-header\">\u{2705} <strong>")
+      buf.write_string(escape_html(if q.id.length() > 0 { q.id } else { "Q" + (i + 1).to_string() }))
+      buf.write_string("</strong></div><div class=\"q-body\">")
+      buf.write_string(escape_html(q.question))
+      buf.write_string("</div>")
+      if q.answer.length() > 0 {
+        buf.write_string("<div class=\"q-answer-display\">")
+        buf.write_string(escape_html(q.answer))
+        buf.write_string("</div>")
+      }
+      buf.write_string("</div>")
+    }
+    buf.write_string("</div></div>")
+  }
+  buf.write_string("</div>")
+  buf.write_string("<div class=\"reviw-questions-footer\">")
+  buf.write_string("<button class=\"btn\" id=\"reviw-questions-later\">\u{5F8C}\u{3067}\u{56DE}\u{7B54}\u{3059}\u{308B}</button>")
+  buf.write_string("</div></div></div>")
+  // Questions bar (shown after closing modal with unanswered questions)
+  buf.write_string("<div class=\"reviw-questions-bar\" id=\"reviw-questions-bar\">")
+  buf.write_string("<span id=\"reviw-questions-bar-message\">\u{1F5C2}\u{FE0F} \u{672A}\u{56DE}\u{7B54}\u{306E}\u{8CEA}\u{554F}\u{304C}<span id=\"reviw-questions-bar-count\">")
+  buf.write_string(unresolved_count.to_string())
+  buf.write_string("</span>\u{4EF6}\u{3042}\u{308A}\u{307E}\u{3059}</span>")
+  buf.write_string("<button class=\"btn\" id=\"reviw-questions-bar-open\">\u{8CEA}\u{554F}\u{3092}\u{898B}\u{308B}</button>")
+  buf.write_string("</div>")
+}
+
+///| Build questions notice bar (legacy, now integrated into questions modal)
+fn build_questions_notice(buf : StringBuilder, questions : Array[ReviwQuestion]) -> Unit {
+  if questions.length() == 0 {
+    return
+  }
+  // Notice is now handled by the questions bar, but keep for backward compatibility
+  let mut pending = 0
+  for q in questions {
+    if not(q.resolved) {
+      pending = pending + 1
+    }
+  }
+  if pending > 0 {
+    buf.write_string("<div id=\"questions-notice\" style=\"display:none\"></div>")
+  }
+}
+
+///| Serialize questions array to JSON
+fn serialize_questions_json(questions : Array[ReviwQuestion]) -> String {
+  let buf = StringBuilder::new()
+  buf.write_char('[')
+  for i, q in questions {
+    if i > 0 {
+      buf.write_char(',')
+    }
+    buf.write_string("{\"id\":")
+    buf.write_string(json_quote(q.id))
+    buf.write_string(",\"question\":")
+    buf.write_string(json_quote(q.question))
+    buf.write_string(",\"resolved\":")
+    buf.write_string(if q.resolved { "true" } else { "false" })
+    buf.write_string(",\"answer\":")
+    buf.write_string(json_quote(q.answer))
+    buf.write_string(",\"options\":[")
+    for j, opt in q.options {
+      if j > 0 {
+        buf.write_char(',')
+      }
+      buf.write_string(json_quote(opt))
+    }
+    buf.write_string("]}")
+  }
+  buf.write_char(']')
+  buf.to_string()
+}
+
+///| JSON-encode a string value with quotes
+fn json_quote(s : String) -> String {
+  let buf = StringBuilder::new()
+  buf.write_char('"')
+  buf.write_string(escape_js_string(s))
+  buf.write_char('"')
+  buf.to_string()
 }
 
 fn build_script_footer(
@@ -114,6 +353,33 @@ fn build_script_footer(
   mode : String,
   filename : String
 ) -> Unit {
+  // Mermaid CDN for markdown mode
+  if mode == "markdown" {
+    buf.write_string("<script src=\"https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js\"></script>")
+    buf.write_string("<script>")
+    buf.write_string("mermaid.initialize({startOnLoad:false,theme:document.documentElement.getAttribute('data-theme')==='light'?'default':'dark',securityLevel:'loose'});")
+    buf.write_string("mermaid.run().catch(function(e){console.error('Mermaid error:',e);});")
+    buf.write_string("window.__reRenderMermaid=function(theme){")
+    buf.write_string("mermaid.initialize({startOnLoad:false,theme:theme!=='light'?'dark':'default',securityLevel:'loose'});")
+    buf.write_string("var divs=document.querySelectorAll('.mermaid');")
+    buf.write_string("divs.forEach(function(d){d.removeAttribute('data-processed');d.innerHTML=d.getAttribute('data-source');});")
+    buf.write_string("if(divs.length>0)mermaid.run({nodes:Array.from(divs)}).catch(function(){});")
+    buf.write_string("};")
+    // Mermaid fullscreen is handled by ui.js (ZoomPanViewer-based)
+    buf.write_string("</script>")
+  }
+  // highlight.js initialization (highlight code blocks in preview, skip mermaid)
+  if mode == "markdown" {
+    buf.write_string("<script>")
+    buf.write_string("if(typeof hljs!=='undefined'){")
+    buf.write_string("var preview=document.querySelector('.md-preview');")
+    buf.write_string("if(preview){preview.querySelectorAll('pre code').forEach(function(block){")
+    buf.write_string("if(block.closest('.mermaid-container')||block.classList.contains('hljs'))return;")
+    buf.write_string("hljs.highlightElement(block);")
+    buf.write_string("});}")
+    buf.write_string("}")
+    buf.write_string("</script>")
+  }
   buf.write_string("<script type=\"module\" src=\"/ui.js\"></script>")
   buf.write_string("<script>window.__REVIW_PORT__=")
   buf.write_string(port.to_string())
@@ -128,14 +394,25 @@ fn build_script_footer(
 pub fn build_csv_html(data : CsvData, filename : String, port : Int) -> String {
   let buf = StringBuilder::new()
   build_page_start(buf, filename)
-  buf.write_string("<div id=\"filter-menu\"></div>")
-  buf.write_string("<div style=\"padding:16px;overflow-x:auto\"><table id=\"csv-table\"><thead><tr>")
+  // Filter menu (cli.cjs L4989-4996)
+  buf.write_string(
+    "<div class=\"filter-menu\" id=\"filter-menu\"><label class=\"menu-check\"><input type=\"checkbox\" id=\"freeze-col-check\" /> Freeze up to this column</label><button data-action=\"not-empty\">Rows where not empty</button><button data-action=\"empty\">Rows where empty</button><button data-action=\"contains\">Contains...</button><button data-action=\"not-contains\">Does not contain...</button><button data-action=\"reset\">Clear filter</button></div>",
+  )
+  // Row menu (cli.cjs L4997-4999)
+  buf.write_string(
+    "<div class=\"filter-menu\" id=\"row-menu\"><label class=\"menu-check\"><input type=\"checkbox\" id=\"freeze-row-check\" /> Freeze up to this row</label></div>",
+  )
+  buf.write_string(
+    "<div style=\"padding:16px;overflow-x:auto\"><table id=\"csv-table\"><thead><tr>",
+  )
   for i, header in data.headers {
     buf.write_string("<th data-col=\"")
     buf.write_string(i.to_string())
-    buf.write_string("\"><span class=\"th-inner\">")
+    buf.write_string("\"><div class=\"th-inner\">")
     buf.write_string(escape_html(header))
-    buf.write_string("</span></th>")
+    buf.write_string("<span class=\"resizer\" data-col=\"")
+    buf.write_string(i.to_string())
+    buf.write_string("\"></span></div></th>")
   }
   buf.write_string("</tr></thead><tbody id=\"tbody\">")
   for i, row in data.rows {
@@ -156,6 +433,7 @@ pub fn build_csv_html(data : CsvData, filename : String, port : Int) -> String {
   buf.write_string("</tbody></table></div>")
   build_comment_card(buf)
   build_submit_modal(buf)
+  build_history_panel(buf)
   build_recovery_modal(buf)
   buf.write_string("<script>const DATA = ")
   buf.write_string(serialize_csv_data_json(data))
@@ -247,6 +525,7 @@ pub fn build_diff_html(data : DiffData, filename : String, port : Int) -> String
   buf.write_string("</div>")
   build_comment_card(buf)
   build_submit_modal(buf)
+  build_history_panel(buf)
   build_recovery_modal(buf)
   build_script_footer(buf, port, "diff", filename)
   buf.to_string()
@@ -274,6 +553,7 @@ pub fn build_text_html(
   buf.write_string("</div>")
   build_comment_card(buf)
   build_submit_modal(buf)
+  build_history_panel(buf)
   build_recovery_modal(buf)
   build_script_footer(buf, port, "text", filename)
   buf.to_string()

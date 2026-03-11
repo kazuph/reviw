@@ -38,11 +38,17 @@ v2/
 │   │   ├── html.mbt       # HTMLビルダー（CSV, Diff, Text, Markdown用）
 │   │   ├── yaml.mbt       # YAMLシリアライザ
 │   │   ├── strutil.mbt    # 安全な文字列スライス、整数パース
+│   │   ├── css.mbt         # CSSスタイル生成
 │   │   ├── csv_test.mbt   # 7テスト
+│   │   ├── csv_v2_test.mbt # CSV追加テスト
 │   │   ├── diff_test.mbt  # 5テスト
-│   │   ├── markdown_test.mbt # 15テスト
+│   │   ├── diff_v2_test.mbt # Diff追加テスト
+│   │   ├── diff_html_v2_test.mbt # Diff HTML追加テスト
+│   │   ├── markdown_test.mbt # 14テスト
+│   │   ├── markdown_html_v2_test.mbt # Markdown HTML追加テスト
 │   │   ├── yaml_test.mbt  # 4テスト
-│   │   ├── html_test.mbt  # 6テスト
+│   │   ├── html_test.mbt  # 7テスト
+│   │   ├── html_v2_test.mbt # HTML追加テスト
 │   │   └── strutil_test.mbt # 9テスト
 │   ├── server/            # Node.js HTTPサーバー
 │   │   ├── ffi.mbt        # Node.js API FFI（fs, http, path, child_process, os）
@@ -57,9 +63,9 @@ v2/
 | 項目 | 旧版 (cli.cjs) | v2 (MoonBit) |
 |------|----------------|--------------|
 | ソースファイル | 1 | 14 |
-| テストファイル | 0 | 6 |
-| coreテスト数 | 0 | 46 |
-| E2Eテスト数 | 0 | 18 |
+| テストファイル | 0 | 12 |
+| coreテスト数 | 0 | 112 |
+| E2Eテスト数 | 0 | 36 |
 | 総行数 | 10,800 | ~2,500 |
 | 手書きJS | 10,800行 | 0 |
 | 依存npm | 4 (chardet, iconv-lite, marked, js-yaml) | 0 |
@@ -127,18 +133,24 @@ v2/
 
 ## テスト現況
 
-### coreパッケージ（46テスト全パス）
+### coreパッケージ（112テスト全パス）
 
 - `csv_test.mbt` — 7テスト: RFC4180準拠（quoted fields, escaped quotes, CRLF, 空入力エラー）
+- `csv_v2_test.mbt` — CSV追加テスト
 - `diff_test.mbt` — 5テスト: unified diff（git prefix strip, 複数ファイル, hunk header）
-- `markdown_test.mbt` — 15テスト: heading, paragraph, bold/italic, code block, inline code, list, link, image, blockquote, hr, table, frontmatter, empty
+- `diff_v2_test.mbt` — Diff追加テスト
+- `diff_html_v2_test.mbt` — Diff HTML追加テスト
+- `markdown_test.mbt` — 14テスト: heading, paragraph, bold/italic, code block, inline code, list, link, image, blockquote, hr, table, frontmatter, empty
+- `markdown_html_v2_test.mbt` — Markdown HTML追加テスト
 - `yaml_test.mbt` — 4テスト: 特殊文字エスケープ, 空value省略, 複数ファイル出力
-- `html_test.mbt` — 6テスト: XSSエスケープ, テーブル構造, diff class
+- `html_test.mbt` — 7テスト: XSSエスケープ, テーブル構造, diff class
+- `html_v2_test.mbt` — HTML追加テスト
 - `strutil_test.mbt` — 9テスト: 範囲外アクセス安全性, 整数パース
 
-### E2Eテスト（18テスト全パス）
+### E2Eテスト（36テスト全パス）
 
 - `e2e/smoke.mjs` — サーバー起動→HTML/healthz/ui.js配信→Submit→ロック解除
   - Markdown: 12テスト（HTML構造、モード、preview/source pane、healthz、ui.js、404）
   - CSV: 5テスト（テーブル構造、データ内容、data-row属性）
   - Lock: 1テスト（ロックファイル自動クリーンアップ）
+  - 追加: 18テスト（v2追加分）

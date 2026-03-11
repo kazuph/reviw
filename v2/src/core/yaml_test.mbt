@@ -6,6 +6,7 @@ test "review to yaml single file" {
       { row: 1, col: 2, text: "needs review", value: "150" },
     ],
     summary: "looks good",
+    answers: "",
   }
   inspect(review_to_yaml(result), content=(
     #|file: data.csv
@@ -28,6 +29,7 @@ test "review to yaml escapes special chars" {
       { row: 0, col: 0, text: "has: colon and #hash", value: "" },
     ],
     summary: "it's fine",
+    answers: "",
   }
   inspect(review_to_yaml(result), content=(
     #|file: test.csv
@@ -48,12 +50,14 @@ test "reviews to yaml multiple files" {
       mode: Csv,
       comments: [],
       summary: "ok",
+      answers: "",
     },
     {
       file: "b.md",
       mode: Markdown,
       comments: [],
       summary: "ok",
+      answers: "",
     },
   ]
   inspect(reviews_to_yaml(results), content=(
@@ -78,6 +82,7 @@ test "yaml escape empty value omitted" {
       { row: 0, col: 0, text: "note", value: "" },
     ],
     summary: "done",
+    answers: "",
   }
   let yaml = review_to_yaml(result)
   // value should not appear when empty

@@ -10,6 +10,7 @@ test "markdown html: has header tag with filename" {
     source: "# Hello",
     html: "<h1>Hello</h1>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "sample.md", 4989)
   inspect(html.contains("<header"), content=(
@@ -26,6 +27,7 @@ test "markdown html: uses md-layout wrapper" {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("md-layout"), content=(
@@ -39,6 +41,7 @@ test "markdown html: has md-left panel" {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("md-left"), content=(
@@ -52,6 +55,7 @@ test "markdown html: has md-right panel" {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("md-right"), content=(
@@ -65,6 +69,7 @@ test "markdown html: preview pane has md-preview class" {
     source: "# Title",
     html: "<h1>Title</h1>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("md-preview"), content=(
@@ -78,9 +83,10 @@ test "markdown html: preview contains rendered html" {
     source: "# Sample Document",
     html: "<h1>Sample Document</h1>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
-  inspect(html.contains("<h1>Sample Document</h1>"), content=(
+  inspect(html.contains("Sample Document</h1>"), content=(
     #|true
   ))
 }
@@ -92,6 +98,7 @@ test "markdown html: right panel has csv-table id" {
     source: "line1\nline2",
     html: "<p>content</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("id=\"csv-table\""), content=(
@@ -105,6 +112,7 @@ test "markdown html: source table has tbody with data-row and data-col" {
     source: "line0\nline1\nline2",
     html: "<p>content</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("data-row="), content=(
@@ -115,28 +123,30 @@ test "markdown html: source table has tbody with data-row and data-col" {
   ))
 }
 
-test "markdown html: has comment-toggle button" {
-  // markdown.test.js:70 locator('#comment-toggle').click()
+test "markdown html: has pill-comments button" {
+  // cli.cjs uses pill-comments for comment toggle
   let md : MarkdownData = {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
-  inspect(html.contains("id=\"comment-toggle\""), content=(
+  inspect(html.contains("id=\"pill-comments\""), content=(
     #|true
   ))
 }
 
 test "markdown html: has comment-list panel" {
-  // markdown.test.js:72 locator('.comment-list')
+  // cli.cjs uses comment-list aside
   let md : MarkdownData = {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
-  inspect(html.contains("class=\"comment-list\""), content=(
+  inspect(html.contains("comment-list"), content=(
     #|true
   ))
 }
@@ -147,6 +157,7 @@ test "markdown html: has mermaid-fullscreen overlay" {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("id=\"mermaid-fullscreen\""), content=(
@@ -160,6 +171,7 @@ test "markdown html: has image-fullscreen overlay" {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("id=\"image-fullscreen\""), content=(
@@ -173,6 +185,7 @@ test "markdown html: has view-toggle button" {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("id=\"view-toggle\""), content=(
@@ -186,9 +199,128 @@ test "markdown html: has recovery modal" {
     source: "text",
     html: "<p>text</p>",
     frontmatter: {},
+    questions: [],
   }
   let html = build_markdown_html(md, "test.md", 4989)
   inspect(html.contains("id=\"recovery-modal\""), content=(
+    #|true
+  ))
+}
+
+test "markdown html: mermaid fullscreen has zoom controls and minimap CSS" {
+  // Verify Mermaid fullscreen overlay includes zoom in/out, reset, close controls
+  // and the CSS includes minimap styling for ZoomPanViewer
+  let md : MarkdownData = {
+    source: "text",
+    html: "<p>text</p>",
+    frontmatter: {},
+    questions: [],
+  }
+  let html = build_markdown_html(md, "test.md", 4989)
+  // Fullscreen controls
+  inspect(html.contains("id=\"fs-zoom-in\""), content=(
+    #|true
+  ))
+  inspect(html.contains("id=\"fs-zoom-out\""), content=(
+    #|true
+  ))
+  inspect(html.contains("id=\"fs-reset\""), content=(
+    #|true
+  ))
+  inspect(html.contains("id=\"fs-close\""), content=(
+    #|true
+  ))
+  // ZoomPanViewer content area (where minimap is dynamically added)
+  inspect(html.contains("id=\"fs-content\""), content=(
+    #|true
+  ))
+  inspect(html.contains("id=\"fs-wrapper\""), content=(
+    #|true
+  ))
+  // CSS includes minimap styling
+  inspect(html.contains(".minimap"), content=(
+    #|true
+  ))
+}
+
+test "markdown html: mermaid has fullscreen button per diagram" {
+  // Each mermaid code block should render with a fullscreen button
+  let md : MarkdownData = {
+    source: "```mermaid\ngraph LR\n  A-->B\n```",
+    html: "<div class=\"mermaid-container\"><pre class=\"mermaid\">graph LR\n  A--&gt;B</pre></div><button class=\"mermaid-fullscreen-btn\" title=\"Fullscreen\">\u{26F6}</button>",
+    frontmatter: {},
+    questions: [],
+  }
+  let html = build_markdown_html(md, "test.md", 4989)
+  inspect(html.contains("mermaid-fullscreen-btn"), content=(
+    #|true
+  ))
+  inspect(html.contains("mermaid-container"), content=(
+    #|true
+  ))
+}
+
+test "markdown html: has video-fullscreen overlay" {
+  let md : MarkdownData = {
+    source: "text",
+    html: "<p>text</p>",
+    frontmatter: {},
+    questions: [],
+  }
+  let html = build_markdown_html(md, "test.md", 4989)
+  inspect(html.contains("id=\"video-fullscreen\""), content=(
+    #|true
+  ))
+}
+
+test "markdown html: has media-sidebar" {
+  let md : MarkdownData = {
+    source: "text",
+    html: "<p>text</p>",
+    frontmatter: {},
+    questions: [],
+  }
+  let html = build_markdown_html(md, "test.md", 4989)
+  inspect(html.contains("id=\"media-sidebar\""), content=(
+    #|true
+  ))
+  inspect(html.contains("media-sidebar-thumbs"), content=(
+    #|true
+  ))
+}
+
+test "markdown html: video elements have preview class for sidebar detection" {
+  // Videos rendered from markdown should have video-preview class
+  // so init_media_sidebar_js() can detect them as media items
+  let md : MarkdownData = {
+    source: "![video](test.mp4)",
+    html: "<video src=\"test.mp4\" controls preload=\"metadata\" class=\"video-preview\"></video>",
+    frontmatter: {},
+    questions: [],
+  }
+  let html = build_markdown_html(md, "test.md", 4989)
+  inspect(html.contains("video-preview"), content=(
+    #|true
+  ))
+  inspect(html.contains("preload=\"metadata\""), content=(
+    #|true
+  ))
+}
+
+test "markdown html: media-sidebar-thumb CSS classes exist" {
+  // CSS should contain media-sidebar-thumb-video styles for video thumbnails
+  let md : MarkdownData = {
+    source: "text",
+    html: "<p>text</p>",
+    frontmatter: {},
+    questions: [],
+  }
+  let html = build_markdown_html(md, "test.md", 4989)
+  inspect(html.contains("media-sidebar-thumb-video"), content=(
+    #|true
+  ))
+  // Play button overlay (::before and ::after pseudo-elements)
+  inspect(html.contains("media-sidebar-thumb-video::after"), content=(
     #|true
   ))
 }
