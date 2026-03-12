@@ -33,31 +33,48 @@ A lightweight browser-based tool for reviewing and annotating tabular data, text
 
 ### Mermaid.js Diagrams
 - Auto-detect and render Mermaid diagrams in Markdown files
-- Click any diagram to open fullscreen viewer
+- Click any diagram to open fullscreen viewer with minimap
 - Zoom with mouse wheel (centered on cursor position, up to 10x)
 - Pan with mouse drag
+- Trackpad pinch-to-zoom and touch gesture support
+- Shift+scroll zoom for Windows users
+- Dark mode support for thumbnails
+- Highlights corresponding source line after closing fullscreen
 - Syntax error display in toast notifications
+
+### Media Sidebar
+- Thumbnail gallery of all images and videos in the left sidebar
+- Click any thumbnail to scroll to the corresponding media and highlight the source line
+- Numbered badges for quick identification
 
 ### Media Fullscreen
 - Click images in Markdown preview to open fullscreen viewer
-- Click videos to open fullscreen playback with native controls
+- Click videos to open fullscreen playback with YouTube-like keyboard shortcuts (Space/K, J/L, arrow keys, 0-9)
 - Click anywhere (including the image/video itself) to close the fullscreen overlay
 - Clicking media automatically highlights the corresponding source line in the Markdown panel
+- Video timeline settings with adjustable scene detection sensitivity
 
 ### UI Features
 - **Theme toggle**: Switch between light and dark modes
+- **Preview-only mode**: Hide source panel for wide preview reading
+- **Heading toggle**: Collapse/expand sections by clicking heading arrows
 - **Multi-file support**: Open multiple files simultaneously on separate ports
 - **Drag selection**: Select rectangular regions or multiple rows for batch comments
 - **Real-time updates**: Hot reload on file changes via SSE
 - **Comment persistence**: Auto-save comments to localStorage with recovery modal
+- **Image attachment**: Attach images to comments and submit dialog (paste with Cmd/Ctrl+V)
+- **Selected-lines copy**: Copy button in comment dialog to copy selected line text
 - **Keyboard shortcuts**: Cmd/Ctrl+Enter to open submit modal
 - **Multi-tab sync**: Submit from any tab closes all tabs for the same file
 - **Server detection**: Reuse existing server instead of starting a new one (via lock files)
 - **Tab activation (macOS)**: Automatically activates existing browser tab via AppleScript
+- **Review history**: File-based persistent review history
+- **details/summary support**: HTML details/summary tags rendered as collapsible sections
 
 ### Output
 - YAML format with file, mode, row, col, value, and comment text
 - Overall summary field for review notes
+- Image attachments included as base64 data
 
 ## Installation
 
@@ -102,20 +119,29 @@ reviw changes.diff
 
 ## Screenshots
 
+### Markdown View with Media Sidebar
+![Markdown View with Media Sidebar](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-media-sidebar.png)
+
+### Preview-only Mode
+![Preview-only Mode](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-preview-only.png)
+
+### Heading Toggle
+![Heading Toggle](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-heading-toggle.png)
+
+### Comment Dialog with Image Attachment
+![Comment Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-comment-dialog.png)
+
+### Mermaid Fullscreen with Minimap
+![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid-fullscreen.png)
+
+### Submit Review Dialog with Image Attachment
+![Submit Review Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-submit-modal.png)
+
 ### CSV View
 ![CSV View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-csv.png)
 
-### Markdown View
-![Markdown View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-md.png)
-
 ### Diff View
 ![Diff View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-diff.png)
-
-### Mermaid Fullscreen
-![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid.png)
-
-### Submit Review Dialog
-![Submit Review Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-submit-dialog.png)
 
 ## Output Example
 

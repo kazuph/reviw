@@ -33,28 +33,48 @@
 
 ### Mermaid.jsダイアグラム
 - MarkdownファイルのMermaidダイアグラムを自動検出・レンダリング
-- ダイアグラムをクリックでフルスクリーンビューアを開く
+- ダイアグラムをクリックでミニマップ付きフルスクリーンビューアを開く
 - マウスホイールでズーム（カーソル位置を中心に、最大10倍）
 - マウスドラッグでパン
+- トラックパッドのピンチズーム・タッチジェスチャー対応
+- Windows向けShift+スクロールズーム対応
+- ダークモードでのサムネイル表示対応
+- フルスクリーン終了時にソース行をハイライト
 - 構文エラーはトースト通知で表示
+
+### メディアサイドバー
+- 左サイドバーに画像・動画のサムネイルギャラリーを表示
+- サムネイルクリックで対応するメディアにスクロール＆ソース行ハイライト
+- 番号バッジ付きで素早く識別
 
 ### メディアフルスクリーン
 - Markdownプレビューの画像をクリックでフルスクリーンビューアを開く
-- 動画をクリックでネイティブコントロール付きフルスクリーン再生
+- 動画をクリックでYouTube風キーボードショートカット付きフルスクリーン再生（Space/K、J/L、矢印キー、0-9）
 - 画像/動画自体を含む任意の場所をクリックでフルスクリーンオーバーレイを閉じる
 - メディアをクリックするとMarkdownパネルの対応するソース行が自動ハイライト
+- 動画タイムライン設定（シーン検出感度の調整）
 
 ### UI機能
 - **テーマ切り替え**: ライト/ダークモードの切り替え
+- **プレビューオンリーモード**: ソースパネルを非表示にしてプレビューをワイド表示
+- **見出し折りたたみ**: 見出しの▼をクリックでセクションを折りたたみ/展開
 - **複数ファイルサポート**: 複数ファイルを別々のポートで同時に開く
 - **ドラッグ選択**: 矩形領域または複数行を選択してバッチコメント
 - **リアルタイム更新**: SSE経由でファイル変更時にホットリロード
 - **コメント永続化**: localStorageにコメントを自動保存、リカバリーモーダル付き
+- **画像添付**: コメントダイアログとSubmitモーダルで画像添付（Cmd/Ctrl+Vで貼り付け）
+- **選択行コピー**: コメントダイアログの📋ボタンで選択行テキストをコピー
 - **キーボードショートカット**: Cmd/Ctrl+Enterで送信モーダルを開く
+- **マルチタブ同期**: 1つのタブでSubmitすると同じファイルの他のタブも連動して閉じる
+- **サーバー検出**: 既存サーバーを再利用（ロックファイルで管理）
+- **タブアクティベーション（macOS）**: AppleScript経由で既存ブラウザタブを自動アクティブ化
+- **レビュー履歴**: ファイルベースの永続的なレビュー履歴
+- **details/summary対応**: HTML details/summaryタグを折りたたみセクションとして表示
 
 ### 出力
 - file、mode、row、col、value、コメントテキストを含むYAML形式
 - レビューノート用のサマリーフィールド
+- 画像添付はbase64データとして含む
 
 ## インストール
 
@@ -99,20 +119,29 @@ reviw changes.diff
 
 ## スクリーンショット
 
+### Markdownビュー（メディアサイドバー付き）
+![Markdown View with Media Sidebar](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-media-sidebar.png)
+
+### プレビューオンリーモード
+![Preview-only Mode](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-preview-only.png)
+
+### 見出し折りたたみ
+![Heading Toggle](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-heading-toggle.png)
+
+### コメントダイアログ（画像添付対応）
+![Comment Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-comment-dialog.png)
+
+### Mermaidフルスクリーン（ミニマップ付き）
+![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid-fullscreen.png)
+
+### レビュー送信ダイアログ（画像添付対応）
+![Submit Review Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-submit-modal.png)
+
 ### CSVビュー
 ![CSV View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-csv.png)
 
-### Markdownビュー
-![Markdown View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-md.png)
-
 ### Diffビュー
 ![Diff View](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-diff.png)
-
-### Mermaidフルスクリーン
-![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid.png)
-
-### 送信レビューダイアログ
-![Submit Review Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-submit-dialog.png)
 
 ## 出力例
 
