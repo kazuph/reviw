@@ -1,6 +1,6 @@
 {
   "name": "reviw",
-  "version": "0.23.0",
+  "version": "1.0.0",
   "description": "Lightweight file reviewer with in-browser comments for CSV, TSV, Markdown, and Git diffs.",
   "type": "module",
   "bin": {
@@ -12,7 +12,7 @@
   "scripts": {
     "test": "npm run test:v2",
     "test:v1": "vitest run",
-    "test:v2": "cd v2 && moon test --target js && moon build --target js --release && node e2e/smoke.mjs",
+    "test:v2": "cd v2 && moon test --target js && moon build --target js --release && node e2e/smoke.mjs && node e2e/media_sidebar_regression.mjs",
     "test:all": "npm run test:v2 && vitest run",
     "test:watch": "vitest",
     "build": "cd v2 && moon build --target js --release"
