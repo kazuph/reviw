@@ -8,6 +8,10 @@ pub type Event
 #external
 pub type EventSource
 
+///| Listener handle for event cleanup (ListenerHandle/unlisten pattern)
+#external
+pub type ListenerHandle
+
 ///| DOM query
 extern "js" fn query(selector : String) -> Element =
   #|(s) => document.querySelector(s)
@@ -21,6 +25,9 @@ extern "js" fn get_attr(el : Element, name : String) -> String =
 
 extern "js" fn set_inner_html(el : Element, html : String) -> Unit =
   #|(el, html) => { if (el) el.innerHTML = html; }
+
+extern "js" fn get_inner_html(el : Element) -> String =
+  #|(el) => el?.innerHTML || ""
 
 extern "js" fn get_text_content(el : Element) -> String =
   #|(el) => el?.textContent || ""
@@ -37,18 +44,60 @@ extern "js" fn add_class(el : Element, cls : String) -> Unit =
 extern "js" fn remove_class(el : Element, cls : String) -> Unit =
   #|(el, cls) => el?.classList.remove(cls)
 
-///| Event handling
+///| Event handling with ListenerHandle pattern for cleanup
+///| Returns a handle that can be used to remove the listener
+extern "js" fn on_with_handle(
+  el : Element,
+  event : String,
+  handler : (Event) -> Unit,
+  capture? : Bool = false,
+  passive? : Bool = true
+) -> ListenerHandle =
+  #|(el, event, handler, capture, passive) => {
+  #|  const wrapped = (e) => handler(e);
+  #|  const options = { capture, passive };
+  #|  el?.addEventListener(event, wrapped, options);
+  #|  return { el, event, handler: wrapped, options };
+  #|}
+
+///| Remove event listener using handle
+extern "js" fn unlisten(handle : ListenerHandle) -> Unit =
+  #|(handle) => {
+  #|  if (handle?.disconnect) {
+  #|    handle.disconnect();
+  #|    return;
+  #|  }
+  #|  if (handle?.remove) {
+  #|    handle.remove();
+  #|    return;
+  #|  }
+  #|  if (handle && handle.el) {
+  #|    handle.el.removeEventListener(handle.event, handle.handler, handle.options);
+  #|  }
+  #|}
+
+///| Legacy on() - kept for backward compatibility
 extern "js" fn on(el : Element, event : String, handler : (Event) -> Unit) -> Unit =
   #|(el, event, handler) => el?.addEventListener(event, handler)
 
+///| Remove event listener (legacy)
+extern "js" fn off(el : Element, event : String, handler : (Event) -> Unit) -> Unit =
+  #|(el, event, handler) => el?.removeEventListener(event, handler)
+
 extern "js" fn on_doc(event : String, handler : (Event) -> Unit) -> Unit =
   #|(event, handler) => document.addEventListener(event, handler)
+
+extern "js" fn off_doc(event : String, handler : (Event) -> Unit) -> Unit =
+  #|(event, handler) => document.removeEventListener(event, handler)
 
 extern "js" fn event_target(e : Event) -> Element =
   #|(e) => e.target
 
 extern "js" fn event_key(e : Event) -> String =
   #|(e) => e.key || ""
+
+extern "js" fn event_property_name(e : Event) -> String =
+  #|(e) => e.propertyName || ""
 
 extern "js" fn event_meta_key(e : Event) -> Bool =
   #|(e) => e.metaKey || false
@@ -135,6 +184,9 @@ extern "js" fn focus_element(el : Element) -> Unit =
 extern "js" fn is_null(el : Element) -> Bool =
   #|(el) => el == null || el == undefined
 
+extern "js" fn null_element() -> Element =
+  #|() => null
+
 ///| Parse stored comments JSON (cli.cjs { comments, timestamp } format)
 extern "js" fn parse_stored_comments(json : String) -> Array[Array[String]] =
   #|(json) => {
@@ -199,9 +251,15 @@ extern "js" fn date_now() -> Double =
 extern "js" fn set_timeout(callback : () -> Unit, ms : Int) -> Int =
   #|(cb, ms) => setTimeout(cb, ms)
 
+extern "js" fn clear_timeout(id : Int) -> Unit =
+  #|(id) => clearTimeout(id)
+
 ///| Window events
 extern "js" fn on_window(event : String, handler : (Event) -> Unit) -> Unit =
   #|(event, handler) => window.addEventListener(event, handler)
+
+extern "js" fn off_window(event : String, handler : (Event) -> Unit) -> Unit =
+  #|(event, handler) => window.removeEventListener(event, handler)
 
 ///| Body class manipulation
 extern "js" fn add_class_body(cls : String) -> Unit =
@@ -216,6 +274,44 @@ extern "js" fn get_event_client_x(e : Event) -> Int =
 
 extern "js" fn get_event_client_y(e : Event) -> Int =
   #|(e) => e.clientY || 0
+
+extern "js" fn get_event_offset_x(e : Event) -> Double =
+  #|(e) => e.offsetX || 0
+
+extern "js" fn get_event_offset_y(e : Event) -> Double =
+  #|(e) => e.offsetY || 0
+
+extern "js" fn get_event_delta_x(e : Event) -> Double =
+  #|(e) => e.deltaX || 0
+
+extern "js" fn get_event_delta_y(e : Event) -> Double =
+  #|(e) => e.deltaY || 0
+
+extern "js" fn get_event_button(e : Event) -> Int =
+  #|(e) => e.button || 0
+
+///| Pointer Events (unified mouse/touch)
+extern "js" fn get_pointer_id(e : Event) -> Int =
+  #|(e) => e.pointerId || 0
+
+extern "js" fn get_pointer_type(e : Event) -> String =
+  #|(e) => e.pointerType || ""
+
+extern "js" fn get_pressure(e : Event) -> Double =
+  #|(e) => e.pressure || 0
+
+///| Touch Events (for pinch gestures)
+extern "js" fn get_touches(e : Event) -> Array[Event] =
+  #|(e) => Array.from(e.touches || [])
+
+extern "js" fn get_changed_touches(e : Event) -> Array[Event] =
+  #|(e) => Array.from(e.changedTouches || [])
+
+extern "js" fn touch_get_client_x(touch : Event) -> Double =
+  #|(t) => t.clientX || 0
+
+extern "js" fn touch_get_client_y(touch : Event) -> Double =
+  #|(t) => t.clientY || 0
 
 extern "js" fn element_from_point(x : Int, y : Int) -> Element =
   #|(x, y) => document.elementFromPoint(x, y)
@@ -282,6 +378,9 @@ extern "js" fn next_element_sibling(el : Element) -> Element =
 ///| Stop event propagation
 extern "js" fn stop_propagation(e : Event) -> Unit =
   #|(e) => e.stopPropagation()
+
+extern "js" fn get_event_property_name(e : Event) -> String =
+  #|(e) => e?.propertyName || ""
 
 ///| Scroll to position instantly
 extern "js" fn scroll_to_instant(el : Element, top : Double) -> Unit =
@@ -363,6 +462,33 @@ extern "js" fn remove_element(el : Element) -> Unit =
 extern "js" fn parse_float(s : String) -> Double =
   #|(s) => { var v = parseFloat(s); return isNaN(v) ? 0.0 : v; }
 
+extern "js" fn parse_int_or(s : String, fallback : Int) -> Int =
+  #|(s, fallback) => {
+  #|  const v = parseInt(s, 10);
+  #|  return Number.isNaN(v) ? fallback : v;
+  #|}
+
+extern "js" fn join_strings(values : Array[String], sep : String) -> String =
+  #|(values, sep) => values.join(sep)
+
+extern "js" fn replace_all_text(text : String, search : String, replacement : String) -> String =
+  #|(text, search, replacement) => text.split(search).join(replacement)
+
+extern "js" fn math_abs(value : Double) -> Double =
+  #|(value) => Math.abs(value)
+
+extern "js" fn math_sqrt(value : Double) -> Double =
+  #|(value) => Math.sqrt(value)
+
+extern "js" fn math_min(a : Double, b : Double) -> Double =
+  #|(a, b) => Math.min(a, b)
+
+extern "js" fn math_max(a : Double, b : Double) -> Double =
+  #|(a, b) => Math.max(a, b)
+
+extern "js" fn math_round(value : Double) -> Double =
+  #|(value) => Math.round(value)
+
 ///| Create a video element with controls for fullscreen use
 extern "js" fn create_video_element(src : String) -> Element =
   #|(src) => {
@@ -378,50 +504,6 @@ extern "js" fn create_video_element(src : String) -> Element =
 ///| Element reference equality
 extern "js" fn elem_eq(a : Element, b : Element) -> Bool =
   #|(a, b) => a === b
-
-///| ZoomPanViewer opaque handle
-#external
-type ZoomPanViewerHandle
-
-///| Create a ZoomPanViewer — delegates to window.__createZPV (defined in expose_zpv_creator)
-///  Returns an opaque handle for the viewer instance.
-extern "js" fn create_zoom_pan_viewer(
-  viewport : Element,
-  wrapper : Element,
-  natural_width : Double,
-  natural_height : Double,
-  zoom_info_el : Element,
-  has_minimap : Bool,
-  minimap_viewport_el : Element,
-  mm_max_w : Double,
-  mm_max_h : Double,
-  mm_pad : Double,
-  zoom_min : Double,
-  zoom_max : Double,
-  use_ctrl_for_zoom : Bool
-) -> ZoomPanViewerHandle =
-  #|(viewport,wrapper,nw,nh,zoomInfoEl,hasMm,mmVpEl,mmMaxW,mmMaxH,mmPad,zMin,zMax,useCtrl) => {
-  #|  return window.__createZPV(viewport,wrapper,nw,nh,zoomInfoEl,hasMm,mmVpEl,mmMaxW,mmMaxH,mmPad,zMin,zMax,useCtrl);
-  #|}
-
-///| ZoomPanViewer methods
-extern "js" fn zpv_fit_to_viewport(viewer : ZoomPanViewerHandle) -> Unit =
-  #|(v) => { if (v) v.fitToViewport(); }
-
-extern "js" fn zpv_zoom_in(viewer : ZoomPanViewerHandle) -> Unit =
-  #|(v) => { if (v) v.zoomIn(); }
-
-extern "js" fn zpv_zoom_out(viewer : ZoomPanViewerHandle) -> Unit =
-  #|(v) => { if (v) v.zoomOut(); }
-
-extern "js" fn zpv_destroy(viewer : ZoomPanViewerHandle) -> Unit =
-  #|(v) => { if (v) v.destroy(); }
-
-extern "js" fn zpv_get_zoom(viewer : ZoomPanViewerHandle) -> Double =
-  #|(v) => v ? v.getZoom() : 1
-
-extern "js" fn zpv_is_null(viewer : ZoomPanViewerHandle) -> Bool =
-  #|(v) => v == null || v == undefined
 
 ///| DOM element creation helpers for fullscreen overlays
 extern "js" fn create_element(tag : String) -> Element =
@@ -445,6 +527,12 @@ extern "js" fn set_text_content(el : Element, text : String) -> Unit =
 extern "js" fn set_attribute(el : Element, name : String, value : String) -> Unit =
   #|(el, n, v) => { if (el) el.setAttribute(n, v); }
 
+extern "js" fn get_attribute(el : Element, name : String) -> String =
+  #|(el, n) => el?.getAttribute(n) || ""
+
+extern "js" fn remove_attribute(el : Element, name : String) -> Unit =
+  #|(el, n) => { if (el) el.removeAttribute(n); }
+
 extern "js" fn get_client_width(el : Element) -> Double =
   #|(el) => el?.clientWidth || 0
 
@@ -460,8 +548,36 @@ extern "js" fn get_natural_height(el : Element) -> Double =
 extern "js" fn set_draggable(el : Element, val : Bool) -> Unit =
   #|(el, v) => { if (el) el.draggable = v; }
 
+extern "js" fn set_tabindex(el : Element, val : Int) -> Unit =
+  #|(el, v) => { if (el) el.tabIndex = v; }
+
+extern "js" fn set_aria_label(el : Element, label : String) -> Unit =
+  #|(el, label) => { if (el) el.setAttribute('aria-label', label); }
+
+extern "js" fn get_dataset(el : Element, key : String) -> String =
+  #|(el, key) => {
+  #|  if (!el) return "";
+  #|  const attr = "data-" + String(key || "").replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+  #|  return el.getAttribute?.(attr) || "";
+  #|}
+
+extern "js" fn set_dataset(el : Element, key : String, value : String) -> Unit =
+  #|(el, key, value) => {
+  #|  if (!el) return;
+  #|  const attr = "data-" + String(key || "").replace(/[A-Z]/g, m => "-" + m.toLowerCase());
+  #|  el.setAttribute?.(attr, value);
+  #|}
+
 extern "js" fn query_body() -> Element =
   #|() => document.body
+
+///| Element rect (returns [left, top, width, height])
+extern "js" fn get_bounding_rect(el : Element) -> Array[Double] =
+  #|(el) => {
+  #|  if (!el) return [0, 0, 0, 0];
+  #|  const r = el.getBoundingClientRect();
+  #|  return [r.left, r.top, r.width, r.height];
+  #|}
 
 ///| Get SVG natural dimensions from viewBox or width/height attributes
 extern "js" fn get_svg_natural_size(svg : Element) -> Array[Double] =
@@ -499,6 +615,38 @@ extern "js" fn set_visibility(el : Element, visible : Bool) -> Unit =
 ///| Remove all children of an element
 extern "js" fn clear_children(el : Element) -> Unit =
   #|(el) => { if (el) el.innerHTML = ''; }
+
+///| Get all children of an element
+extern "js" fn get_children(el : Element) -> Array[Element] =
+  #|(el) => el ? Array.from(el.children) : []
+
+///| Shallow clone (no children)
+extern "js" fn clone_node_shallow(el : Element) -> Element =
+  #|(el) => el ? el.cloneNode(false) : null
+
+///| Insert element before target
+extern "js" fn insert_before(target : Element, new_el : Element) -> Unit =
+  #|(target, new_el) => { if (target && target.parentNode) target.parentNode.insertBefore(new_el, target); }
+
+///| Check if element has attribute
+extern "js" fn has_attribute(el : Element, name : String) -> Bool =
+  #|(el, name) => el ? el.hasAttribute(name) : false
+
+///| Setup intersection observer
+extern "js" fn setup_intersection_observer(
+  target : Element,
+  callback : (Array[Element]) -> Unit,
+  config_root : Element,
+  config_margin : String,
+  config_threshold : Double
+) -> Unit =
+  #|(target, callback, root, margin, threshold) => {
+  #|  if (!target) return;
+  #|  const observer = new IntersectionObserver((entries) => {
+  #|    callback(entries.map(e => e.target));
+  #|  }, { root, rootMargin: margin, threshold });
+  #|  observer.observe(target);
+  #|}
 
 ///| Check if element has a specific CSS class (visible state)
 extern "js" fn has_class_visible(el : Element) -> Bool =
@@ -557,6 +705,10 @@ extern "js" fn show_toast(msg : String) -> Unit =
 extern "js" fn scroll_into_view(el : Element) -> Unit =
   #|(el) => { if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 
+///| Get cell index of TD/TH element (-1 if not a table cell)
+extern "js" fn get_cell_index(el : Element) -> Int =
+  #|(el) => (el && el.cellIndex != null) ? el.cellIndex : -1
+
 ///| Programmatic click
 extern "js" fn click_element(el : Element) -> Unit =
   #|(el) => { if (el) el.click(); }
@@ -569,37 +721,6 @@ extern "js" fn local_storage_get(key : String) -> String =
 extern "js" fn local_storage_set(key : String, value : String) -> Unit =
   #|(key, value) => { try { localStorage.setItem(key, value); } catch(e) {} }
 
-///| VideoTimeline opaque handle
-#external
-type VideoTimelineHandle
-
-///| Create a video timeline with SSE-based thumbnails (cli.cjs L5136-5287)
-///| Create a video timeline — delegates to window.__createVTL (defined in expose_zpv_creator)
-extern "js" fn create_video_timeline(
-  video_el : Element,
-  container : Element,
-  video_path : String,
-  scene_threshold : Double,
-  stabilization_threshold : Double,
-  prevent_bubble : Bool
-) -> VideoTimelineHandle =
-  #|(videoEl,container,videoPath,sceneThreshold,stabThreshold,preventBubble) => {
-  #|  return window.__createVTL(videoEl,container,videoPath,sceneThreshold,stabThreshold,preventBubble);
-  #|}
-
-///| VideoTimeline methods
-extern "js" fn vtl_destroy(handle : VideoTimelineHandle) -> Unit =
-  #|(h) => { if (h) h.destroy(); }
-
-extern "js" fn vtl_navigate(handle : VideoTimelineHandle, direction : Int) -> Unit =
-  #|(h, d) => { if (h) h.navigate(d); }
-
-extern "js" fn vtl_is_null(handle : VideoTimelineHandle) -> Bool =
-  #|(h) => h == null || h == undefined
-
-extern "js" fn create_null_vtl_handle() -> VideoTimelineHandle =
-  #|() => null
-
 ///| Video element control
 extern "js" fn video_pause(el : Element) -> Unit =
   #|(el) => { if (el) el.pause(); }
@@ -609,180 +730,6 @@ extern "js" fn video_play(el : Element) -> Unit =
 
 extern "js" fn video_is_paused(el : Element) -> Bool =
   #|(el) => el?.paused !== false
-
-///| Initialize media sidebar (cli.cjs L7597-8216 initMediaSidebar)
-///  Creates thumbnails, wires up click handlers, viewer panel with
-///  ZoomPanViewer for images/mermaid and VideoTimeline for videos.
-extern "js" fn init_media_sidebar_js() -> Unit =
-  #|() => {
-  #|  var mdLayout=document.querySelector('.md-layout');if(!mdLayout)return;
-  #|  var preview=mdLayout.querySelector('.md-preview');if(!preview)return;
-  #|  var sidebar=document.getElementById('media-sidebar');
-  #|  var thumbsC=document.getElementById('media-sidebar-thumbs');
-  #|  var viewerP=document.getElementById('media-sidebar-viewer');
-  #|  var toggleBtn=document.getElementById('media-sidebar-toggle');
-  #|  var toggleCount=document.getElementById('media-toggle-count');
-  #|  if(!sidebar||!thumbsC||!viewerP||!toggleBtn)return;
-  #|  function cloneSvg(s,sfx){var c=s.cloneNode(true);var oid=s.getAttribute('id');if(oid){var nid=oid+'-sb-'+sfx;c.setAttribute('id',nid);var st=c.querySelector('style');if(st&&st.textContent)st.textContent=st.textContent.split(oid).join(nid);}if(!c.getAttribute('viewBox')&&c.getAttribute('width')&&c.getAttribute('height'))c.setAttribute('viewBox','0 0 '+parseFloat(c.getAttribute('width'))+' '+parseFloat(c.getAttribute('height')));c.removeAttribute('width');c.removeAttribute('height');return c;}
-  #|  var items=[],ic=0,vc=0,mc=0;
-  #|  var allM=Array.from(preview.querySelectorAll('img,video.video-preview,.mermaid-container'));
-  #|  allM.forEach(function(el){
-  #|    if(el.tagName==='IMG'){ic++;items.push({type:'image',element:el,src:el.src,alt:el.alt||'Image '+ic});}
-  #|    else if(el.tagName==='VIDEO'&&el.classList.contains('video-preview')){var s=el.getAttribute('src');if(s&&/\.(mp4|mov|webm|avi|mkv|m4v|ogv)$/i.test(s)){vc++;items.push({type:'video',element:el,src:s,alt:el.getAttribute('title')||'Video '+vc});}}
-  #|    else if(el.classList.contains('mermaid-container')){mc++;var svg=el.querySelector('svg');items.push({type:'mermaid',element:el,svg:svg,alt:'Diagram '+mc});}
-  #|  });
-  #|  if(items.length===0)return;
-  #|  toggleBtn.style.display='';toggleBtn.classList.add('has-media');
-  #|  if(toggleCount)toggleCount.textContent=String(items.length);
-  #|  sidebar.classList.remove('hidden');
-  #|  var activeIdx=-1,sbVisible=true,sbCleanup=null,sbPendingFit=null;
-  #|  items.forEach(function(item,idx){
-  #|    var th=document.createElement('div');th.className='media-sidebar-thumb';th.setAttribute('data-media-index',String(idx));th.tabIndex=0;th.setAttribute('aria-label',item.alt);
-  #|    var badge=document.createElement('span');badge.className='media-sidebar-thumb-index';badge.textContent=String(idx+1);th.appendChild(badge);
-  #|    if(item.type==='image'){var im=document.createElement('img');im.src=item.src;im.alt=item.alt;im.loading='lazy';th.appendChild(im);}
-  #|    else if(item.type==='video'){var vw=document.createElement('div');vw.className='media-sidebar-thumb-video';var vi=document.createElement('video');vi.src=item.src+'#t=0.1';vi.preload='metadata';vi.muted=true;vi.addEventListener('loadeddata',function(){if(vi.currentTime<0.01)vi.currentTime=0.1;});vw.appendChild(vi);th.appendChild(vw);}
-  #|    else if(item.type==='mermaid'){var mw=document.createElement('div');mw.className='media-sidebar-thumb-mermaid';if(item.svg){var cl=cloneSvg(item.svg,'thumb-'+idx);cl.setAttribute('preserveAspectRatio','xMidYMid meet');cl.style.width='100%';cl.style.height='100%';mw.appendChild(cl);}else{mw.textContent='Diagram';mw.style.fontSize='9px';mw.style.color='var(--muted)';}th.appendChild(mw);}
-  #|    th.addEventListener('click',function(e){e.stopPropagation();if(activeIdx===idx)closeViewer();else openViewer(idx);});
-  #|    thumbsC.appendChild(th);
-  #|  });
-  #|  function openViewer(idx){
-  #|    if(idx<0||idx>=items.length)return;
-  #|    if(sbCleanup){sbCleanup();sbCleanup=null;}
-  #|    var item=items[idx];activeIdx=idx;
-  #|    var allTh=thumbsC.querySelectorAll('.media-sidebar-thumb');allTh.forEach(function(t){t.classList.remove('active');});allTh[idx].classList.add('active');
-  #|    allTh[idx].scrollIntoView({block:'nearest',behavior:'smooth'});
-  #|    var mdRight=mdLayout.querySelector('.md-right');if(mdRight)mdRight.style.display='none';
-  #|    viewerP.innerHTML='';
-  #|    var closeBtn=document.createElement('button');closeBtn.className='media-sidebar-viewer-close';closeBtn.innerHTML='\u2715';closeBtn.title='Close viewer (ESC)';closeBtn.addEventListener('click',function(e){e.stopPropagation();closeViewer();});viewerP.appendChild(closeBtn);
-  #|    var content=document.createElement('div');content.className='media-sidebar-viewer-content';
-  #|    if(item.type==='image'){
-  #|      var imgVp=document.createElement('div');imgVp.style.cssText='height:calc(100vh - 140px);overflow:hidden;position:relative;cursor:grab;';
-  #|      var imgWr=document.createElement('div');imgWr.style.cssText='position:absolute;left:0;top:0;transform-origin:0 0;';
-  #|      var img=document.createElement('img');img.src=item.src;img.alt=item.alt;img.draggable=false;imgWr.appendChild(img);imgVp.appendChild(imgWr);
-  #|      var zi=document.createElement('div');zi.className='sidebar-zoom-indicator';zi.textContent='100%';imgVp.appendChild(zi);
-  #|      content.appendChild(imgVp);imgWr.style.visibility='hidden';
-  #|      var imgV=null,ziTO=null;
-  #|      function initIV(){if(!img.naturalWidth||!img.naturalHeight)return;if(imgV)imgV.destroy();
-  #|        img.style.width=img.naturalWidth+'px';img.style.height=img.naturalHeight+'px';
-  #|        imgV=window.__createZPV(imgVp,imgWr,img.naturalWidth,img.naturalHeight,null,false,null,184,134,8,0.1,20,true);
-  #|        imgV.fitToViewport();imgWr.style.visibility='visible';
-  #|        function onUpd(){zi.textContent=Math.round(imgV.getZoom()*100)+'%';zi.classList.remove('hidden');clearTimeout(ziTO);ziTO=setTimeout(function(){zi.classList.add('hidden');},1500);}
-  #|        var origUT=imgV.updateTransform;imgV.updateTransform=function(){origUT();onUpd();};
-  #|      }
-  #|      img.addEventListener('load',function(){if(viewerP.offsetWidth>100)initIV();});
-  #|      if(img.complete&&img.naturalWidth)img.naturalWidth;
-  #|      sbPendingFit=function(){initIV();};
-  #|      sbCleanup=function(){if(imgV)imgV.destroy();clearTimeout(ziTO);};
-  #|    }else if(item.type==='video'){
-  #|      var vc2=document.createElement('div');vc2.className='sidebar-video-container';
-  #|      var vid=document.createElement('video');vid.src=item.src;vid.controls=true;vid.preload='metadata';vc2.appendChild(vid);content.appendChild(vc2);
-  #|      var tl=window.__createVTL(vid,vc2,item.src,0.01,0.1,false);
-  #|      var sbVidKey=function(e){if(activeIdx===-1)return;var fi=document.getElementById('video-fullscreen');var ii=document.getElementById('image-fullscreen');if((fi&&fi.classList.contains('visible'))||(ii&&ii.classList.contains('visible')))return;if(items[activeIdx].type!=='video')return;if(e.key==='ArrowLeft'||e.key==='j'){e.preventDefault();e.stopPropagation();if(tl)tl.navigate(-1);}else if(e.key==='ArrowRight'||e.key==='l'){e.preventDefault();e.stopPropagation();if(tl)tl.navigate(1);}else if(e.key===' '||e.key==='k'){e.preventDefault();e.stopPropagation();if(vid.paused)vid.play();else vid.pause();}};
-  #|      document.addEventListener('keydown',sbVidKey,true);
-  #|      var settingsBtn=document.createElement('button');settingsBtn.className='sidebar-settings-btn';settingsBtn.textContent='\u2699\uFE0F';settingsBtn.title='Video settings';settingsBtn.style.cssText='position:absolute;top:8px;right:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:14px;z-index:5;';
-  #|      var settingsPanel=document.createElement('div');settingsPanel.className='sidebar-settings-panel';settingsPanel.style.cssText='display:none;position:absolute;top:36px;right:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:200px;';
-  #|      var sceneLevels=[{l:'少なめ',v:0.3},{l:'やや少',v:0.1},{l:'標準',v:0.01},{l:'やや多',v:0.005},{l:'多め',v:0.001}];
-  #|      var stabLevels=[{l:'弱め',v:0.5},{l:'やや弱',v:0.2},{l:'標準',v:0.1},{l:'やや強',v:0.05},{l:'強め',v:0.02}];
-  #|      var curScene=0.01,curStab=0.1;
-  #|      function mkBtnGrp(label,levels,cur,cb){var g=document.createElement('div');g.style.marginBottom='8px';var lb=document.createElement('div');lb.textContent=label;lb.style.cssText='font-size:11px;color:var(--muted);margin-bottom:4px;';g.appendChild(lb);var row=document.createElement('div');row.style.cssText='display:flex;gap:4px;';levels.forEach(function(lv){var b=document.createElement('button');b.textContent=lv.l;b.style.cssText='padding:2px 6px;border:1px solid var(--border);border-radius:4px;font-size:10px;cursor:pointer;background:'+(lv.v===cur?'var(--primary)':'var(--surface)')+';color:'+(lv.v===cur?'white':'inherit');b.addEventListener('click',function(){curScene=label.includes('\u30B7\u30FC\u30F3')?lv.v:curScene;curStab=label.includes('\u5B89\u5B9A')?lv.v:curStab;cb(lv.v);row.querySelectorAll('button').forEach(function(bt){bt.style.background='var(--surface)';bt.style.color='inherit';});b.style.background='var(--primary)';b.style.color='white';});row.appendChild(b);});g.appendChild(row);return g;}
-  #|      settingsPanel.appendChild(mkBtnGrp('シーン感度',sceneLevels,curScene,function(){if(tl)tl.destroy();tl=window.__createVTL(vid,vc2,item.src,curScene,curStab,false);}));
-  #|      settingsPanel.appendChild(mkBtnGrp('安定化閾値',stabLevels,curStab,function(){if(tl)tl.destroy();tl=window.__createVTL(vid,vc2,item.src,curScene,curStab,false);}));
-  #|      settingsBtn.addEventListener('click',function(e){e.stopPropagation();settingsPanel.style.display=settingsPanel.style.display==='none'?'block':'none';});
-  #|      vc2.style.position='relative';vc2.appendChild(settingsBtn);vc2.appendChild(settingsPanel);
-  #|      sbCleanup=function(){document.removeEventListener('keydown',sbVidKey,true);if(tl)tl.destroy();vid.pause();};
-  #|    }else if(item.type==='mermaid'){
-  #|      var svgSrc=item.element.querySelector('svg')||item.svg;
-  #|      if(!svgSrc){var ew=document.createElement('div');ew.className='viewer-mermaid-wrap';ew.textContent='Diagram not yet rendered';ew.style.color='var(--muted)';ew.style.padding='20px';content.appendChild(ew);}
-  #|      else{
-  #|        var vp=document.createElement('div');vp.className='sidebar-mermaid-viewport';vp.style.height='calc(100vh - 180px)';
-  #|        var wr=document.createElement('div');wr.className='sidebar-mermaid-wrapper';
-  #|        var vb=svgSrc.getAttribute('viewBox');var mNW,mNH;
-  #|        if(vb){var pts=vb.split(/[\s,]+/);mNW=parseFloat(pts[2])||800;mNH=parseFloat(pts[3])||600;}
-  #|        else{mNW=parseFloat(svgSrc.getAttribute('width'))||800;mNH=parseFloat(svgSrc.getAttribute('height'))||600;}
-  #|        var cl2=cloneSvg(svgSrc,'viewer-'+idx);cl2.style.width=mNW+'px';cl2.style.height=mNH+'px';cl2.removeAttribute('preserveAspectRatio');
-  #|        wr.style.visibility='hidden';wr.appendChild(cl2);vp.appendChild(wr);content.appendChild(vp);
-  #|        var mV=window.__createZPV(vp,wr,mNW,mNH,null,false,null,128,88,6,0.1,10,true);
-  #|        sbPendingFit=function(){mV.fitToViewport();wr.style.visibility='visible';};
-  #|        sbCleanup=function(){mV.destroy();};
-  #|      }
-  #|    }
-  #|    var lbl=document.createElement('div');lbl.className='media-sidebar-viewer-label';lbl.textContent=item.alt;content.appendChild(lbl);
-  #|    viewerP.appendChild(content);viewerP.classList.add('open');
-  #|    if(sbPendingFit){var onTE=function(e){if(e.propertyName==='width'){viewerP.removeEventListener('transitionend',onTE);sbPendingFit();sbPendingFit=null;}};viewerP.addEventListener('transitionend',onTE);setTimeout(function(){if(sbPendingFit){viewerP.removeEventListener('transitionend',onTE);sbPendingFit();sbPendingFit=null;}},400);}
-  #|  }
-  #|  function closeViewer(){
-  #|    if(sbCleanup){sbCleanup();sbCleanup=null;}activeIdx=-1;viewerP.classList.remove('open');
-  #|    var allTh=thumbsC.querySelectorAll('.media-sidebar-thumb');allTh.forEach(function(t){t.classList.remove('active');});
-  #|    var mdRight=mdLayout.querySelector('.md-right');if(mdRight)mdRight.style.display='';
-  #|    setTimeout(function(){if(activeIdx===-1)viewerP.innerHTML='';},350);
-  #|  }
-  #|  function navThumbs(d){var total=items.length;if(total===0)return;var ni=activeIdx===-1?(d>0?0:total-1):activeIdx+d;if(ni<0)ni=0;if(ni>=total)ni=total-1;if(ni!==activeIdx)openViewer(ni);}
-  #|  toggleBtn.addEventListener('click',function(){sbVisible=!sbVisible;if(sbVisible)sidebar.classList.remove('hidden');else{sidebar.classList.add('hidden');closeViewer();}});
-  #|  document.addEventListener('keydown',function(e){
-  #|    if(!sbVisible)return;
-  #|    var io=document.getElementById('image-fullscreen'),vo=document.getElementById('video-fullscreen'),mo=document.getElementById('mermaid-fullscreen');
-  #|    if(io&&io.classList.contains('visible'))return;if(vo&&vo.classList.contains('visible'))return;if(mo&&mo.classList.contains('visible'))return;
-  #|    var ac=document.activeElement;if(ac&&(ac.tagName==='INPUT'||ac.tagName==='TEXTAREA'))return;
-  #|    if(e.key==='Escape'&&activeIdx!==-1){e.preventDefault();closeViewer();return;}
-  #|    var tf=ac&&ac.classList.contains('media-sidebar-thumb');
-  #|    if(tf||activeIdx!==-1){if(e.key==='ArrowUp'){e.preventDefault();navThumbs(-1);}else if(e.key==='ArrowDown'){e.preventDefault();navThumbs(1);}}
-  #|  });
-  #|  // Watch for late-rendered Mermaid diagrams
-  #|  function updateMermaidThumbs(){items.forEach(function(item,idx){if(item.type!=='mermaid')return;var svg=item.element.querySelector('svg');if(!svg)return;if(!svg.querySelector('.node,.cluster,.edgePath,.label,path,rect,circle,text'))return;if(item.svg===svg&&item._tu)return;item.svg=svg;item._tu=true;var th=thumbsC.querySelector('[data-media-index="'+idx+'"]');if(th){var mw=th.querySelector('.media-sidebar-thumb-mermaid');if(mw){mw.innerHTML='';var cl=cloneSvg(svg,'thumb-'+idx);cl.setAttribute('preserveAspectRatio','xMidYMid meet');cl.style.width='100%';cl.style.height='100%';mw.appendChild(cl);}}});}
-  #|  var mo2=new MutationObserver(function(){updateMermaidThumbs();});
-  #|  mo2.observe(preview,{childList:true,subtree:true,attributes:true});
-  #|  setTimeout(updateMermaidThumbs,1000);setTimeout(updateMermaidThumbs,3000);
-  #|}
-
-///| Expose ZoomPanViewer creator to JS global for media sidebar use
-extern "js" fn expose_zpv_creator() -> Unit =
-  #|() => {
-  #|  // Re-export createZoomPanViewer as window.__createZPV for sidebar JS
-  #|  // This is the same function from dom.mbt's create_zoom_pan_viewer FFI
-  #|  window.__createZPV = function(vp,wr,nw,nh,zi,hm,mv,mw,mh,mp,zmin,zmax,uc) {
-  #|    var cz=1,iz=1,px=0,py=0,ip=false,sx=0,sy=0;
-  #|    function ut(){wr.style.transform='translate('+px+'px,'+py+'px) scale('+cz+')';if(zi)zi.textContent=Math.round(cz*100)+'%';}
-  #|    function ftv(){var vpW=vp.clientWidth,vpH=vp.clientHeight;cz=Math.min(vpW/nw,vpH/nh);iz=cz;var sw=nw*cz,sh=nh*cz;px=(vpW-sw)/2;py=(vpH-sh)/2;ut();}
-  #|    function za(f,cx,cy){var old=cz;cz=Math.max(zmin,Math.min(zmax,cz*f));var r=vp.getBoundingClientRect();var mx=cx-r.left,my=cy-r.top,rt=cz/old;px=mx-(mx-px)*rt;py=my-(my-py)*rt;ut();}
-  #|    function zc(f){var r=vp.getBoundingClientRect();za(f,r.left+r.width/2,r.top+r.height/2);}
-  #|    function omd(e){if(e.button!==0)return;ip=true;sx=e.clientX-px;sy=e.clientY-py;vp.style.cursor='grabbing';e.preventDefault();}
-  #|    function omm(e){if(!ip)return;px=e.clientX-sx;py=e.clientY-sy;ut();}
-  #|    function omu(){if(ip){ip=false;vp.style.cursor='grab';}}
-  #|    vp.addEventListener('mousedown',omd);document.addEventListener('mousemove',omm);document.addEventListener('mouseup',omu);
-  #|    function ow(e){e.preventDefault();if(uc){if(e.ctrlKey||e.shiftKey)za(e.deltaY>0?0.9:1.1,e.clientX,e.clientY);else{px-=e.deltaX;py-=e.deltaY;ut();}}else za(e.deltaY>0?0.9:1.1,e.clientX,e.clientY);}
-  #|    vp.addEventListener('wheel',ow,{passive:false});
-  #|    vp.addEventListener('dblclick',function(){ftv();});
-  #|    var ld=0,lc={x:0,y:0};
-  #|    function td(t){var dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY;return Math.sqrt(dx*dx+dy*dy);}
-  #|    function tc(t){return{x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};}
-  #|    function ots(e){if(e.touches.length===2){e.preventDefault();ld=td(e.touches);lc=tc(e.touches);}}
-  #|    function otm(e){if(e.touches.length===2){e.preventDefault();var cd=td(e.touches),cc=tc(e.touches);if(ld>0){var s=cd/ld;if(Math.abs(s-1)>0.01){za(s,cc.x,cc.y);ld=cd;}}px+=cc.x-lc.x;py+=cc.y-lc.y;ut();lc=cc;}}
-  #|    function ote(){ld=0;}
-  #|    vp.addEventListener('touchstart',ots,{passive:false});vp.addEventListener('touchmove',otm,{passive:false});vp.addEventListener('touchend',ote);
-  #|    return{destroy:function(){vp.removeEventListener('mousedown',omd);document.removeEventListener('mousemove',omm);document.removeEventListener('mouseup',omu);vp.removeEventListener('wheel',ow);vp.removeEventListener('touchstart',ots);vp.removeEventListener('touchmove',otm);vp.removeEventListener('touchend',ote);},fitToViewport:ftv,zoomIn:function(){zc(1.25);},zoomOut:function(){zc(0.8);},getZoom:function(){return cz;},updateTransform:ut};
-  #|  };
-  #|  // Re-export VideoTimeline creator
-  #|  window.__createVTL = function(videoEl,container,videoPath,sceneThreshold,stabThreshold,preventBubble){
-  #|    var thumbs=[],es=null;
-  #|    function fmtTime(s){var m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+(sec<10?'0':'')+sec;}
-  #|    var tl=document.createElement('div');tl.className='video-timeline';
-  #|    if(preventBubble)tl.addEventListener('click',function(e){e.stopPropagation();});
-  #|    var loading=document.createElement('div');loading.className='timeline-loading';loading.textContent='Loading timeline...';
-  #|    tl.appendChild(loading);container.appendChild(tl);
-  #|    var ep=encodeURIComponent(videoPath);
-  #|    es=new EventSource('/video-timeline?path='+ep+'&scene='+sceneThreshold+'&stabilization='+stabThreshold);
-  #|    es.onmessage=function(e){
-  #|      var d=JSON.parse(e.data);
-  #|      if(d.type==='thumbnail'){var l=tl.querySelector('.timeline-loading');if(l)l.remove();var w=document.createElement('div');w.className='timeline-thumb-wrapper';var t=document.createElement('img');t.className='timeline-thumb';t.src=d.data;t.dataset.time=d.time;t.title='Jump to '+fmtTime(d.time);t.addEventListener('click',function(){videoEl.currentTime=parseFloat(t.dataset.time);});var lb=document.createElement('span');lb.className='timeline-time';lb.textContent=fmtTime(d.time);w.appendChild(t);w.appendChild(lb);tl.appendChild(w);thumbs.push({element:t,time:d.time});}
-  #|      else if(d.type==='complete'){es.close();es=null;if(thumbs.length===0){var cl=tl.querySelector('.timeline-loading');if(cl)cl.textContent='No scene changes detected';}}
-  #|      else if(d.type==='error'){es.close();es=null;tl.remove();}
-  #|    };
-  #|    es.onerror=function(){es.close();es=null;tl.remove();};
-  #|    function onTU(){if(thumbs.length===0)return;var ct=videoEl.currentTime,ci=0,cd=Infinity;for(var i=0;i<thumbs.length;i++){var df=Math.abs(thumbs[i].time-ct);if(df<cd){cd=df;ci=i;}}thumbs.forEach(function(t,idx){if(idx===ci){t.element.classList.add('active');t.element.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}else{t.element.classList.remove('active');}});}
-  #|    videoEl.addEventListener('timeupdate',onTU);
-  #|    return{destroy:function(){if(es){es.close();es=null;}videoEl.removeEventListener('timeupdate',onTU);thumbs=[];tl.remove();},navigate:function(dir){if(thumbs.length===0)return;var ct=videoEl.currentTime,ci=0,cd=Infinity;for(var i=0;i<thumbs.length;i++){var df=Math.abs(thumbs[i].time-ct);if(df<cd){cd=df;ci=i;}}var ti=ci+dir;if(ti>=0&&ti<thumbs.length)videoEl.currentTime=thumbs[ti].time;}};
-  #|  };
-  #|}
 
 ///| Initialize column resizers and filter menu (cli.cjs L6686-6720, L6428-6496)
 extern "js" fn init_csv_resizers_and_filters() -> Unit =

@@ -222,15 +222,16 @@ pub fn init_app() -> Unit {
     setup_scroll_sync()
     setup_preview_click()
     setup_preview_mouseup()
-    setup_heading_toggles()
-    // Expose ZPV/VTL creators first (used by all fullscreen + sidebar)
-    expose_zpv_creator()
-    setup_mermaid_fullscreen()
-    setup_image_fullscreen()
-    setup_video_fullscreen()
+    // Initialize heading toggles (collapsible sections)
+    init_heading_toggles()
+    // Setup fullscreen viewers with pure MoonBit ZoomPanViewer/VideoTimeline
+    setup_mermaid_fullscreen_moonbit()
+    setup_image_fullscreen_moonbit()
+    setup_video_fullscreen_moonbit()
+    // Initialize media sidebar (pure MoonBit implementation)
     ignore(
       set_timeout(
-        fn() { init_media_sidebar_js() },
+        fn() { init_media_sidebar() },
         500,
       ),
     )
@@ -1565,7 +1566,7 @@ fn extract_filename(path : String) -> String {
 }
 
 ///| Select source range and open comment card (mirrors cli.cjs selectSourceRange)
-fn select_source_range(start_row : Int, end_row : Int, preview_el : Element) -> Unit {
+fn select_source_range(start_row : Int, end_row : Int, preview_el : Element, col~ : Int = 0) -> Unit {
   // Disable scroll sync for 2 seconds
   scroll_sync_disabled_until.val = date_now() + 2000.0
   // Cancel pending RAF
@@ -1610,7 +1611,7 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element) -> 
   }
   // Open comment card
   let key = if start_row == actual_end {
-    (start_row - 1).to_string() + ":0"
+    (start_row - 1).to_string() + ":" + col.to_string()
   } else {
     (start_row - 1).to_string() + "-" + (actual_end - 1).to_string()
   }
@@ -1618,7 +1619,7 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element) -> 
   let is_source_hidden = not(is_null(md_right)) && is_element_hidden(md_right)
   if is_source_hidden && not(is_null(preview_el)) {
     // Preview-only mode: position card below clicked element
-    show_comment_card_below(preview_el, key, start_row - 1, 0)
+    show_comment_card_below(preview_el, key, start_row - 1, col)
   } else {
     let target = if not(is_null(preview_el)) {
       preview_el
@@ -1627,7 +1628,7 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element) -> 
       cell
     }
     if not(is_null(target)) {
-      show_comment_card(target, key, start_row - 1, 0)
+      show_comment_card(target, key, start_row - 1, col)
     }
   }
   // Re-enable scroll sync after 500ms
@@ -1726,7 +1727,12 @@ fn setup_preview_click() -> Unit {
           find_source_line(text, parent_block, h_line)
         }
         if line > 0 {
-          select_source_range(line, line, parent_block)
+          let cell_col = if parent_tag == "TD" || parent_tag == "TH" {
+            get_cell_index(parent_block) + 1 // 1-indexed: col=0 is line comment, col>=1 is cell comment
+          } else {
+            0
+          }
+          select_source_range(line, line, parent_block, col=cell_col)
         }
       }
       return // Don't prevent default for links
@@ -1744,7 +1750,12 @@ fn setup_preview_click() -> Unit {
         find_source_line(text, block, h_line)
       }
       if line > 0 {
-        select_source_range(line, line, block)
+        let cell_col = if block_tag == "TD" || block_tag == "TH" {
+          get_cell_index(block) + 1 // 1-indexed: col=0 is line comment, col>=1 is cell comment
+        } else {
+          0
+        }
+        select_source_range(line, line, block, col=cell_col)
       }
     }
   })
@@ -2027,11 +2038,11 @@ fn expand_heading_section(heading : Element, level : Int) -> Unit {
   }
 }
 
-///| Mermaid fullscreen ZoomPanViewer handle
-let fs_mermaid_zpv : Ref[ZoomPanViewerHandle] = Ref::new(create_null_zpv_handle())
+///| Mermaid fullscreen ZoomPanViewer handle (MoonBit native)
+let fs_mermaid_zpv : Ref[ZPVState?] = Ref::new(None)
 
-///| Setup mermaid fullscreen with ZoomPanViewer (cli.cjs L7398-7500)
-fn setup_mermaid_fullscreen() -> Unit {
+///| Setup mermaid fullscreen with pure MoonBit ZoomPanViewer (cli.cjs L7398-7500)
+fn setup_mermaid_fullscreen_moonbit() -> Unit {
   let overlay = query("#mermaid-fullscreen")
   let fs_content = query("#fs-content")
   let fs_wrapper = query("#fs-wrapper")
@@ -2054,60 +2065,60 @@ fn setup_mermaid_fullscreen() -> Unit {
         }
         let svg = query_in(container, ".mermaid svg")
         if not(is_null(svg)) {
-          open_mermaid_fullscreen(svg, overlay, fs_content, fs_wrapper, fs_zoom_info)
+          open_mermaid_fullscreen_moonbit(svg, overlay, fs_content, fs_wrapper, fs_zoom_info)
           stop_propagation(e)
         }
       }
     },
   )
   // Controls
-  let zoom_in = query("#fs-zoom-in")
-  let zoom_out = query("#fs-zoom-out")
+  let zoom_in_btn = query("#fs-zoom-in")
+  let zoom_out_btn = query("#fs-zoom-out")
   let fs_reset = query("#fs-reset")
   let fs_close = query("#fs-close")
-  if not(is_null(zoom_in)) {
-    on(zoom_in, "click", fn(_e) {
-      if not(zpv_is_null(fs_mermaid_zpv.val)) {
-        zpv_zoom_in(fs_mermaid_zpv.val)
+  if not(is_null(zoom_in_btn)) {
+    on(zoom_in_btn, "click", fn(_e) {
+      if fs_mermaid_zpv.val.is_some() {
+        zoom_in(fs_mermaid_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(zoom_out)) {
-    on(zoom_out, "click", fn(_e) {
-      if not(zpv_is_null(fs_mermaid_zpv.val)) {
-        zpv_zoom_out(fs_mermaid_zpv.val)
+  if not(is_null(zoom_out_btn)) {
+    on(zoom_out_btn, "click", fn(_e) {
+      if fs_mermaid_zpv.val.is_some() {
+        zoom_out(fs_mermaid_zpv.val.unwrap())
       }
     })
   }
   if not(is_null(fs_reset)) {
     on(fs_reset, "click", fn(_e) {
-      if not(zpv_is_null(fs_mermaid_zpv.val)) {
-        zpv_fit_to_viewport(fs_mermaid_zpv.val)
+      if fs_mermaid_zpv.val.is_some() {
+        reset_view(fs_mermaid_zpv.val.unwrap())
       }
     })
   }
   if not(is_null(fs_close)) {
-    on(fs_close, "click", fn(_e) { close_mermaid_fullscreen(overlay) })
+    on(fs_close, "click", fn(_e) { close_mermaid_fullscreen_moonbit(overlay) })
   }
   // ESC to close + overlay background click
   on(overlay, "click", fn(e) {
     if elem_eq(event_target(e), overlay) {
-      close_mermaid_fullscreen(overlay)
+      close_mermaid_fullscreen_moonbit(overlay)
     }
   })
   on_doc(
     "keydown",
     fn(e) {
       if event_key(e) == "Escape" && has_class_visible(overlay) {
-        close_mermaid_fullscreen(overlay)
+        close_mermaid_fullscreen_moonbit(overlay)
         prevent_default(e)
       }
     },
   )
 }
 
-///| Open mermaid diagram in fullscreen with ZoomPanViewer
-fn open_mermaid_fullscreen(
+///| Open mermaid diagram in fullscreen with pure MoonBit ZoomPanViewer
+fn open_mermaid_fullscreen_moonbit(
   svg : Element,
   overlay : Element,
   fs_content : Element,
@@ -2115,15 +2126,17 @@ fn open_mermaid_fullscreen(
   fs_zoom_info : Element
 ) -> Unit {
   // Destroy previous viewer
-  if not(zpv_is_null(fs_mermaid_zpv.val)) {
-    zpv_destroy(fs_mermaid_zpv.val)
-    fs_mermaid_zpv.val = create_null_zpv_handle()
+  if fs_mermaid_zpv.val.is_some() {
+    destroy_zoom_pan_viewer(fs_mermaid_zpv.val.unwrap())
+    fs_mermaid_zpv.val = None
   }
   clear_children(fs_wrapper)
+  set_class_name(fs_wrapper, "mermaid-wrapper")
   let cloned = clone_node_deep(svg)
   let size = get_svg_natural_size(svg)
   let nw = size[0]
   let nh = size[1]
+  set_style(fs_wrapper, "padding", "0")
   set_style(cloned, "width", nw.to_string() + "px")
   set_style(cloned, "height", nh.to_string() + "px")
   append_child(fs_wrapper, cloned)
@@ -2135,17 +2148,14 @@ fn open_mermaid_fullscreen(
   if not(is_null(minimap_content)) {
     clear_children(minimap_content)
     let minimap_svg = clone_node_deep(svg)
-    // Expand minimap SVG viewBox by 40px each side (+80 total) to match
-    // the padded naturalWidth/Height passed to ZoomPanViewer
-    expand_svg_viewbox(minimap_svg, 40.0)
     append_child(minimap_content, minimap_svg)
   }
   // Create ZoomPanViewer with padding for margin and minimap enabled
-  fs_mermaid_zpv.val = create_zoom_pan_viewer(
+  let zpv = create_zoom_pan_viewer_moonbit(
     fs_content,
     fs_wrapper,
-    nw + 80.0,
-    nh + 80.0,
+    nw,
+    nh,
     fs_zoom_info,
     true,
     minimap_viewport,
@@ -2156,36 +2166,34 @@ fn open_mermaid_fullscreen(
     10.0,
     true,
   )
+  fs_mermaid_zpv.val = Some(zpv)
   show_overlay(overlay)
   // Fit after render
-  let viewer = fs_mermaid_zpv.val
   ignore(
     request_animation_frame(
       fn() {
-        if not(zpv_is_null(viewer)) {
-          zpv_fit_to_viewport(viewer)
-        }
+        fit_to_viewport(zpv)
         set_visibility(fs_wrapper, true)
       },
     ),
   )
 }
 
-///| Close mermaid fullscreen
-fn close_mermaid_fullscreen(overlay : Element) -> Unit {
-  if not(zpv_is_null(fs_mermaid_zpv.val)) {
-    zpv_destroy(fs_mermaid_zpv.val)
-    fs_mermaid_zpv.val = create_null_zpv_handle()
+///| Close mermaid fullscreen (MoonBit native)
+fn close_mermaid_fullscreen_moonbit(overlay : Element) -> Unit {
+  if fs_mermaid_zpv.val.is_some() {
+    destroy_zoom_pan_viewer(fs_mermaid_zpv.val.unwrap())
+    fs_mermaid_zpv.val = None
   }
   hide_overlay(overlay)
 }
 
-///| Image fullscreen ZoomPanViewer handle
-let fs_image_zpv : Ref[ZoomPanViewerHandle] = Ref::new(create_null_zpv_handle())
+///| Image fullscreen ZoomPanViewer handle (MoonBit native)
+let fs_image_zpv : Ref[ZPVState?] = Ref::new(None)
 let current_image_index : Ref[Int] = Ref::new(-1)
 
-///| Setup image fullscreen with ZoomPanViewer (cli.cjs L8218-8340)
-fn setup_image_fullscreen() -> Unit {
+///| Setup image fullscreen with pure MoonBit ZoomPanViewer
+fn setup_image_fullscreen_moonbit() -> Unit {
   let overlay = query("#image-fullscreen")
   let fs_content = query("#image-fs-content")
   let fs_wrapper = query("#image-fs-wrapper")
@@ -2223,54 +2231,54 @@ fn setup_image_fullscreen() -> Unit {
         }
       }
       if idx >= 0 {
-        show_image_fullscreen(
+        show_image_fullscreen_moonbit(
           images, idx, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
         )
       }
     }
   })
   // Controls
-  let zoom_in = query("#img-fs-zoom-in")
-  let zoom_out = query("#img-fs-zoom-out")
+  let zoom_in_btn = query("#img-fs-zoom-in")
+  let zoom_out_btn = query("#img-fs-zoom-out")
   let fs_reset = query("#img-fs-reset")
   let fs_close = query("#img-fs-close")
   let fs_prev = query("#img-fs-prev")
   let fs_next = query("#img-fs-next")
-  if not(is_null(zoom_in)) {
-    on(zoom_in, "click", fn(_e) {
-      if not(zpv_is_null(fs_image_zpv.val)) {
-        zpv_zoom_in(fs_image_zpv.val)
+  if not(is_null(zoom_in_btn)) {
+    on(zoom_in_btn, "click", fn(_e) {
+      if fs_image_zpv.val.is_some() {
+        zoom_in(fs_image_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(zoom_out)) {
-    on(zoom_out, "click", fn(_e) {
-      if not(zpv_is_null(fs_image_zpv.val)) {
-        zpv_zoom_out(fs_image_zpv.val)
+  if not(is_null(zoom_out_btn)) {
+    on(zoom_out_btn, "click", fn(_e) {
+      if fs_image_zpv.val.is_some() {
+        zoom_out(fs_image_zpv.val.unwrap())
       }
     })
   }
   if not(is_null(fs_reset)) {
     on(fs_reset, "click", fn(_e) {
-      if not(zpv_is_null(fs_image_zpv.val)) {
-        zpv_fit_to_viewport(fs_image_zpv.val)
+      if fs_image_zpv.val.is_some() {
+        reset_view(fs_image_zpv.val.unwrap())
       }
     })
   }
   if not(is_null(fs_close)) {
-    on(fs_close, "click", fn(_e) { close_image_fullscreen(overlay) })
+    on(fs_close, "click", fn(_e) { close_image_fullscreen_moonbit(overlay) })
   }
   // Previous/Next navigation buttons
   if not(is_null(fs_prev)) {
     on(fs_prev, "click", fn(_e) {
-      navigate_image_fullscreen(
+      navigate_image_fullscreen_moonbit(
         -1, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
       )
     })
   }
   if not(is_null(fs_next)) {
     on(fs_next, "click", fn(_e) {
-      navigate_image_fullscreen(
+      navigate_image_fullscreen_moonbit(
         1, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
       )
     })
@@ -2278,7 +2286,7 @@ fn setup_image_fullscreen() -> Unit {
   // ESC to close + overlay background click + arrow key navigation
   on(overlay, "click", fn(e) {
     if elem_eq(event_target(e), overlay) {
-      close_image_fullscreen(overlay)
+      close_image_fullscreen_moonbit(overlay)
     }
   })
   on_doc(
@@ -2289,15 +2297,15 @@ fn setup_image_fullscreen() -> Unit {
       }
       let key = event_key(e)
       if key == "Escape" {
-        close_image_fullscreen(overlay)
+        close_image_fullscreen_moonbit(overlay)
         prevent_default(e)
       } else if key == "ArrowLeft" {
-        navigate_image_fullscreen(
+        navigate_image_fullscreen_moonbit(
           -1, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
         )
         prevent_default(e)
       } else if key == "ArrowRight" {
-        navigate_image_fullscreen(
+        navigate_image_fullscreen_moonbit(
           1, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
         )
         prevent_default(e)
@@ -2322,8 +2330,8 @@ fn collect_preview_images() -> Array[Element] {
   result
 }
 
-///| Show image in fullscreen with ZoomPanViewer
-fn show_image_fullscreen(
+///| Show image in fullscreen with pure MoonBit ZoomPanViewer
+fn show_image_fullscreen_moonbit(
   images : Array[Element],
   index : Int,
   overlay : Element,
@@ -2337,9 +2345,9 @@ fn show_image_fullscreen(
   }
   current_image_index.val = index
   // Destroy previous viewer
-  if not(zpv_is_null(fs_image_zpv.val)) {
-    zpv_destroy(fs_image_zpv.val)
-    fs_image_zpv.val = create_null_zpv_handle()
+  if fs_image_zpv.val.is_some() {
+    destroy_zoom_pan_viewer(fs_image_zpv.val.unwrap())
+    fs_image_zpv.val = None
   }
   clear_children(fs_wrapper)
   let img = images[index]
@@ -2376,7 +2384,7 @@ fn show_image_fullscreen(
     set_style(minimap_img, "objectFit", "contain")
     append_child(img_minimap_content, minimap_img)
   }
-  fs_image_zpv.val = create_zoom_pan_viewer(
+  let zpv = create_zoom_pan_viewer_moonbit(
     fs_content,
     fs_wrapper,
     nat_w,
@@ -2391,14 +2399,12 @@ fn show_image_fullscreen(
     20.0,
     true,
   )
+  fs_image_zpv.val = Some(zpv)
   show_overlay(overlay)
-  let viewer = fs_image_zpv.val
   ignore(
     request_animation_frame(
       fn() {
-        if not(zpv_is_null(viewer)) {
-          zpv_fit_to_viewport(viewer)
-        }
+        fit_to_viewport(zpv)
         set_visibility(fs_wrapper, true)
       },
     ),
@@ -2406,7 +2412,7 @@ fn show_image_fullscreen(
 }
 
 ///| Navigate image fullscreen by direction (-1=prev, 1=next)
-fn navigate_image_fullscreen(
+fn navigate_image_fullscreen_moonbit(
   direction : Int,
   overlay : Element,
   fs_content : Element,
@@ -2420,33 +2426,31 @@ fn navigate_image_fullscreen(
   }
   let new_idx = current_image_index.val + direction
   if new_idx >= 0 && new_idx < images.length() {
-    show_image_fullscreen(
+    show_image_fullscreen_moonbit(
       images, new_idx, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
     )
   }
 }
 
-///| Close image fullscreen
-fn close_image_fullscreen(overlay : Element) -> Unit {
-  if not(zpv_is_null(fs_image_zpv.val)) {
-    zpv_destroy(fs_image_zpv.val)
-    fs_image_zpv.val = create_null_zpv_handle()
+///| Close image fullscreen (MoonBit native)
+fn close_image_fullscreen_moonbit(overlay : Element) -> Unit {
+  if fs_image_zpv.val.is_some() {
+    destroy_zoom_pan_viewer(fs_image_zpv.val.unwrap())
+    fs_image_zpv.val = None
   }
   current_image_index.val = -1
   hide_overlay(overlay)
 }
 
-///| Video fullscreen state
-let fs_video_timeline : Ref[VideoTimelineHandle] = Ref::new(
-  create_null_vtl_handle(),
-)
+///| Video fullscreen state (MoonBit native)
+let fs_video_timeline : Ref[VTLState?] = Ref::new(None)
 let current_video_index : Ref[Int] = Ref::new(-1)
 let current_scene_threshold : Ref[Double] = Ref::new(0.01)
 let current_stab_threshold : Ref[Double] = Ref::new(0.1)
 let current_video_path : Ref[String] = Ref::new("")
 
-///| Setup video fullscreen (cli.cjs-compatible: dynamic video creation + settings panel)
-fn setup_video_fullscreen() -> Unit {
+///| Setup video fullscreen with pure MoonBit VideoTimeline
+fn setup_video_fullscreen_moonbit() -> Unit {
   let overlay = query("#video-fullscreen")
   let container = query("#video-container")
   let fs_counter = query("#vid-fs-counter")
@@ -2471,7 +2475,7 @@ fn setup_video_fullscreen() -> Unit {
         }
       }
       if idx >= 0 {
-        show_video_fullscreen(all_videos, idx, overlay, container, fs_counter)
+        show_video_fullscreen_moonbit(all_videos, idx, overlay, container, fs_counter)
         stop_propagation(e)
       }
     }
@@ -2479,12 +2483,12 @@ fn setup_video_fullscreen() -> Unit {
   // Close button
   let fs_close = query("#video-close")
   if not(is_null(fs_close)) {
-    on(fs_close, "click", fn(_e) { close_video_fullscreen(overlay, container) })
+    on(fs_close, "click", fn(_e) { close_video_fullscreen_moonbit(overlay, container) })
   }
   // ESC + overlay click + keyboard
   on(overlay, "click", fn(e) {
     if elem_eq(event_target(e), overlay) {
-      close_video_fullscreen(overlay, container)
+      close_video_fullscreen_moonbit(overlay, container)
     }
   })
   on_doc(
@@ -2495,23 +2499,23 @@ fn setup_video_fullscreen() -> Unit {
       }
       let key = event_key(e)
       if key == "Escape" {
-        close_video_fullscreen(overlay, container)
+        close_video_fullscreen_moonbit(overlay, container)
         prevent_default(e)
       } else if key == "ArrowLeft" || key == "j" {
-        if not(vtl_is_null(fs_video_timeline.val)) {
-          vtl_navigate(fs_video_timeline.val, -1)
+        if fs_video_timeline.val.is_some() {
+          navigate(fs_video_timeline.val.unwrap(), -1)
         }
         prevent_default(e)
       } else if key == "ArrowRight" || key == "l" {
-        if not(vtl_is_null(fs_video_timeline.val)) {
-          vtl_navigate(fs_video_timeline.val, 1)
+        if fs_video_timeline.val.is_some() {
+          navigate(fs_video_timeline.val.unwrap(), 1)
         }
         prevent_default(e)
       } else if key == "ArrowUp" {
-        navigate_video_fullscreen(-1, overlay, container, fs_counter)
+        navigate_video_fullscreen_moonbit(-1, overlay, container, fs_counter)
         prevent_default(e)
       } else if key == "ArrowDown" {
-        navigate_video_fullscreen(1, overlay, container, fs_counter)
+        navigate_video_fullscreen_moonbit(1, overlay, container, fs_counter)
         prevent_default(e)
       } else if key == " " || key == "k" {
         let vid = query_in(container, "video")
@@ -2523,11 +2527,11 @@ fn setup_video_fullscreen() -> Unit {
     },
   )
   // --- Settings panel ---
-  setup_video_settings(overlay, container, fs_counter)
+  setup_video_settings_moonbit(overlay, container, fs_counter)
 }
 
-///| Setup video settings panel (scene threshold / stabilization buttons)
-fn setup_video_settings(
+///| Setup video settings panel (scene threshold / stabilization buttons) - MoonBit native
+fn setup_video_settings_moonbit(
   overlay : Element,
   container : Element,
   fs_counter : Element
@@ -2555,7 +2559,7 @@ fn setup_video_settings(
         add_class(btn, "selected")
         let val = get_attr(btn, "data-scene")
         current_scene_threshold.val = parse_float(val)
-        regenerate_timeline(overlay, container, fs_counter)
+        regenerate_timeline_moonbit(overlay, container, fs_counter)
       })
     }
   }
@@ -2569,14 +2573,14 @@ fn setup_video_settings(
         add_class(btn, "selected")
         let val = get_attr(btn, "data-stab")
         current_stab_threshold.val = parse_float(val)
-        regenerate_timeline(overlay, container, fs_counter)
+        regenerate_timeline_moonbit(overlay, container, fs_counter)
       })
     }
   }
 }
 
-///| Regenerate video timeline with updated thresholds
-fn regenerate_timeline(
+///| Regenerate video timeline with updated thresholds (MoonBit native)
+fn regenerate_timeline_moonbit(
   _overlay : Element,
   container : Element,
   _fs_counter : Element
@@ -2588,20 +2592,19 @@ fn regenerate_timeline(
   if is_null(vid) {
     return
   }
-  // Destroy old timeline
-  if not(vtl_is_null(fs_video_timeline.val)) {
-    vtl_destroy(fs_video_timeline.val)
-    fs_video_timeline.val = create_null_vtl_handle()
+  // Destroy old timeline and recreate
+  if fs_video_timeline.val.is_some() {
+    let new_vtl = recreate_timeline(
+      fs_video_timeline.val.unwrap(),
+      current_scene_threshold.val,
+      current_stab_threshold.val,
+    )
+    fs_video_timeline.val = Some(new_vtl)
   }
-  // Recreate timeline
-  fs_video_timeline.val = create_video_timeline(
-    vid, container, current_video_path.val,
-    current_scene_threshold.val, current_stab_threshold.val, true,
-  )
 }
 
-///| Show video in fullscreen (dynamically creates video element like cli.cjs)
-fn show_video_fullscreen(
+///| Show video in fullscreen with pure MoonBit VideoTimeline
+fn show_video_fullscreen_moonbit(
   videos : Array[Element],
   index : Int,
   overlay : Element,
@@ -2613,9 +2616,9 @@ fn show_video_fullscreen(
   }
   current_video_index.val = index
   // Cleanup previous timeline
-  if not(vtl_is_null(fs_video_timeline.val)) {
-    vtl_destroy(fs_video_timeline.val)
-    fs_video_timeline.val = create_null_vtl_handle()
+  if fs_video_timeline.val.is_some() {
+    destroy_video_timeline(fs_video_timeline.val.unwrap())
+    fs_video_timeline.val = None
   }
   // Remove existing video
   let existing_vid = query_in(container, "video")
@@ -2638,10 +2641,11 @@ fn show_video_fullscreen(
   // Create timeline — use pathname only (get_src returns full URL)
   let video_path = url_to_pathname(src)
   current_video_path.val = video_path
-  fs_video_timeline.val = create_video_timeline(
+  let vtl = create_video_timeline_moonbit(
     new_video, container, video_path,
     current_scene_threshold.val, current_stab_threshold.val, true,
   )
+  fs_video_timeline.val = Some(vtl)
   show_overlay(overlay)
   // Close settings panel when opening new video
   let settings_panel = query("#video-settings-panel")
@@ -2650,8 +2654,8 @@ fn show_video_fullscreen(
   }
 }
 
-///| Navigate video fullscreen
-fn navigate_video_fullscreen(
+///| Navigate video fullscreen by direction (-1=prev, 1=next)
+fn navigate_video_fullscreen_moonbit(
   direction : Int,
   overlay : Element,
   container : Element,
@@ -2661,33 +2665,31 @@ fn navigate_video_fullscreen(
   if is_null(preview) {
     return
   }
-  let videos = query_all_in(preview, "video")
+  let all_videos = query_all_in(preview, "video")
+  if all_videos.length() == 0 {
+    return
+  }
   let new_idx = current_video_index.val + direction
-  if new_idx >= 0 && new_idx < videos.length() {
-    let vid = query_in(container, "video")
-    if not(is_null(vid)) { video_pause(vid) }
-    show_video_fullscreen(videos, new_idx, overlay, container, fs_counter)
+  if new_idx >= 0 && new_idx < all_videos.length() {
+    show_video_fullscreen_moonbit(all_videos, new_idx, overlay, container, fs_counter)
   }
 }
 
-///| Close video fullscreen
-fn close_video_fullscreen(overlay : Element, container : Element) -> Unit {
+///| Close video fullscreen and pause video (MoonBit native)
+fn close_video_fullscreen_moonbit(overlay : Element, container : Element) -> Unit {
+  // Pause and remove video
   let vid = query_in(container, "video")
   if not(is_null(vid)) {
     video_pause(vid)
     remove_element(vid)
   }
-  if not(vtl_is_null(fs_video_timeline.val)) {
-    vtl_destroy(fs_video_timeline.val)
-    fs_video_timeline.val = create_null_vtl_handle()
+  // Cleanup timeline
+  if fs_video_timeline.val.is_some() {
+    destroy_video_timeline(fs_video_timeline.val.unwrap())
+    fs_video_timeline.val = None
   }
   current_video_index.val = -1
   current_video_path.val = ""
-  // Close settings panel
-  let settings_panel = query("#video-settings-panel")
-  if not(is_null(settings_panel)) {
-    remove_class(settings_panel, "visible")
-  }
   hide_overlay(overlay)
 }
 

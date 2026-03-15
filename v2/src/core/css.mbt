@@ -614,16 +614,17 @@ fn build_css() -> String {
     #|  flex: 1;
     #|  min-height: 0;
     #|  overflow: hidden;
+    #|  padding-top: 32px;
     #|}
     #|.media-sidebar-viewer-content img {
     #|  max-width: 100%;
-    #|  max-height: calc(100vh - 140px);
+    #|  max-height: calc(100vh - 170px);
     #|  object-fit: contain;
     #|  border-radius: 8px;
     #|}
     #|.media-sidebar-viewer-content video {
     #|  max-width: 100%;
-    #|  max-height: calc(100vh - 140px);
+    #|  max-height: calc(100vh - 170px);
     #|  border-radius: 8px;
     #|  background: #000;
     #|}
@@ -821,6 +822,33 @@ fn build_css() -> String {
     #|.media-sidebar-viewer-close:hover {
     #|  background: var(--hover-bg);
     #|}
+    #|.sidebar-viewer-settings-btn {
+    #|  position: absolute;
+    #|  top: 8px;
+    #|  right: 44px;
+    #|  background: var(--panel);
+    #|  border: 1px solid var(--border);
+    #|  border-radius: 6px;
+    #|  width: 28px;
+    #|  height: 28px;
+    #|  display: flex;
+    #|  align-items: center;
+    #|  justify-content: center;
+    #|  cursor: pointer;
+    #|  color: var(--text);
+    #|  font-size: 14px;
+    #|  z-index: 2;
+    #|  transition: background 0.15s ease;
+    #|}
+    #|.sidebar-viewer-settings-btn:hover {
+    #|  background: var(--hover-bg);
+    #|}
+    #|.sidebar-viewer-settings-btn + .video-settings-panel {
+    #|  position: absolute;
+    #|  top: 44px;
+    #|  right: 8px;
+    #|}
+    #|
     #|.media-sidebar-toggle {
     #|  background: var(--panel);
     #|  border: 1px solid var(--border);
@@ -912,6 +940,19 @@ fn build_css() -> String {
     #|}
     #|.md-preview .md-heading-toggle.collapsed .heading-toggle-icon {
     #|  transform: rotate(-90deg);
+    #|}
+    #|.md-preview details.heading-toggle {
+    #|  margin: 0.2em 0;
+    #|}
+    #|.md-preview details.heading-toggle > summary {
+    #|  list-style: none;
+    #|  cursor: pointer;
+    #|}
+    #|.md-preview details.heading-toggle > summary::-webkit-details-marker {
+    #|  display: none;
+    #|}
+    #|.md-preview details.heading-toggle:not([open]) > .toggle-content {
+    #|  display: none;
     #|}
     #|.md-preview .heading-section-content {
     #|  /* Content wrapper for collapsible sections */
@@ -1993,6 +2034,7 @@ fn build_css() -> String {
     #|.minimap-content {
     #|  width: 100%;
     #|  height: 100%;
+    #|  box-sizing: border-box;
     #|  display: flex;
     #|  align-items: center;
     #|  justify-content: center;
