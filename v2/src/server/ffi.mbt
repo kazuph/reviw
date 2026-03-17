@@ -419,6 +419,26 @@ fn read_file_safe(path : String) -> String {
   try_call_string(fn() { read_file_sync(path, "utf-8") }, "")
 }
 
+///| Parse "version" field from JSON string
+extern "js" fn parse_json_version(json : String) -> String =
+  #|(s) => { try { return JSON.parse(s).version || "unknown"; } catch { return "unknown"; } }
+
+///| Get version from package.json (walks up from script dir)
+fn get_package_version() -> String {
+  let mut dir = get_script_dir()
+  for i = 0; i < 5; i = i + 1 {
+    let content = read_file_safe(path_join(dir, "package.json"))
+    if content.length() > 0 {
+      let ver = parse_json_version(content)
+      if ver != "unknown" {
+        return ver
+      }
+    }
+    dir = path_dirname(dir)
+  }
+  "unknown"
+}
+
 ///| Write file with error handling
 fn write_file_secure(path : String, data : String) -> Unit {
   try_call_void(fn() { write_file_sync(path, data) })
