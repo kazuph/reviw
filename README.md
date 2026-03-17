@@ -14,14 +14,9 @@
 
 ---
 
-> [!WARNING]
-> **Alpha Software**: This project is in active development. Expect breaking changes, API instability, and incomplete features. Use at your own risk in production environments.
-
----
-
 # reviw
 
-A lightweight browser-based tool for reviewing and annotating tabular data, text, Markdown, and diff files. Supports CSV, TSV, plain text, Markdown, and unified diff formats. Comments are output as YAML to stdout.
+A lightweight browser-based tool for reviewing and annotating tabular data, text, Markdown, and diff files. Built entirely in [MoonBit](https://www.moonbitlang.com/) (zero hand-written JavaScript). Supports CSV, TSV, plain text, Markdown, and unified diff formats. Comments are output as YAML to stdout.
 
 ## Features
 
@@ -130,6 +125,9 @@ reviw changes.diff
 
 ### Comment Dialog with Image Attachment
 ![Comment Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-comment-dialog.png)
+
+### Video Thumbnails in Table
+![Video Thumbnails](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-video-thumbnails.png)
 
 ### Mermaid Fullscreen with Minimap
 ![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid-fullscreen.png)
@@ -476,8 +474,21 @@ This approach gives you full control: ignore by default, commit only what matter
 
 ## Development
 
-- Main source: `cli.cjs`
-- Tests: `npm test` (vitest + playwright)
+reviw is written entirely in [MoonBit](https://www.moonbitlang.com/) and compiled to JavaScript.
+
+```bash
+# Build
+cd v2 && moon build --target js --release
+
+# Run tests
+cd v2 && moon test --target js
+
+# Package for npm (builds MoonBit + copies to dist/)
+npm run prepack
+```
+
+- Source: `v2/src/` (MoonBit)
+- Build output: `dist/server/server.js`, `dist/ui/ui.js`
 - Plugin: `plugin/` directory
 
 ## License

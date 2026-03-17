@@ -14,14 +14,9 @@
 
 ---
 
-> [!WARNING]
-> **アルファ版ソフトウェア**: このプロジェクトは現在開発中です。破壊的変更、APIの不安定性、機能の不完全さが予想されます。本番環境での使用はご自身の責任でお願いします。
-
----
-
 # reviw
 
-表形式データ、テキスト、Markdown、diffファイルをレビュー・注釈するための軽量ブラウザベースツール。CSV、TSV、プレーンテキスト、Markdown、unified diff形式をサポート。コメントはYAML形式で標準出力に出力されます。
+表形式データ、テキスト、Markdown、diffファイルをレビュー・注釈するための軽量ブラウザベースツール。[MoonBit](https://www.moonbitlang.com/)で書かれており、手書きJavaScriptはゼロ。CSV、TSV、プレーンテキスト、Markdown、unified diff形式をサポート。コメントはYAML形式で標準出力に出力されます。
 
 ## 機能
 
@@ -130,6 +125,9 @@ reviw changes.diff
 
 ### コメントダイアログ（画像添付対応）
 ![Comment Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-comment-dialog.png)
+
+### 動画サムネイル展開
+![Video Thumbnails](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-video-thumbnails.png)
 
 ### Mermaidフルスクリーン（ミニマップ付き）
 ![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid-fullscreen.png)
@@ -433,8 +431,21 @@ git add --force .artifacts/feature/videos/demo.mp4
 
 ## 開発
 
-- メインソース: `cli.cjs`
-- テスト: `npm test`（vitest + playwright）
+reviwは[MoonBit](https://www.moonbitlang.com/)で書かれており、JavaScriptにコンパイルされます。
+
+```bash
+# ビルド
+cd v2 && moon build --target js --release
+
+# テスト実行
+cd v2 && moon test --target js
+
+# npmパッケージング（MoonBitビルド + dist/にコピー）
+npm run prepack
+```
+
+- ソース: `v2/src/`（MoonBit）
+- ビルド出力: `dist/server/server.js`、`dist/ui/ui.js`
 - プラグイン: `plugin/`ディレクトリ
 
 ## ライセンス
