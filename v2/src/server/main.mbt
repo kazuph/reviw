@@ -117,7 +117,8 @@ fn main {
       print_usage()
       process_exit(0)
     } else if arg == "--version" || arg == "-v" {
-      console_log("reviw 2.0.0 (moonbit)")
+      let ver = get_package_version()
+      console_log("reviw " + ver + " (moonbit)")
       process_exit(0)
     } else if arg == "--port" {
       i = i + 1
