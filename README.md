@@ -126,8 +126,8 @@ reviw changes.diff
 ### Comment Dialog with Image Attachment
 ![Comment Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-comment-dialog.png)
 
-### Video Thumbnails in Table
-![Video Thumbnails](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-video-thumbnails.png)
+### Video Fullscreen with Timeline Thumbnails
+![Video Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-video-thumbnails.png)
 
 ### Mermaid Fullscreen with Minimap
 ![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid-fullscreen.png)

@@ -126,8 +126,8 @@ reviw changes.diff
 ### コメントダイアログ（画像添付対応）
 ![Comment Dialog](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-comment-dialog.png)
 
-### 動画サムネイル展開
-![Video Thumbnails](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-video-thumbnails.png)
+### 動画フルスクリーン（タイムラインサムネイル付き）
+![Video Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-video-thumbnails.png)
 
 ### Mermaidフルスクリーン（ミニマップ付き）
 ![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/reviw/main/assets/screenshot-mermaid-fullscreen.png)
