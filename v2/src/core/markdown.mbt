@@ -240,6 +240,7 @@ fn render_markdown_lines(lines : Array[String]) -> String {
     // Code block
     if line.has_prefix("```") {
       let lang = trim(safe_slice(line, 3))
+      let code_block_start_line = i + 1 // 1-indexed line number of ```mermaid
       i = i + 1
       let code_buf = StringBuilder::new()
       let mut code_first = true
@@ -259,6 +260,8 @@ fn render_markdown_lines(lines : Array[String]) -> String {
         // Mermaid diagram: render as mermaid container for client-side rendering
         buf.write_string("<div class=\"mermaid-container\"><div class=\"mermaid\" data-source=\"")
         buf.write_string(escape_html(code_text))
+        buf.write_string("\" data-source-line=\"")
+        buf.write_string(code_block_start_line.to_string())
         buf.write_string("\">")
         buf.write_string(escape_html(code_text))
         buf.write_string("</div><button class=\"mermaid-fullscreen-btn\" title=\"Fullscreen\">\u{26F6}</button></div>\n")

@@ -381,6 +381,15 @@ extern "js" fn iso_now() -> String =
 extern "js" fn json_parse_images(json_str : String) -> Array[String] =
   #|(s) => { try { return JSON.parse(s).summaryImages || []; } catch(e) { return []; } }
 
+///| JSON parse mermaid errors array [{line, message}]
+extern "js" fn json_parse_mermaid_errors(json_str : String) -> Array[Array[String]] =
+  #|(s) => {
+  #|  try {
+  #|    const obj = JSON.parse(s);
+  #|    return (obj.mermaidErrors || []).map(e => [String(e.line || 0), e.message || ""]);
+  #|  } catch(e) { return []; }
+  #|}
+
 ///| Parse URL query parameters (URL is a global)
 extern "js" fn parse_query_param(url : String, key : String) -> String =
   #|(url, key) => {

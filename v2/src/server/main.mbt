@@ -764,12 +764,20 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
     }
   }
   let answers = json_parse_string("reviwAnswers", body)
+  let raw_merr = json_parse_mermaid_errors(body)
+  let mermaid_errors : Array[@core.MermaidError] = []
+  for me in raw_merr {
+    if me.length() >= 2 {
+      mermaid_errors.push({ line: @core.parse_int_safe(me[0]), message: me[1] })
+    }
+  }
   let result : @core.ReviewResult = {
     file: ctx.filename,
     mode: ctx.mode,
     comments,
     summary,
     answers,
+    mermaid_errors,
   }
   all_results.push(result)
   // Save to history

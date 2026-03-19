@@ -7,6 +7,7 @@ test "review to yaml single file" {
     ],
     summary: "looks good",
     answers: "",
+    mermaid_errors: [],
   }
   inspect(review_to_yaml(result), content=(
     #|file: data.csv
@@ -30,6 +31,7 @@ test "review to yaml escapes special chars" {
     ],
     summary: "it's fine",
     answers: "",
+    mermaid_errors: [],
   }
   inspect(review_to_yaml(result), content=(
     #|file: test.csv
@@ -51,6 +53,7 @@ test "reviews to yaml multiple files" {
       comments: [],
       summary: "ok",
       answers: "",
+      mermaid_errors: [],
     },
     {
       file: "b.md",
@@ -58,6 +61,7 @@ test "reviews to yaml multiple files" {
       comments: [],
       summary: "ok",
       answers: "",
+      mermaid_errors: [],
     },
   ]
   inspect(reviews_to_yaml(results), content=(
@@ -83,10 +87,37 @@ test "yaml escape empty value omitted" {
     ],
     summary: "done",
     answers: "",
+    mermaid_errors: [],
   }
   let yaml = review_to_yaml(result)
   // value should not appear when empty
   inspect(yaml.contains("value:"), content=(
     #|false
+  ))
+}
+
+test "review to yaml with mermaid errors" {
+  let result : ReviewResult = {
+    file: "test.md",
+    mode: Markdown,
+    comments: [],
+    summary: "no comments",
+    answers: "",
+    mermaid_errors: [
+      { line: 12, message: "Parse error on line 2" },
+      { line: 25, message: "Expecting 'TXT', got 'NEWLINE'" },
+    ],
+  }
+  inspect(review_to_yaml(result), content=(
+    #|file: test.md
+    #|mode: markdown
+    #|comments:
+    #|summary: no comments
+    #|mermaid_errors:
+    #|  - line: 12
+    #|    error: Parse error on line 2
+    #|  - line: 25
+    #|    error: 'Expecting ''TXT'', got ''NEWLINE'''
+    #|
   ))
 }

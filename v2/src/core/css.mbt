@@ -422,7 +422,7 @@ fn build_css() -> String {
     #|}
     #|.md-left {
     #|  flex: 1;
-    #|  min-width: 0;
+    #|  min-width: 200px;
     #|  overflow-y: auto;
     #|  overflow-x: auto;
     #|  overscroll-behavior: contain;
@@ -465,6 +465,7 @@ fn build_css() -> String {
     #|  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     #|  position: relative;
     #|  z-index: 10;
+    #|  max-width: 60%;
     #|}
     #|.media-sidebar.hidden {
     #|  display: none;
@@ -600,6 +601,7 @@ fn build_css() -> String {
     #|}
     #|.media-sidebar-viewer.open {
     #|  width: 45vw;
+    #|  max-width: calc(100vw - 400px);
     #|  overflow: hidden;
     #|  padding: 16px;
     #|  border-right: 1px solid var(--border);
@@ -893,6 +895,7 @@ fn build_css() -> String {
     #|@media (max-width: 1200px) {
     #|  .media-sidebar-viewer.open {
     #|    width: 40vw;
+    #|    max-width: calc(100vw - 350px);
     #|  }
     #|}
     #|@media (max-width: 900px) {
@@ -905,6 +908,7 @@ fn build_css() -> String {
     #|  }
     #|  .media-sidebar-viewer.open {
     #|    width: 35vw;
+    #|    max-width: calc(100vw - 300px);
     #|  }
     #|}
     #|@media (prefers-reduced-motion: reduce) {
@@ -1955,6 +1959,21 @@ fn build_css() -> String {
     #|  cursor: pointer;
     #|  pointer-events: auto;
     #|}
+    #|.mermaid-error-banner {
+    #|  background: #fff3f3;
+    #|  color: #c33;
+    #|  border: 1px solid #e88;
+    #|  border-radius: 4px;
+    #|  padding: 6px 10px;
+    #|  margin-bottom: 8px;
+    #|  font-size: 12px;
+    #|  font-weight: 500;
+    #|}
+    #|[data-theme="dark"] .mermaid-error-banner {
+    #|  background: #3a1a1a;
+    #|  color: #f88;
+    #|  border-color: #744;
+    #|}
     #|.mermaid-fullscreen-btn {
     #|  position: absolute;
     #|  top: 8px;
@@ -2268,6 +2287,7 @@ fn build_css() -> String {
     #|  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     #|  position: relative;
     #|  z-index: 10;
+    #|  max-width: 60%;
     #|}
     #|.media-sidebar.hidden { display: none; }
     #|.media-sidebar-thumbs {
@@ -2365,6 +2385,7 @@ fn build_css() -> String {
     #|}
     #|.media-sidebar-viewer.open {
     #|  width: 45vw;
+    #|  max-width: calc(100vw - 400px);
     #|  overflow: hidden;
     #|  padding: 16px;
     #|  border-right: 1px solid var(--border);
@@ -2492,5 +2513,9 @@ fn build_css() -> String {
     #|}
     #|.fullscreen-controls button:hover { background: rgba(255,255,255,0.2); }
     #|.fullscreen-controls .zoom-info { color: #fff; font-size: 12px; min-width: 40px; text-align: center; }
+    #|@media (max-width: 960px) {
+    #|  .media-sidebar { display: none !important; }
+    #|  .media-sidebar-toggle { display: none !important; }
+    #|}
   css
 }

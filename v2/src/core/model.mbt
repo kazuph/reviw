@@ -37,6 +37,12 @@ pub(all) struct Comment {
   value : String
 } derive(Show, Eq)
 
+///| A mermaid diagram error
+pub(all) struct MermaidError {
+  line : Int
+  message : String
+} derive(Show, Eq)
+
 ///| Review result for one file
 pub(all) struct ReviewResult {
   file : String
@@ -44,6 +50,7 @@ pub(all) struct ReviewResult {
   comments : Array[Comment]
   summary : String
   answers : String
+  mermaid_errors : Array[MermaidError]
 } derive(Show)
 
 ///| Parsed CSV data

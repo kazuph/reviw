@@ -844,12 +844,19 @@ extern "js" fn get_mermaid_error_message(index : Int) -> String =
   #|  return i < errs.length ? (errs[i].message || String(errs[i])) : "";
   #|}
 
+///| Get mermaid error source line number by index
+extern "js" fn get_mermaid_error_line(index : Int) -> Int =
+  #|(i) => {
+  #|  const errs = window.__mermaidErrors || [];
+  #|  return i < errs.length ? (errs[i].line || 0) : 0;
+  #|}
+
 ///| Log mermaid errors to console
 extern "js" fn log_mermaid_errors_to_console() -> Unit =
   #|() => {
   #|  const errs = window.__mermaidErrors || [];
   #|  if (errs.length > 0) {
   #|    console.error('[reviw] Mermaid has ' + errs.length + ' error(s):');
-  #|    errs.forEach(function(e, i) { console.error('[reviw] Mermaid error #' + (i+1) + ':', e.message || String(e)); });
+  #|    errs.forEach(function(e, i) { console.error('[reviw] Mermaid error #' + (i+1) + ' (line ' + (e.line||'?') + '):', e.message || String(e)); });
   #|  }
   #|}

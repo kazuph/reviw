@@ -32,6 +32,17 @@ pub fn review_to_yaml(result : ReviewResult) -> String {
     buf.write_string(yaml_escape_string(result.answers))
     buf.write_char('\n')
   }
+  if result.mermaid_errors.length() > 0 {
+    buf.write_string("mermaid_errors:\n")
+    for err in result.mermaid_errors {
+      buf.write_string("  - line: ")
+      buf.write_string(err.line.to_string())
+      buf.write_char('\n')
+      buf.write_string("    error: ")
+      buf.write_string(yaml_escape_string(err.message))
+      buf.write_char('\n')
+    }
+  }
   buf.to_string()
 }
 
@@ -68,6 +79,17 @@ pub fn reviews_to_yaml(results : Array[ReviewResult]) -> String {
         buf.write_string("    answers: ")
         buf.write_string(yaml_escape_string(result.answers))
         buf.write_char('\n')
+      }
+      if result.mermaid_errors.length() > 0 {
+        buf.write_string("    mermaid_errors:\n")
+        for err in result.mermaid_errors {
+          buf.write_string("      - line: ")
+          buf.write_string(err.line.to_string())
+          buf.write_char('\n')
+          buf.write_string("        error: ")
+          buf.write_string(yaml_escape_string(err.message))
+          buf.write_char('\n')
+        }
       }
     }
     buf.to_string()

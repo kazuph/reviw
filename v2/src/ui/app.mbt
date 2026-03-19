@@ -544,20 +544,23 @@ fn show_submit_modal() -> Unit {
     set_inner_html(list, html)
   }
   // Show mermaid errors if any
+  // Show mermaid errors if any
   let mermaid_error_area = query("#mermaid-error-area")
   let mermaid_error_list = query("#mermaid-error-list")
   let err_count = get_mermaid_error_count()
   if err_count > 0 && not(is_null(mermaid_error_area)) && not(is_null(mermaid_error_list)) {
     let err_buf = StringBuilder::new()
     for i = 0; i < err_count; i = i + 1 {
+      let line = get_mermaid_error_line(i)
       let msg = get_mermaid_error_message(i)
-      err_buf.write_string("<li>")
+      err_buf.write_string("<li><strong>Line ")
+      err_buf.write_string(line.to_string())
+      err_buf.write_string(":</strong> ")
       err_buf.write_string(@core.escape_html(msg))
       err_buf.write_string("</li>")
     }
     set_inner_html(mermaid_error_list, err_buf.to_string())
     set_style(mermaid_error_area, "display", "block")
-    // Also log to console
     log_mermaid_errors_to_console()
   } else if not(is_null(mermaid_error_area)) {
     set_style(mermaid_error_area, "display", "none")
@@ -620,6 +623,22 @@ fn submit_review(port : Int) -> Unit {
     buf.write_string(answers_json)
   } else {
     buf.write_string("{}")
+  }
+  // Include mermaid errors
+  let merr_count = get_mermaid_error_count()
+  if merr_count > 0 {
+    buf.write_string(",\"mermaidErrors\":[")
+    for i = 0; i < merr_count; i = i + 1 {
+      if i > 0 {
+        buf.write_char(',')
+      }
+      buf.write_string("{\"line\":")
+      buf.write_string(get_mermaid_error_line(i).to_string())
+      buf.write_string(",\"message\":")
+      buf.write_string(json_encode_string(get_mermaid_error_message(i)))
+      buf.write_char('}')
+    }
+    buf.write_string("]")
   }
   buf.write_string("}")
   let url = "http://127.0.0.1:\{port}/exit"
@@ -2084,6 +2103,11 @@ fn setup_mermaid_fullscreen_moonbit() -> Unit {
         }
         let svg = query_in(container, ".mermaid svg")
         if not(is_null(svg)) {
+          // Don't open fullscreen for error SVGs
+          let err_icon = query_in(svg, ".error-icon")
+          if not(is_null(err_icon)) {
+            return
+          }
           open_mermaid_fullscreen_moonbit(svg, overlay, fs_content, fs_wrapper, fs_zoom_info)
           stop_propagation(e)
         }
