@@ -832,3 +832,24 @@ extern "js" fn create_timeline_thumb(parent : Element, src : String, time : Stri
   #|  img.style.maxHeight = "60px";
   #|  parent.appendChild(img);
   #|}
+
+///| Get mermaid error count from window.__mermaidErrors
+extern "js" fn get_mermaid_error_count() -> Int =
+  #|() => (window.__mermaidErrors || []).length
+
+///| Get mermaid error message by index
+extern "js" fn get_mermaid_error_message(index : Int) -> String =
+  #|(i) => {
+  #|  const errs = window.__mermaidErrors || [];
+  #|  return i < errs.length ? (errs[i].message || String(errs[i])) : "";
+  #|}
+
+///| Log mermaid errors to console
+extern "js" fn log_mermaid_errors_to_console() -> Unit =
+  #|() => {
+  #|  const errs = window.__mermaidErrors || [];
+  #|  if (errs.length > 0) {
+  #|    console.error('[reviw] Mermaid has ' + errs.length + ' error(s):');
+  #|    errs.forEach(function(e, i) { console.error('[reviw] Mermaid error #' + (i+1) + ':', e.message || String(e)); });
+  #|  }
+  #|}

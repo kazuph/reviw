@@ -543,6 +543,25 @@ fn show_submit_modal() -> Unit {
   } else {
     set_inner_html(list, html)
   }
+  // Show mermaid errors if any
+  let mermaid_error_area = query("#mermaid-error-area")
+  let mermaid_error_list = query("#mermaid-error-list")
+  let err_count = get_mermaid_error_count()
+  if err_count > 0 && not(is_null(mermaid_error_area)) && not(is_null(mermaid_error_list)) {
+    let err_buf = StringBuilder::new()
+    for i = 0; i < err_count; i = i + 1 {
+      let msg = get_mermaid_error_message(i)
+      err_buf.write_string("<li>")
+      err_buf.write_string(@core.escape_html(msg))
+      err_buf.write_string("</li>")
+    }
+    set_inner_html(mermaid_error_list, err_buf.to_string())
+    set_style(mermaid_error_area, "display", "block")
+    // Also log to console
+    log_mermaid_errors_to_console()
+  } else if not(is_null(mermaid_error_area)) {
+    set_style(mermaid_error_area, "display", "none")
+  }
   add_class(modal, "visible")
   let summary = query("#global-comment")
   if not(is_null(summary)) {
