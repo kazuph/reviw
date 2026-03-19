@@ -394,6 +394,29 @@ extern "js" fn parse_query_param(url : String, key : String) -> String =
 extern "js" fn on_spawn_close(proc : JsValue, handler : (Int) -> Unit) -> Unit =
   #|(proc, handler) => proc.on("close", (code) => handler(code || 0))
 
+///| Close handler that also collects stderr output
+extern "js" fn on_spawn_close_with_stderr(proc : JsValue, handler : (Int, String) -> Unit) -> Unit =
+  #|(proc, handler) => {
+  #|  let buf = '';
+  #|  if (proc.stderr) proc.stderr.on('data', (chunk) => { buf += chunk.toString(); });
+  #|  proc.on('close', (code) => handler(code || 0, buf));
+  #|}
+
+///| Parse pts_time values from ffmpeg showinfo filter stderr output
+extern "js" fn parse_showinfo_timestamps(stderr : String) -> Array[Double] =
+  #|(stderr) => {
+  #|  const times = [];
+  #|  for (const line of stderr.split('\n')) {
+  #|    const m = line.match(/pts_time:\s*([\d.]+)/);
+  #|    if (m) times.push(parseFloat(m[1]));
+  #|  }
+  #|  return times;
+  #|}
+
+///| Sort array of strings in place
+extern "js" fn sort_strings(arr : Array[String]) -> Array[String] =
+  #|(arr) => arr.sort()
+
 extern "js" fn on_spawn_error(proc : JsValue, handler : () -> Unit) -> Unit =
   #|(proc, handler) => proc.on("error", () => handler())
 

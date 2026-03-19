@@ -398,6 +398,7 @@ fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
 fn render_image_viewer(state : MediaSidebarState, content : Element, item : MediaItem) -> Unit {
   // Create viewport
   let viewport = create_element("div")
+  set_style(viewport, "width", "100%")
   set_style(viewport, "height", "calc(100vh - 140px)")
   set_style(viewport, "overflow", "hidden")
   set_style(viewport, "position", "relative")
@@ -473,13 +474,17 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
   let h = on_with_handle(img, "load", fn(e) {
     if get_client_width(viewport) > 100 {
       init_zpv()
+    } else {
+      // Viewport not yet expanded — retry after transition completes
+      ignore(set_timeout(fn() { init_zpv() }, 500))
     }
   })
   state.handles.push(h)
 
-  // If already loaded
+  // If already loaded (cached image)
   if get_natural_width(img) > 0.0 {
-    state.pending_fit = Some(init_zpv)
+    // Image already loaded but viewer panel not yet open — schedule init
+    ignore(set_timeout(fn() { init_zpv() }, 500))
   }
 
   // Cleanup function

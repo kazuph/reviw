@@ -867,22 +867,36 @@ fn handle_video_timeline(
   // Scene detection with ffmpeg
   let scene_threshold = if scene_str.length() > 0 { scene_str } else { "0.01" }
   let ffmpeg_proc = spawn_async("ffmpeg", "[\"-i\", " + json_encode_value(video_path) + ", \"-vf\", \"select='gt(scene," + scene_threshold + ")',showinfo,scale=160:-1\", \"-vsync\", \"vfr\", \"-q:v\", \"5\", " + json_encode_value(path_join(tmp_dir, "scene_%04d.jpg")) + "]")
-  let scene_index = Ref::new(1)
-  on_spawn_close(ffmpeg_proc, fn(_code) {
-    // Read scene files and send them
+  on_spawn_close_with_stderr(ffmpeg_proc, fn(_code, stderr) {
+    // Parse actual timestamps from ffmpeg showinfo output
+    let timestamps = parse_showinfo_timestamps(stderr)
+    // Read and sort scene files to ensure correct order
     let files = readdir_sync(tmp_dir)
+    let scene_files : Array[String] = []
     for file in files {
       if file.has_prefix("scene_") && file.has_suffix(".jpg") {
-        let fpath = path_join(tmp_dir, file)
-        let b64 = read_file_base64(fpath)
-        if b64.length() > 0 {
-          sse_send(res, "message", "{\"type\":\"thumbnail\",\"time\":" + scene_index.val.to_string() + ",\"index\":" + scene_index.val.to_string() + ",\"data\":\"data:image/jpeg;base64," + b64 + "\"}")
-          scene_index.val = scene_index.val + 1
+        scene_files.push(file)
+      }
+    }
+    let sorted_files = sort_strings(scene_files)
+    // Send scene thumbnails with correct timestamps
+    let mut scene_idx = 0
+    for file in sorted_files {
+      let fpath = path_join(tmp_dir, file)
+      let b64 = read_file_base64(fpath)
+      if b64.length() > 0 {
+        // Use actual timestamp from showinfo if available, otherwise estimate
+        let time_val = if scene_idx < timestamps.length() {
+          timestamps[scene_idx]
+        } else {
+          (scene_idx + 1).to_double()
         }
+        sse_send(res, "message", "{\"type\":\"thumbnail\",\"time\":" + time_val.to_string() + ",\"index\":" + (scene_idx + 1).to_string() + ",\"data\":\"data:image/jpeg;base64," + b64 + "\"}")
+        scene_idx = scene_idx + 1
       }
     }
     // Send completion
-    sse_send(res, "message", "{\"type\":\"complete\",\"total\":" + scene_index.val.to_string() + "}")
+    sse_send(res, "message", "{\"type\":\"complete\",\"total\":" + scene_idx.to_string() + "}")
     res_end(res, "")
     // Cleanup
     rm_dir_recursive(tmp_dir)
