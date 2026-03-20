@@ -119,19 +119,59 @@ Q7: "Should we follow the existing pattern in [file] or try something different?
 Q8: "Given the requirements, I see two approaches: A or B. Which do you prefer?"
 ```
 
-### Step 0-3: Architecture & Implementation Approach
+### Step 0-2.5: Codebase Exploration (REQUIRED before architecture design)
 
-**After understanding requirements, propose implementation approach and confirm:**
+**Before designing architecture, deeply understand the existing codebase.**
+
+Launch 2-3 code-explorer agents in parallel, each targeting a different aspect:
+
+```
+Agent 1: "Find features similar to [requested feature] and trace through their implementation comprehensively. Return a list of 5-10 key files."
+Agent 2: "Map the architecture and abstractions for [feature area], tracing through the code comprehensively. Return a list of 5-10 key files."
+Agent 3: "Identify UI patterns, testing approaches, or extension points relevant to [feature]. Return a list of 5-10 key files."
+```
+
+**After agents return:**
+1. Read ALL key files identified by agents to build deep understanding
+2. Summarize patterns, conventions, and architectural decisions found
+3. Use these findings to inform the Architecture proposal (Step 0-3)
+
+**Why this matters:**
+- Prevents reinventing patterns that already exist in the codebase
+- Ensures new code integrates seamlessly with existing conventions
+- Discovers reusable utilities and abstractions
+- Architecture proposals are grounded in actual codebase reality
+
+### Step 0-3: Architecture & Implementation Approach (Multi-Proposal)
+
+**After understanding requirements AND codebase, design multiple implementation approaches and let the user choose.**
+
+**Launch 2-3 code-architect agents in parallel with different focuses:**
+
+```
+Agent 1 (Minimal): "Design the simplest implementation with smallest changes and maximum reuse of existing code"
+Agent 2 (Clean): "Design a clean architecture approach prioritizing maintainability and elegant abstractions"
+Agent 3 (Pragmatic): "Design a pragmatic balance of speed and quality, considering team context"
+```
+
+**Each agent should return:**
+- Chosen approach with rationale
+- Specific files to create/modify
+- Trade-offs (pros/cons)
+- Implementation phases
+
+**Present to user with AskUserQuestion:**
 
 ```
 Use AskUserQuestion to present options:
 
-Question: "Based on our discussion, here are the implementation approaches:"
+Question: "Based on codebase analysis, here are the implementation approaches:"
 Header: "Architecture"
 Options:
-  1. "[Approach A]" - [Brief explanation with trade-offs]
-  2. "[Approach B]" - [Brief explanation with trade-offs]
-  3. "Let me explain more" - Need more context before deciding
+  1. "[Minimal] - [Summary]" - Smallest change, maximum reuse. Trade-off: [X]
+  2. "[Clean] - [Summary]" - Best maintainability. Trade-off: [X]
+  3. "[Pragmatic] - [Summary] (Recommended)" - Best balance for this task. Trade-off: [X]
+  4. "Let me explain more" - Need more context before deciding
 ```
 
 **Only proceed to implementation after user confirms approach.**
@@ -397,9 +437,9 @@ When the user adds new requests/tasks during the session:
 3. Update todo status in real-time as you work
 4. Mark tasks complete ONLY after user approval
 
-## Execution Steps (For New Tasks)
+## Phase 1: Work Environment Setup (For New Tasks)
 
-### 1. Work Environment Setup
+### 1-1. Git Repository Verification
 
 First, verify that the current project is a git repository.
 
@@ -410,7 +450,7 @@ git rev-parse --show-toplevel
 
 Next, create a worktree for the task. Branch name is automatically generated appropriately from the request content.
 
-### worktree Naming Convention
+### 1-2. worktree Naming Convention
 
 | Type | Branch Name | Example |
 |------|-----------|-----|
@@ -454,7 +494,7 @@ myproject/
 
 direnvは親ディレクトリの`.envrc`を継承するため、プロジェクトルートに環境変数を設定しておけば、`.worktree/`内のworktreeも同じ環境変数が自動適用されます。
 
-### 2. .gitignore Configuration
+### 1-3. .gitignore Configuration
 
 **Important:** Exclude `.artifacts` and `.envrc` from commit targets.
 
@@ -471,7 +511,7 @@ done
 - `.artifacts/` - Evidence (screenshots/videos) excluded to prevent repository bloat
 - `.envrc` - Contains `DOTENV_PRIVATE_KEY` for decryption
 
-### 2.5. Environment Setup (direnv + dotenvx)
+### 1-4. Environment Setup (direnv + dotenvx)
 
 **Recommended: Set up encrypted environment variables**
 
@@ -527,7 +567,9 @@ git add --force .artifacts/<feature>/videos/demo.mp4
 
 The recommended approach is to exclude by default and explicitly commit only what's needed.
 
-### 3. Deliverables Directory Preparation
+## Phase 2: Planning
+
+### 2-1. Deliverables Directory Preparation
 
 Create `.artifacts/<feature=branch_name>/` directory within the worktree.
 
@@ -545,7 +587,7 @@ Create `.artifacts/<feature=branch_name>/` directory within the worktree.
 mkdir -p .artifacts/<feature=branch_name>/{images,videos}
 ```
 
-### 4. Planning (REPORT.md)
+### 2-2. Planning (REPORT.md)
 
 Create `.artifacts/<feature=branch_name>/REPORT.md` and write the plan in the following format:
 
@@ -570,6 +612,41 @@ Status: In Progress
 ## PLAN
 
 ### TODO
+
+Each step MUST include "Purpose" and "Impact" (step listing without context is prohibited):
+
+```
+### Step 1: <Step Name>
+**Purpose**: <What this step achieves>
+**Impact**: <What improves / what problem this solves>
+
+- [ ] Specific task...
+```
+
+Bad example (PROHIBITED) - no context on why:
+```
+- [ ] Add validation to the form
+```
+
+Good example - purpose and impact included:
+```
+### Step 1: Form Validation
+**Purpose**: Prevent users from submitting incomplete data
+**Impact**: Reduces support tickets from invalid submissions by catching errors at input time
+
+- [ ] Add required field validation to email and name inputs
+- [ ] Show inline error messages on blur
+```
+
+#### Mermaid Diagram Rules
+
+**Development workflow visualization is unnecessary** - PLANのステップをmermaidで可視化する必要はない（箇条書きで十分）。
+Mermaid diagrams should only be used when visual representation adds value that text cannot convey:
+- **Data flow**: How data moves between APIs/components, before/after changes
+- **Data structure before/after**: API response or DB schema changes
+- **Architecture changes**: How component relationships change
+
+#### Implementation Tasks
 
 - [ ] <Specific task 1>
 - [ ] <Specific task 2>
@@ -629,11 +706,25 @@ Status: In Progress
 <Add links to evidence collected with artifact-proof>
 ```
 
-### 5. Reflection to TodoWrite
+### 2-3. Reflection to TodoWrite
 
 Reflect the above PLAN to the TodoWrite tool as well. This visualizes progress.
 
-### 6. Parallel Implementation with Subagents
+## Phase 3: Implementation
+
+### 3-0. t-wada TDD Cycle (MANDATORY)
+
+**All implementation MUST follow the t-wada TDD cycle. Writing implementation before tests is prohibited.**
+
+```
+RED:    Write test expressing expected behavior -> Run -> Confirm FAIL (red)
+GREEN:  Write minimum implementation to PASS (green)
+Refactor: Refactor while keeping tests passing
+```
+
+**Subagents must be instructed to follow this cycle explicitly.** Include TDD instructions in every subagent prompt.
+
+### 3-1. Parallel Implementation with Subagents
 
 **After planning, implementation MUST be executed with subagents (Task tool).**
 
@@ -676,7 +767,7 @@ Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent
 | Mobile Verification | `general-purpose` + mobile-testing skill | mobile | Maestro MCP E2E flows |
 | Evidence Collection | `general-purpose` + artifact-proof skill | ALL | Completion report preparation |
 
-### 7. Confirm Action Guidelines Focused on Deliverables
+### 3-2. Confirm Action Guidelines Focused on Deliverables
 
 **Display important notes:**
 
