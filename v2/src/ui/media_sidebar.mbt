@@ -425,6 +425,49 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
   set_text_content(zoom_info, "100%")
   append_child(viewport, zoom_info)
 
+  // Fullscreen maximize button
+  let fs_btn = create_element("button")
+  set_class_name(fs_btn, "sidebar-maximize-btn")
+  set_inner_html(fs_btn, "&#9974;")
+  set_attribute(fs_btn, "title", "Fullscreen")
+  on(fs_btn, "click", fn(e) {
+    prevent_default(e)
+    stop_propagation(e)
+    // Open in fullscreen viewer using the preview images list
+    let preview = query("#md-preview")
+    if is_null(preview) { return }
+    let all_images = query_all_in(preview, "img")
+    let images : Array[Element] = []
+    for im in all_images {
+      if is_null(closest(im, ".mermaid-container")) {
+        images.push(im)
+      }
+    }
+    // Find matching image by src
+    let target_src = item.src
+    let mut idx = -1
+    for i, im in images {
+      if get_src(im) == target_src || get_src(im).has_suffix(target_src) || target_src.has_suffix(get_src(im)) {
+        idx = i
+        break
+      }
+    }
+    if idx < 0 && images.length() > 0 {
+      idx = 0
+    }
+    if idx >= 0 {
+      let overlay = query("#image-fullscreen")
+      let fs_content = query("#image-fs-content")
+      let fs_wrapper = query("#image-fs-wrapper")
+      let fs_zoom_info = query("#img-fs-zoom-info")
+      let fs_counter = query("#img-fs-counter")
+      if not(is_null(overlay)) && not(is_null(fs_content)) && not(is_null(fs_wrapper)) {
+        show_image_fullscreen_moonbit(images, idx, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter)
+      }
+    }
+  })
+  append_child(viewport, fs_btn)
+
   append_child(content, viewport)
 
   // Hide wrapper until initialized

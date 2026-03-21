@@ -2502,6 +2502,27 @@ fn build_css() -> String {
     #|  transition: opacity 0.3s ease;
     #|}
     #|.sidebar-zoom-indicator.hidden { opacity: 0; }
+    #|.sidebar-maximize-btn {
+    #|  position: absolute;
+    #|  top: 8px;
+    #|  right: 8px;
+    #|  width: 36px;
+    #|  height: 36px;
+    #|  padding: 0;
+    #|  background: rgba(0,0,0,0.6);
+    #|  border: 1px solid rgba(255,255,255,0.3);
+    #|  color: #fff;
+    #|  font-size: 18px;
+    #|  line-height: 1;
+    #|  cursor: pointer;
+    #|  border-radius: 8px;
+    #|  display: flex;
+    #|  align-items: center;
+    #|  justify-content: center;
+    #|  z-index: 5;
+    #|  transition: background 120ms ease;
+    #|}
+    #|.sidebar-maximize-btn:hover { background: rgba(0,0,0,0.8); }
     #|.sidebar-mermaid-viewport { overflow: hidden; position: relative; cursor: grab; }
     #|.sidebar-mermaid-wrapper { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
     #|.sidebar-video-container { width: 100%; }
