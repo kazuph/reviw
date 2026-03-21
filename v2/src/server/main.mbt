@@ -6,6 +6,10 @@ struct ServerContext {
   mut port : Int
   mut html_cache : String
   sse_clients : Array[JsValue]
+  active_tabs : Array[String]
+  active_tab_instances : Map[String, String]
+  mut pending_close_timer : JsValue
+  mut finished : Bool
 }
 
 ///| All active server contexts
@@ -356,6 +360,10 @@ fn start_stdin_server(content : String, port : Int, no_open : Bool) -> Unit {
     port,
     html_cache: html,
     sse_clients: [],
+    active_tabs: [],
+    active_tab_instances: {},
+    pending_close_timer: js_null(),
+    finished: false,
   }
   active_servers.push(ctx)
   expected_count.val = 1
@@ -374,6 +382,10 @@ fn start_file_server(file_path : String, port : Int, no_open : Bool) -> Unit {
     port,
     html_cache: "",
     sse_clients: [],
+    active_tabs: [],
+    active_tab_instances: {},
+    pending_close_timer: js_null(),
+    finished: false,
   }
   ctx.html_cache = load_and_build_html(ctx)
   active_servers.push(ctx)
@@ -573,6 +585,24 @@ fn handle_request(ctx : ServerContext, req : JsValue, res : JsValue) -> Unit {
     res_end(res, history_json)
   } else if http_method == "GET" && url.has_prefix("/video-timeline?") {
     handle_video_timeline(ctx, url, res)
+  } else if http_method == "POST" && url == "/session/open" {
+    read_body(
+      req,
+      fn(body) {
+        handle_session_open(ctx, body)
+        res_write_head(res, 200, "application/json")
+        res_end(res, "{\"ok\":true}")
+      },
+    )
+  } else if http_method == "POST" && url == "/close" {
+    read_body(
+      req,
+      fn(body) {
+        handle_session_close(ctx, body)
+        res_write_head(res, 200, "application/json")
+        res_end(res, "{\"ok\":true}")
+      },
+    )
   } else if http_method == "POST" && url == "/exit" {
     read_body(
       req,
@@ -747,8 +777,52 @@ fn remove_sse_client(ctx : ServerContext, client : JsValue) -> Unit {
   }
 }
 
+fn has_active_tab(ctx : ServerContext, tab_id : String) -> Bool {
+  for existing in ctx.active_tabs {
+    if existing == tab_id {
+      return true
+    }
+  }
+  false
+}
+
+fn add_active_tab(ctx : ServerContext, tab_id : String) -> Unit {
+  if tab_id.length() == 0 || has_active_tab(ctx, tab_id) {
+    return
+  }
+  ctx.active_tabs.push(tab_id)
+}
+
+fn remove_active_tab(ctx : ServerContext, tab_id : String) -> Unit {
+  if tab_id.length() == 0 {
+    return
+  }
+  let mut idx = -1
+  for i, existing in ctx.active_tabs {
+    if existing == tab_id {
+      idx = i
+      break
+    }
+  }
+  if idx >= 0 && idx < ctx.active_tabs.length() {
+    ignore(ctx.active_tabs.remove(idx))
+  }
+}
+
+fn cancel_pending_close(ctx : ServerContext) -> Unit {
+  if not(js_is_nullish(ctx.pending_close_timer)) {
+    clear_timeout(ctx.pending_close_timer)
+    ctx.pending_close_timer = js_null()
+  }
+}
+
 ///|
 fn handle_submit(ctx : ServerContext, body : String) -> Unit {
+  if ctx.finished {
+    return
+  }
+  ctx.finished = true
+  cancel_pending_close(ctx)
   let summary = json_parse_string("summary", body)
   // Parse comments from JSON body
   let raw_comments = json_parse_comments(body)
@@ -821,6 +895,66 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
       remove_lock(srv.port)
     }
     process_exit(0)
+  }
+}
+
+fn handle_session_open(ctx : ServerContext, body : String) -> Unit {
+  if ctx.finished {
+    return
+  }
+  let tab_id = json_parse_string("tabId", body)
+  let instance_id = json_parse_string("instanceId", body)
+  if tab_id.length() == 0 || instance_id.length() == 0 {
+    return
+  }
+  cancel_pending_close(ctx)
+  add_active_tab(ctx, tab_id)
+  ctx.active_tab_instances.set(tab_id, instance_id)
+}
+
+fn schedule_close_submit(ctx : ServerContext, draft : String) -> Unit {
+  if ctx.finished {
+    return
+  }
+  cancel_pending_close(ctx)
+  let draft_body = if draft.length() > 0 {
+    draft
+  } else {
+    "{\"summary\":\"\",\"comments\":[]}"
+  }
+  ctx.pending_close_timer = set_timeout(
+    fn() {
+      ctx.pending_close_timer = js_null()
+      if ctx.finished || not(ctx.active_tabs.is_empty()) {
+        return
+      }
+      handle_submit(ctx, draft_body)
+    },
+    700,
+  )
+}
+
+fn handle_session_close(ctx : ServerContext, body : String) -> Unit {
+  if ctx.finished {
+    return
+  }
+  let tab_id = json_parse_string("tabId", body)
+  let instance_id = json_parse_string("instanceId", body)
+  let draft = json_parse_string("draft", body)
+  if tab_id.length() > 0 && instance_id.length() > 0 {
+    match ctx.active_tab_instances.get(tab_id) {
+      Some(active_instance) => {
+        if active_instance != instance_id {
+          return
+        }
+      }
+      None => ()
+    }
+  }
+  ignore(ctx.active_tab_instances.remove(tab_id))
+  remove_active_tab(ctx, tab_id)
+  if ctx.active_tabs.is_empty() {
+    schedule_close_submit(ctx, draft)
   }
 }
 

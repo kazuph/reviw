@@ -252,13 +252,18 @@ fn render_markdown_lines(lines : Array[String]) -> String {
         code_buf.write_string(lines[i])
         i = i + 1
       }
+      let code_block_end_line = if i < len { i + 1 } else { len }
       if i < len {
         i = i + 1 // skip closing ```
       }
       let code_text = code_buf.to_string()
       if lang == "mermaid" || is_mermaid_content(code_text) {
         // Mermaid diagram: render as mermaid container for client-side rendering
-        buf.write_string("<div class=\"mermaid-container\"><div class=\"mermaid\" data-source=\"")
+        buf.write_string("<div class=\"mermaid-container\" data-source-start-line=\"")
+        buf.write_string(code_block_start_line.to_string())
+        buf.write_string("\" data-source-end-line=\"")
+        buf.write_string(code_block_end_line.to_string())
+        buf.write_string("\"><div class=\"mermaid\" data-source=\"")
         buf.write_string(escape_html(code_text))
         buf.write_string("\" data-source-line=\"")
         buf.write_string(code_block_start_line.to_string())

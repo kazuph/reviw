@@ -212,6 +212,48 @@ async function measureMinimap(page, selectors) {
   }, selectors);
 }
 
+async function measureOverlayPlacement(page, selectors) {
+  return page.evaluate((sel) => {
+    const viewport = document.querySelector(sel.viewport);
+    const minimap = document.querySelector(sel.minimap);
+    if (!viewport || !minimap) {
+      return { ok: false, reason: "missing-elements", found: { viewport: !!viewport, minimap: !!minimap } };
+    }
+    const rect = (el) => {
+      const r = el.getBoundingClientRect();
+      return {
+        left: r.left,
+        top: r.top,
+        right: r.right,
+        bottom: r.bottom,
+        width: r.width,
+        height: r.height,
+      };
+    };
+    const viewportRect = rect(viewport);
+    const minimapRect = rect(minimap);
+    const marginTop = minimapRect.top - viewportRect.top;
+    const marginRight = viewportRect.right - minimapRect.right;
+    const centerY = minimapRect.top + minimapRect.height / 2;
+    const viewportMidY = viewportRect.top + viewportRect.height / 2;
+    return {
+      ok: true,
+      viewportRect,
+      minimapRect,
+      marginTop,
+      marginRight,
+      centerY,
+      viewportMidY,
+      isUpperHalf: centerY < viewportMidY,
+      insideViewport:
+        minimapRect.left >= viewportRect.left &&
+        minimapRect.top >= viewportRect.top &&
+        minimapRect.right <= viewportRect.right &&
+        minimapRect.bottom <= viewportRect.bottom,
+    };
+  }, selectors);
+}
+
 const proc = spawn(
   "node",
   [SERVER_JS, "--no-open", "--port", String(BASE_PORT), FEATURES_MD],
@@ -292,6 +334,21 @@ try {
     sidebarMeasure.ok && sidebarMeasure.maxAbsDelta <= 3,
     "Sidebar Mermaid ミニマップが表示領域に追従する",
     sidebarMeasure,
+  );
+  const sidebarPlacement = await measureOverlayPlacement(page, {
+    viewport: ".sidebar-mermaid-viewport",
+    minimap: ".sidebar-minimap",
+  });
+  assert(
+    sidebarPlacement.ok &&
+      sidebarPlacement.insideViewport &&
+      sidebarPlacement.isUpperHalf &&
+      sidebarPlacement.marginTop >= 0 &&
+      sidebarPlacement.marginTop <= 32 &&
+      sidebarPlacement.marginRight >= 0 &&
+      sidebarPlacement.marginRight <= 24,
+    "Sidebar Mermaid ミニマップが右下ではなく右上に固定される",
+    sidebarPlacement,
   );
 
   const sidebarViewport = page.locator(".sidebar-mermaid-viewport");

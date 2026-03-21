@@ -466,9 +466,9 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
 
     // Wrap update transform to call our callback
     // Note: This would need a callback registration mechanism
-
-    fit_to_viewport(zpv)
-    set_style(wrapper, "visibility", "visible")
+    request_fit_to_viewport_when_ready(zpv, fn() {
+      set_style(wrapper, "visibility", "visible")
+    })
   }
 
   let h = on_with_handle(img, "load", fn(e) {
@@ -788,9 +788,10 @@ fn render_mermaid_viewer(state : MediaSidebarState, content : Element, item : Me
 
   // Setup pending fit
   state.pending_fit = Some(fn() {
-    fit_to_viewport(zpv)
-    set_style(wrapper, "visibility", "visible")
-    set_style(controls, "opacity", "")
+    request_fit_to_viewport_when_ready(zpv, fn() {
+      set_style(wrapper, "visibility", "visible")
+      set_style(controls, "opacity", "")
+    })
   })
 
   // Cleanup function

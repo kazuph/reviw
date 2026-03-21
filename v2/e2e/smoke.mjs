@@ -91,6 +91,19 @@ async function waitForServer(port, timeoutMs) {
   return false;
 }
 
+function waitForProcessExit(proc, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (result) => {
+      if (done) return;
+      done = true;
+      resolve(result);
+    };
+    proc.once("exit", (code) => finish({ exited: true, code }));
+    setTimeout(() => finish({ exited: false, code: "timeout" }), timeoutMs);
+  });
+}
+
 async function runTest(label, testFile, mode, testFn) {
   console.log(`\n--- ${label} ---`);
   const proc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT), testFile], {
@@ -548,6 +561,74 @@ console.log("\n--- Submit Data Persistence ---");
   try { submitProc.kill("SIGKILL"); } catch (_) {}
 }
 
+// ===== Test: stale close after reload must not terminate the server =====
+console.log("\n--- Session Close Ordering ---");
+{
+  const sessionProc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT + 31), TEST_MD], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, REVIW_LOCK_DIR: LOCK_DIR },
+  });
+  let sessionStdout = "";
+  let sessionResolved = false;
+  const sessionPortDetected = new Promise((resolve, reject) => {
+    sessionProc.stdout.on("data", (d) => {
+      sessionStdout += d;
+      if (sessionResolved) return;
+      const match = sessionStdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
+      if (match) {
+        sessionResolved = true;
+        resolve(parseInt(match[1], 10));
+      }
+    });
+    sessionProc.stderr.on("data", (d) => (sessionStdout += d));
+    sessionProc.on("exit", () => {
+      if (!sessionResolved) {
+        sessionResolved = true;
+        reject(new Error("Server exited before port detection"));
+      }
+    });
+    setTimeout(() => {
+      if (!sessionResolved) {
+        sessionResolved = true;
+        reject(new Error("Timeout"));
+      }
+    }, 10000);
+  });
+  try {
+    const sessionPort = await sessionPortDetected;
+    await waitForServer(sessionPort, 5000);
+    const tabId = "tab-1";
+    const oldInstance = "instance-old";
+    const newInstance = "instance-new";
+
+    await httpPost(sessionPort, "/session/open", JSON.stringify({ tabId, instanceId: oldInstance }));
+    await httpPost(sessionPort, "/session/open", JSON.stringify({ tabId, instanceId: newInstance }));
+    await httpPost(sessionPort, "/close", JSON.stringify({
+      tabId,
+      instanceId: oldInstance,
+      draft: JSON.stringify({ summary: "stale close", comments: [{ row: 1, col: 0, text: "stale comment" }] }),
+    }));
+    await sleep(900);
+    const staleHealth = await httpGet(sessionPort, "/healthz");
+    assert(staleHealth.status === 200, "Session Close: stale close from previous instance does not terminate the server");
+
+    const exitResult = waitForProcessExit(sessionProc, 5000);
+    await httpPost(sessionPort, "/close", JSON.stringify({
+      tabId,
+      instanceId: newInstance,
+      draft: JSON.stringify({ summary: "fresh close", comments: [{ row: 2, col: 0, text: "fresh comment" }] }),
+    }));
+    const closed = await exitResult;
+    assert(closed.exited === true, "Session Close: latest instance close terminates the server");
+    assert(sessionStdout.includes("fresh comment"), "Session Close: latest instance draft is the one that gets flushed");
+    assert(!sessionStdout.includes("stale comment"), "Session Close: stale instance draft is ignored");
+  } catch (err) {
+    failed++;
+    console.error(`  FAIL: Session close ordering test: ${err.message}`);
+  }
+  try { sessionProc.kill("SIGKILL"); } catch (_) {}
+}
+
 // ===== Test: split_json_array string safety =====
 console.log("\n--- split_json_array String Safety ---");
 {
@@ -855,8 +936,73 @@ if (playwrightAvailable) {
     assert(bStdout.includes("Browser E2E test summary") || bStdout.includes("comment with image"),
       "Browser Submit: server output contains submitted data");
 
+    // --- Close detection: reload must not terminate, final close must flush draft and exit ---
+    const closeProc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT + 51), TEST_MD], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, REVIW_LOCK_DIR: LOCK_DIR },
+    });
+    let closeStdout = "";
+    let closeResolved = false;
+    const closePortDetected = new Promise((resolve, reject) => {
+      closeProc.stdout.on("data", (d) => {
+        closeStdout += d;
+        if (closeResolved) return;
+        const match = closeStdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
+        if (match) {
+          closeResolved = true;
+          resolve(parseInt(match[1], 10));
+        }
+      });
+      closeProc.stderr.on("data", (d) => (closeStdout += d));
+      closeProc.on("exit", () => {
+        if (!closeResolved) {
+          closeResolved = true;
+          reject(new Error("Close test server exited before port detected"));
+        }
+      });
+      setTimeout(() => {
+        if (!closeResolved) {
+          closeResolved = true;
+          reject(new Error("Close test server start timed out"));
+        }
+      }, 10000);
+    });
+
+    const closePort = await closePortDetected;
+    await waitForServer(closePort, 5000);
+    const closePage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const CLOSE_BASE = `http://127.0.0.1:${closePort}`;
+    await closePage.goto(CLOSE_BASE, { waitUntil: "load", timeout: 30000 });
+    await closePage.waitForSelector("#md-preview", { timeout: 10000 });
+
+    await closePage.reload({ waitUntil: "load", timeout: 30000 });
+    await closePage.waitForSelector("#md-preview", { timeout: 10000 });
+    await sleep(1200);
+    const afterReload = await httpGet(closePort, "/healthz");
+    assert(afterReload.status === 200, "Browser Close: reload does not terminate the server");
+
+    const draftCell = closePage.locator("td[data-row]").first();
+    await draftCell.waitFor({ state: "visible", timeout: 5000 });
+    const draftBox = await draftCell.boundingBox();
+    await closePage.mouse.move(draftBox.x + draftBox.width / 2, draftBox.y + draftBox.height / 2);
+    await closePage.mouse.down();
+    await closePage.mouse.up();
+    await closePage.waitForFunction(() => {
+      const card = document.getElementById("comment-card");
+      return card && getComputedStyle(card).display !== "none";
+    }, { timeout: 5000 });
+    await closePage.locator("#comment-input").fill("Close draft comment");
+
+    const closedResult = waitForProcessExit(closeProc, 5000);
+    await closePage.goto("about:blank", { waitUntil: "load", timeout: 30000 });
+    await closePage.close();
+    const closed = await closedResult;
+    assert(closed.exited === true, "Browser Close: closing the page exits the server quickly");
+    assert(closeStdout.includes("Close draft comment"), "Browser Close: closing flushes the in-progress draft");
+
     await browser.close();
     try { browserProc.kill("SIGKILL"); } catch (_) {}
+    try { closeProc.kill("SIGKILL"); } catch (_) {}
   }
 }
 
