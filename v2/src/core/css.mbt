@@ -308,6 +308,27 @@ fn build_css() -> String {
     #|  display: none;
     #|  transition: background 200ms ease, border-color 200ms ease;
     #|}
+    #|.card-close-x {
+    #|  position: absolute;
+    #|  top: 8px;
+    #|  right: 8px;
+    #|  width: 28px;
+    #|  height: 28px;
+    #|  padding: 0;
+    #|  background: transparent;
+    #|  border: none;
+    #|  color: var(--muted);
+    #|  font-size: 20px;
+    #|  line-height: 1;
+    #|  cursor: pointer;
+    #|  display: flex;
+    #|  align-items: center;
+    #|  justify-content: center;
+    #|  border-radius: 6px;
+    #|  transition: background 120ms ease, color 120ms ease;
+    #|}
+    #|.card-close-x:hover { background: var(--border); color: var(--text);
+    #|}
     #|.floating header {
     #|  position: static;
     #|  background: transparent;
@@ -342,9 +363,36 @@ fn build_css() -> String {
     #|  line-height: 1;
     #|}
     #|.floating button:hover { opacity: 0.85; }
+    #|.copy-btn-float {
+    #|  position: absolute;
+    #|  top: 4px;
+    #|  right: 4px;
+    #|  z-index: 2;
+    #|  background: var(--panel-solid) !important;
+    #|  border: 1px solid var(--border) !important;
+    #|  color: var(--muted) !important;
+    #|  opacity: 0.7;
+    #|}
+    #|.copy-btn-float:hover { opacity: 1 !important; }
+    #|.card-actions-split {
+    #|  display: flex;
+    #|  justify-content: space-between !important;
+    #|  align-items: center;
+    #|  margin-top: 8px;
+    #|}
+    #|.danger-text {
+    #|  background: transparent !important;
+    #|  border: none !important;
+    #|  color: #ef4444 !important;
+    #|  font-size: 12px;
+    #|  font-weight: 600;
+    #|  cursor: pointer;
+    #|  padding: 4px 8px;
+    #|}
+    #|.danger-text:hover { color: #dc2626 !important; text-decoration: underline; }
     #|.floating textarea {
     #|  width: 100%;
-    #|  min-height: 110px;
+    #|  min-height: 70px;
     #|  resize: vertical;
     #|  border-radius: 8px;
     #|  border: 1px solid var(--border);
@@ -1212,6 +1260,7 @@ fn build_css() -> String {
     #|  overflow: hidden;
     #|  position: relative;
     #|  cursor: grab;
+    #|  touch-action: none;
     #|}
     #|.image-fs-content:active { cursor: grabbing; }
     #|.image-fs-content .image-fs-wrapper {
@@ -2036,6 +2085,7 @@ fn build_css() -> String {
     #|  overflow: hidden;
     #|  position: relative;
     #|  cursor: grab;
+    #|  touch-action: none;
     #|}
     #|.fullscreen-content:active { cursor: grabbing; }
     #|.fullscreen-content .mermaid-wrapper {
@@ -2525,6 +2575,40 @@ fn build_css() -> String {
     #|@media (max-width: 960px) {
     #|  .media-sidebar { display: none !important; }
     #|  .media-sidebar-toggle { display: none !important; }
+    #|}
+    #|.video-overlay-wrapper {
+    #|  position: relative;
+    #|  display: inline-block;
+    #|}
+    #|.video-fs-overlay-btn {
+    #|  position: absolute;
+    #|  top: 8px;
+    #|  right: 8px;
+    #|  width: 36px;
+    #|  height: 36px;
+    #|  padding: 0;
+    #|  background: rgba(0,0,0,0.6);
+    #|  border: 1px solid rgba(255,255,255,0.3);
+    #|  color: #fff;
+    #|  font-size: 18px;
+    #|  line-height: 1;
+    #|  cursor: pointer;
+    #|  border-radius: 8px;
+    #|  display: flex;
+    #|  align-items: center;
+    #|  justify-content: center;
+    #|  z-index: 5;
+    #|  transition: background 120ms ease;
+    #|}
+    #|.video-fs-overlay-btn:hover { background: rgba(0,0,0,0.8); }
+    #|@media (max-width: 600px) {
+    #|  .minimap { display: none !important; }
+    #|  .fullscreen-header { padding: 8px 12px; }
+    #|  .fullscreen-controls { gap: 4px; }
+    #|  .fullscreen-controls button { padding: 6px 8px; font-size: 11px; }
+    #|  .fullscreen-controls .zoom-info { font-size: 11px; min-width: 32px; }
+    #|  .history-panel { width: 100vw; }
+    #|  body.history-open header { right: 0; }
     #|}
   css
 }

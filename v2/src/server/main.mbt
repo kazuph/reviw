@@ -18,6 +18,9 @@ let active_servers : Array[ServerContext] = []
 ///| Encoding override from CLI --encoding / -e flag
 let encoding_override : Ref[String] = Ref::new("")
 
+///| Host address to bind to (default: 127.0.0.1)
+let bind_host : Ref[String] = Ref::new("127.0.0.1")
+
 ///| Results collected from submissions
 let all_results : Array[@core.ReviewResult] = []
 
@@ -71,14 +74,34 @@ fn ensure_lock_dir() -> Unit {
 ///| Check if a port is locked by another process
 fn is_port_locked(port : Int) -> Bool {
   let lp = lock_path(port)
-  exists_sync(lp)
+  if not(exists_sync(lp)) {
+    return false
+  }
+  // Read PID from lock file and check if process is alive
+  let content = read_file_safe(lp)
+  if content.length() == 0 {
+    unlink_sync(lp)
+    return false
+  }
+  let pid = @core.parse_int_safe(content)
+  if pid <= 0 {
+    unlink_sync(lp)
+    return false
+  }
+  if process_exists(pid) {
+    true
+  } else {
+    // Stale lock: process no longer exists
+    unlink_sync(lp)
+    false
+  }
 }
 
-///| Write lock file for a port
+///| Write lock file for a port (stores PID)
 fn write_lock(port : Int) -> Unit {
   ensure_lock_dir()
   let lp = lock_path(port)
-  write_file_sync(lp, port.to_string())
+  write_file_sync(lp, process_pid().to_string())
 }
 
 ///| Remove lock file for a port
@@ -131,6 +154,11 @@ fn main {
       }
     } else if arg == "--no-open" {
       no_open = true
+    } else if arg == "--host" {
+      i = i + 1
+      if i < args.length() {
+        bind_host.val = args[i]
+      }
     } else if arg == "--encoding" || arg == "-e" {
       i = i + 1
       if i < args.length() {
@@ -181,6 +209,7 @@ fn print_usage() -> Unit {
     #|
     #|Options:
     #|  --port <n>        Base port (default: 4989)
+    #|  --host <addr>     Bind address (default: 127.0.0.1, use 0.0.0.0 for remote)
     #|  --no-open         Don't open browser
     #|  -e, --encoding <enc>  Force encoding (e.g. shift-jis, euc-jp)
     #|  -h, --help        Show help
@@ -531,13 +560,16 @@ fn try_listen(ctx : ServerContext, port : Int, attempt : Int, no_open : Bool) ->
       }
     },
   )
+  let host = bind_host.val
   server_listen(
     server,
     port,
+    host,
     fn() {
       ctx.port = port
       write_lock(port)
-      let url = "http://127.0.0.1:\{port}"
+      let display_host = if host == "0.0.0.0" { "127.0.0.1" } else { host }
+      let url = "http://\{display_host}:\{port}"
       console_log("reviw serving \{ctx.filename} at \{url}")
       if not(no_open) {
         open_browser(url)

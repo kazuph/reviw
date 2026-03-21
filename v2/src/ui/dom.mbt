@@ -269,6 +269,10 @@ extern "js" fn date_now_string() -> String =
 extern "js" fn window_close() -> Unit =
   #|() => window.close()
 
+///| Location origin (e.g. "http://127.0.0.1:4989")
+extern "js" fn location_origin() -> String =
+  #|() => location.origin
+
 ///| Location reload
 extern "js" fn location_reload() -> Unit =
   #|() => location.reload()

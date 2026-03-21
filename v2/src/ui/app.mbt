@@ -761,6 +761,15 @@ fn hide_comment_card() -> Unit {
     set_style(card, "display", "none")
   }
   active_key.val = ""
+  // Clear preview highlight and source selection
+  let old_highlights = query_all(".preview-highlight")
+  for el in old_highlights {
+    remove_class(el, "preview-highlight")
+  }
+  let old_selected = query_all("td.selected")
+  for el in old_selected {
+    remove_class(el, "selected")
+  }
 }
 
 fn comment_has_content(comment : AppComment) -> Bool {
@@ -1072,7 +1081,7 @@ fn report_tab_closed(port : Int) -> Unit {
     return
   }
   close_report_sent.val = true
-  let url = "http://127.0.0.1:\{port}/close"
+  let url = location_origin() + "/close"
   let payload =
     "{\"tabId\":" + json_encode_string(review_tab_id.val) +
     ",\"instanceId\":" + json_encode_string(page_instance_id.val) +
@@ -1083,7 +1092,7 @@ fn report_tab_closed(port : Int) -> Unit {
 fn setup_close_detection(port : Int) -> Unit {
   review_tab_id.val = get_or_create_tab_id()
   page_instance_id.val = create_page_instance_id()
-  let open_url = "http://127.0.0.1:\{port}/session/open"
+  let open_url = location_origin() + "/session/open"
   let open_payload =
     "{\"tabId\":" + json_encode_string(review_tab_id.val) +
     ",\"instanceId\":" + json_encode_string(page_instance_id.val) + "}"
@@ -1096,7 +1105,7 @@ fn setup_close_detection(port : Int) -> Unit {
 fn submit_review(port : Int) -> Unit {
   submit_in_flight.val = true
   close_report_sent.val = true
-  let url = "http://127.0.0.1:\{port}/exit"
+  let url = location_origin() + "/exit"
   fetch_post(
     url,
     build_review_payload(),
@@ -1166,7 +1175,7 @@ fn init_view_toggle_narrow(view_toggle : Element) -> Unit {
 
 ///|
 fn setup_sse(port : Int) -> Unit {
-  let url = "http://127.0.0.1:\{port}/sse"
+  let url = location_origin() + "/sse"
   let es = new_event_source(url)
   sse_on(es, "reload", fn(_e) { location_reload() })
 }
@@ -1224,7 +1233,7 @@ fn toggle_history_panel() -> Unit {
 ///| Load history data from server
 fn load_history_data() -> Unit {
   let port = get_reviw_port()
-  let url = "http://127.0.0.1:\{port}/history"
+  let url = location_origin() + "/history"
   fetch_get(
     url,
     fn(data) {
@@ -1728,7 +1737,7 @@ fn setup_video_timeline(video_path : String) -> Unit {
     return
   }
   let port = get_reviw_port()
-  let url = "http://127.0.0.1:\{port}/video-timeline?path=" + video_path
+  let url = location_origin() + "/video-timeline?path=" + video_path
   let es = new_event_source_url(url)
   sse_on_message(es, fn(data) {
     if data.contains("\"type\":\"thumbnail\"") {
@@ -2929,6 +2938,7 @@ fn setup_image_fullscreen_moonbit() -> Unit {
         }
       }
       if idx >= 0 {
+        stop_propagation(e)
         show_image_fullscreen_moonbit(
           images, idx, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
         )
@@ -3132,12 +3142,28 @@ fn navigate_image_fullscreen_moonbit(
 
 ///| Close image fullscreen (MoonBit native)
 fn close_image_fullscreen_moonbit(overlay : Element) -> Unit {
+  // Capture the original image before resetting state
+  let saved_index = current_image_index.val
   if fs_image_zpv.val.is_some() {
     destroy_zoom_pan_viewer(fs_image_zpv.val.unwrap())
     fs_image_zpv.val = None
   }
   current_image_index.val = -1
   hide_overlay(overlay)
+  // After closing, select the original image and show comment dialog
+  if saved_index >= 0 {
+    let images = collect_preview_images()
+    if saved_index < images.length() {
+      let img = images[saved_index]
+      let src = get_src(img)
+      let heading = find_closest_heading_above(img)
+      let h_line = get_heading_source_line(heading)
+      let line = find_image_source_line(src, h_line)
+      if line > 0 {
+        select_source_range(line, line, img)
+      }
+    }
+  }
 }
 
 ///| Video fullscreen state (MoonBit native)
@@ -3159,7 +3185,6 @@ fn setup_video_fullscreen_moonbit() -> Unit {
   if is_null(preview) {
     return
   }
-  // Collect all video sources from preview
   // Click handler: open video fullscreen when clicking video elements in preview
   on(preview, "click", fn(e) {
     let target = event_target(e)
@@ -3178,6 +3203,8 @@ fn setup_video_fullscreen_moonbit() -> Unit {
       }
     }
   })
+  // Add fullscreen overlay buttons to all preview videos (for mobile tap)
+  add_video_fullscreen_buttons(preview, overlay, container, fs_counter)
   // Close button
   let fs_close = query("#video-close")
   if not(is_null(fs_close)) {
@@ -3226,6 +3253,44 @@ fn setup_video_fullscreen_moonbit() -> Unit {
   )
   // --- Settings panel ---
   setup_video_settings_moonbit(overlay, container, fs_counter)
+}
+
+///| Add fullscreen overlay buttons to preview videos (for mobile tap)
+fn add_video_fullscreen_buttons(
+  preview : Element,
+  overlay : Element,
+  container : Element,
+  fs_counter : Element
+) -> Unit {
+  let videos = query_all_in(preview, "video")
+  for i, vid in videos {
+    // Wrap video in a container div for overlay positioning
+    let parent = parent_element(vid)
+    if is_null(parent) {
+      continue
+    }
+    let wrapper = create_element("div")
+    add_class(wrapper, "video-overlay-wrapper")
+    insert_before(vid, wrapper)
+    append_child(wrapper, vid)
+    // Create fullscreen button overlay
+    let btn = create_element("button")
+    add_class(btn, "video-fs-overlay-btn")
+    set_inner_html(btn, "&#9974;") // fullscreen icon ⛶
+    set_attribute(btn, "title", "Fullscreen")
+    set_attribute(btn, "data-video-index", i.to_string())
+    on(btn, "click", fn(e) {
+      prevent_default(e)
+      stop_propagation(e)
+      let all_videos = query_all_in(preview, "video")
+      let idx_str = get_attribute(event_target(e), "data-video-index")
+      let idx = @core.parse_int_safe(idx_str)
+      if idx >= 0 && idx < all_videos.length() {
+        show_video_fullscreen_moonbit(all_videos, idx, overlay, container, fs_counter)
+      }
+    })
+    append_child(wrapper, btn)
+  }
 }
 
 ///| Setup video settings panel (scene threshold / stabilization buttons) - MoonBit native

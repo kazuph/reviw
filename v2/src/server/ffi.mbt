@@ -45,6 +45,13 @@ extern "js" fn get_argv() -> Array[String] =
 extern "js" fn process_exit(code : Int) -> Unit =
   #|(code) => process.exit(code)
 
+extern "js" fn process_pid() -> Int =
+  #|() => process.pid
+
+///| Check if a process with given PID exists
+extern "js" fn process_exists(pid : Int) -> Bool =
+  #|(pid) => { try { process.kill(pid, 0); return true; } catch(e) { return false; } }
+
 extern "js" fn process_stdout_write(data : String) -> Unit =
   #|(data) => process.stdout.write(data)
 
@@ -71,8 +78,8 @@ fn create_server(handler : (JsValue, JsValue) -> Unit) -> JsValue {
   http_create_server_raw(handler)
 }
 
-extern "js" fn server_listen(server : JsValue, port : Int, callback : () -> Unit) -> Unit =
-  #|(server, port, cb) => server.listen(port, "127.0.0.1", cb)
+extern "js" fn server_listen(server : JsValue, port : Int, host : String, callback : () -> Unit) -> Unit =
+  #|(server, port, host, cb) => server.listen(port, host, cb)
 
 ///| HTTP request helpers
 extern "js" fn req_method(req : JsValue) -> String =
