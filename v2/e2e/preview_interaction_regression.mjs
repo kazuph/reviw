@@ -1,0 +1,748 @@
+import assert from "node:assert/strict";
+import http from "node:http";
+import net from "node:net";
+import { mkdirSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const ROOT = join(__dirname, "..", "..");
+const SERVER_JS = join(ROOT, "v2", "_build", "js", "release", "build", "server", "server.js");
+const FIXTURE_MD = join(ROOT, "tests", "fixtures", "preview-regression.md");
+const LOCK_DIR = join(tmpdir(), "reviw-preview-interaction-locks");
+
+mkdirSync(LOCK_DIR, { recursive: true });
+
+let passed = 0;
+let failed = 0;
+
+function logPass(message) {
+  passed += 1;
+  console.log(`PASS: ${message}`);
+}
+
+function logFail(message, error) {
+  failed += 1;
+  console.error(`FAIL: ${message}`);
+  if (error) {
+    console.error(error.stack || error.message || String(error));
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function waitForServer(port) {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const timeout = setTimeout(() => {
+      reject(new Error(`server did not become ready on port ${port}`));
+    }, 30000);
+
+    const poll = () => {
+      http
+        .get(`http://127.0.0.1:${port}/healthz`, (res) => {
+          if (res.statusCode === 200) {
+            clearTimeout(timeout);
+            resolve();
+            return;
+          }
+          if (Date.now() - startedAt > 30000) {
+            clearTimeout(timeout);
+            reject(new Error(`server health check timed out on port ${port}`));
+            return;
+          }
+          setTimeout(poll, 200);
+        })
+        .on("error", () => {
+          if (Date.now() - startedAt > 30000) {
+            clearTimeout(timeout);
+            reject(new Error(`server health check timed out on port ${port}`));
+            return;
+          }
+          setTimeout(poll, 200);
+        });
+    };
+
+    poll();
+  });
+}
+
+async function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", () => resolve(false));
+    server.listen(port, "127.0.0.1", () => {
+      server.close(() => resolve(true));
+    });
+  });
+}
+
+async function findAvailablePort(startPort, attempts = 200) {
+  for (let offset = 0; offset < attempts; offset += 1) {
+    const port = startPort + offset;
+    // Pick a truly free port up front so we never talk to a stale server.
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+  }
+  throw new Error(`failed to find an available port from ${startPort}`);
+}
+
+function startServer(port) {
+  return spawn(
+    "node",
+    [SERVER_JS, "--no-open", "--port", String(port), FIXTURE_MD],
+    {
+      cwd: ROOT,
+      stdio: ["ignore", "ignore", "inherit"],
+      env: { ...process.env, REVIW_LOCK_DIR: LOCK_DIR },
+    },
+  );
+}
+
+function boxIntersectionArea(a, b) {
+  if (!a || !b) {
+    return 0;
+  }
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  return width * height;
+}
+
+function rectContains(outer, inner, tolerance = 0) {
+  if (!outer || !inner) {
+    return false;
+  }
+  return (
+    inner.x >= outer.x - tolerance &&
+    inner.y >= outer.y - tolerance &&
+    inner.x + inner.width <= outer.x + outer.width + tolerance &&
+    inner.y + inner.height <= outer.y + outer.height + tolerance
+  );
+}
+
+function pointInRect(rect, point, tolerance = 0) {
+  if (!rect || !point) {
+    return false;
+  }
+  return (
+    point.x >= rect.x - tolerance &&
+    point.y >= rect.y - tolerance &&
+    point.x <= rect.x + rect.width + tolerance &&
+    point.y <= rect.y + rect.height + tolerance
+  );
+}
+
+function centerOf(rect) {
+  if (!rect) {
+    return null;
+  }
+  return {
+    x: rect.x + rect.width / 2,
+    y: rect.y + rect.height / 2,
+  };
+}
+
+async function createPage(browser, viewport = { width: 1440, height: 1000 }) {
+  const context = await browser.newContext({ viewport });
+  const page = await context.newPage();
+  page.on("pageerror", (err) => {
+    console.error("PAGEERROR:", String(err));
+  });
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
+      console.error("CONSOLE:", msg.text());
+    }
+  });
+  return { context, page };
+}
+
+async function gotoFixture(page, port) {
+  const url = `http://127.0.0.1:${port}`;
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) {
+        throw error;
+      }
+      await page.waitForTimeout(250 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
+async function waitForCommentCard(page) {
+  await page.waitForFunction(() => {
+    const card = document.querySelector("#comment-card");
+    if (!card) {
+      return false;
+    }
+    const style = getComputedStyle(card);
+    return style.display !== "none" && style.visibility !== "hidden";
+  });
+}
+
+async function getSelectedRows(page) {
+  return page.evaluate(() => {
+    return Array.from(document.querySelectorAll(".md-right td.selected"))
+      .map((cell) => Number(cell.getAttribute("data-row")))
+      .filter((value) => Number.isFinite(value))
+      .sort((a, b) => a - b);
+  });
+}
+
+async function waitForSelectedRowCount(page, minCount) {
+  await page.waitForFunction(
+    (expected) => document.querySelectorAll(".md-right td.selected").length >= expected,
+    minCount,
+  );
+}
+
+async function getBox(locator) {
+  return locator.boundingBox();
+}
+
+function assertContiguousRows(rows, message) {
+  assert.ok(rows.length > 0, `${message}: selected row list is empty`);
+  for (let i = 1; i < rows.length; i += 1) {
+    assert.equal(rows[i], rows[i - 1] + 1, `${message}: selected rows are not contiguous`);
+  }
+}
+
+async function clickAt(locator, position) {
+  await locator.scrollIntoViewIfNeeded();
+  await locator.click({ position });
+}
+
+async function getTextNodeClickPoint(page, selector) {
+  return page.evaluate((targetSelector) => {
+    const root = document.querySelector(targetSelector);
+    if (!root) {
+      return null;
+    }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!(node.textContent || "").trim()) {
+        continue;
+      }
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const rect = Array.from(range.getClientRects()).find((candidate) => candidate.width > 0 && candidate.height > 0);
+      if (rect) {
+        return {
+          x: rect.left + Math.min(rect.width / 2, 24),
+          y: rect.top + rect.height / 2,
+        };
+      }
+    }
+    return null;
+  }, selector);
+}
+
+async function runScenario(name, fn) {
+  console.log(`\n--- ${name} ---`);
+  try {
+    await fn();
+    logPass(name);
+  } catch (error) {
+    logFail(name, error);
+  }
+}
+
+async function main() {
+  const port = await findAvailablePort(5359);
+  const server = startServer(port);
+  let browser;
+
+  try {
+    await waitForServer(port);
+    browser = await chromium.launch({ headless: true });
+
+    await runScenario("mermaid click selects multiple source rows", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+        await page.waitForSelector(".md-right");
+        const mermaid = page.locator(".md-preview .mermaid-container").first();
+        await clickAt(mermaid, { x: 24, y: 18 });
+        await waitForSelectedRowCount(page, 2);
+        await waitForCommentCard(page);
+        await page.waitForTimeout(200);
+
+        const rows = await getSelectedRows(page);
+        assert.ok(rows.length > 1, "mermaid click should select multiple source rows");
+        assertContiguousRows(rows, "mermaid click");
+
+        const card = await getBox(page.locator("#comment-card"));
+        const target = await getBox(mermaid);
+        assert.ok(card, "comment card should be rendered for mermaid click");
+        assert.ok(target, "mermaid target box should be measurable");
+        assert.equal(boxIntersectionArea(card, target), 0, "comment card must not overlap mermaid target");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("split view places the comment card on md-right without covering the preview target", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+        await page.waitForSelector(".md-right");
+
+        const paragraph = page.locator(".md-preview p").first();
+        await clickAt(paragraph, { x: 24, y: 8 });
+        await waitForCommentCard(page);
+        await page.waitForTimeout(200);
+
+        const card = await getBox(page.locator("#comment-card"));
+        const target = await getBox(paragraph);
+        const mdRight = await getBox(page.locator(".md-right"));
+        const rows = await getSelectedRows(page);
+
+        assert.ok(card, "comment card should be visible in split view");
+        assert.ok(target, "preview paragraph should be measurable");
+        assert.ok(mdRight, "md-right pane should be measurable");
+        assert.equal(rows[0], 4, "paragraph click should anchor to the first paragraph source row");
+        assert.equal(boxIntersectionArea(card, target), 0, "comment card must not overlap the preview target");
+        assert.ok(
+          pointInRect(mdRight, centerOf(card), 4),
+          "comment card center should be inside md-right in split view",
+        );
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("paragraph text-node clicks still select the source row", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+        await page.waitForSelector(".md-right");
+
+        const selector = ".md-preview p";
+        const point = await getTextNodeClickPoint(page, selector);
+        assert.ok(point, "paragraph text node should expose a clickable client rect");
+
+        await page.mouse.click(point.x, point.y);
+        await waitForCommentCard(page);
+        await page.waitForTimeout(200);
+
+        const rows = await getSelectedRows(page);
+        assert.ok(rows.length >= 1, "text-node click should select at least one source row");
+        assert.equal(rows[0], 4, "text-node click should anchor to the first paragraph source row");
+
+        const card = await getBox(page.locator("#comment-card"));
+        const target = await getBox(page.locator(selector).first());
+        assert.ok(card, "comment card should be visible after text-node click");
+        assert.ok(target, "paragraph target should be measurable");
+        assert.equal(
+          boxIntersectionArea(card, target),
+          0,
+          "comment card must not overlap the paragraph after text-node click",
+        );
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("preview-only keeps the comment card off the clicked element", async () => {
+      const { context, page } = await createPage(browser, { width: 1280, height: 900 });
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+
+        await page.locator("#view-toggle").click();
+        await page.waitForFunction(() => document.querySelector(".md-layout")?.classList.contains("preview-only"));
+
+        const quote = page.locator(".md-preview blockquote").first();
+        await clickAt(quote, { x: 24, y: 10 });
+        await waitForCommentCard(page);
+        await page.waitForTimeout(200);
+
+        const card = await getBox(page.locator("#comment-card"));
+        const target = await getBox(quote);
+        const rows = await getSelectedRows(page);
+
+        assert.ok(card, "comment card should be visible in preview-only mode");
+        assert.ok(target, "blockquote target should be measurable");
+        assert.equal(rows[0], 7, "blockquote click should anchor to the first quote source row");
+        assert.equal(boxIntersectionArea(card, target), 0, "comment card must not overlap the clicked preview element");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("saved draft shows the recovery modal and restore works", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+
+        await page.evaluate(() => {
+          localStorage.setItem(
+            "reviw:comments:preview-regression.md",
+            JSON.stringify({
+              comments: {
+                "27:0": { row: 27, col: 0, text: "restored image note" },
+              },
+              timestamp: Date.now(),
+            }),
+          );
+        });
+
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.waitForFunction(() => {
+          const modal = document.querySelector("#recovery-modal");
+          return !!modal && modal.classList.contains("visible");
+        });
+
+        const beforeRestore = await page.evaluate(() => {
+          const modal = document.querySelector("#recovery-modal");
+          return {
+            modalVisible: !!modal && modal.classList.contains("visible"),
+            selectedCount: document.querySelectorAll(".has-comment").length,
+          };
+        });
+
+        assert.equal(beforeRestore.modalVisible, true, "recovery modal should be visible after reload with saved draft");
+        assert.equal(beforeRestore.selectedCount, 0, "restore should not happen before the user confirms");
+
+        await page.locator("#recovery-restore").click();
+        await page.waitForTimeout(200);
+
+        const afterRestore = await page.evaluate(() => {
+          const modal = document.querySelector("#recovery-modal");
+          return {
+            modalVisible: !!modal && modal.classList.contains("visible"),
+          };
+        });
+
+        assert.equal(afterRestore.modalVisible, false, "recovery modal should close after restore");
+
+        const image = page.locator('.md-preview img[alt="Fixture Image"]').first();
+        await image.click();
+        await waitForCommentCard(page);
+        const restoredText = await page.locator("#comment-input").inputValue();
+        assert.equal(restoredText, "restored image note", "restore should repopulate the saved comment text");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("image-side whitespace still anchors to the image instead of empty space", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+        await page.waitForSelector(".md-right");
+
+        const image = page.locator('.md-preview img[alt="Fixture Image"]').first();
+        const imageParagraph = image.locator("xpath=ancestor::p[1]");
+        const imageBox = await getBox(image);
+        const paragraphBox = await getBox(imageParagraph);
+
+        assert.ok(imageBox, "fixture image should be measurable");
+        assert.ok(paragraphBox, "image paragraph should be measurable");
+        assert.ok(paragraphBox.width > imageBox.width + 24, "image paragraph should include clickable right-side whitespace");
+
+        const clickPoint = {
+          x: Math.min(paragraphBox.x + paragraphBox.width - 8, imageBox.x + imageBox.width + 32),
+          y: imageBox.y + imageBox.height / 2,
+        };
+        assert.ok(
+          clickPoint.x > imageBox.x + imageBox.width,
+          "whitespace click point should be outside the image box on the right side",
+        );
+
+        await page.mouse.click(clickPoint.x, clickPoint.y);
+        await waitForCommentCard(page);
+        await page.waitForTimeout(200);
+
+        const rows = await getSelectedRows(page);
+        const previewText = await page.locator("#cell-preview").textContent();
+        const card = await getBox(page.locator("#comment-card"));
+
+        assert.equal(rows[0], 27, "image whitespace click should anchor to the image markdown row");
+        assert.notEqual(previewText, "(empty)", "image whitespace click should not be treated as empty");
+        assert.match(previewText || "", /Fixture Image|\[image\]|preview-image\.png/i, "image whitespace click should preview image identity");
+        assert.ok(card, "comment card should be visible after image whitespace click");
+        assert.equal(boxIntersectionArea(card, imageBox), 0, "comment card must not overlap the image");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("source clicks keep the comment card off the selected markdown row", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-right");
+
+        const sourceCell = page.locator(".md-right td[data-row=\"2\"][data-col=\"1\"]").first();
+        await clickAt(sourceCell, { x: 36, y: 10 });
+        await waitForCommentCard(page);
+        await page.waitForTimeout(200);
+
+        const card = await getBox(page.locator("#comment-card"));
+        const target = await getBox(sourceCell);
+
+        assert.ok(card, "comment card should be visible for source clicks");
+        assert.ok(target, "selected markdown row should be measurable");
+        assert.equal(boxIntersectionArea(card, target), 0, "comment card must not overlap the selected markdown row");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("Cmd/Ctrl+Enter in comment input saves the comment without opening submit modal", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+
+        const paragraph = page.locator(".md-preview p").first();
+        await clickAt(paragraph, { x: 24, y: 8 });
+        await waitForCommentCard(page);
+
+        const textarea = page.locator("#comment-input");
+        await textarea.fill("saved via shortcut");
+        await textarea.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
+        await page.waitForTimeout(250);
+
+        const state = await page.evaluate(() => {
+          const card = document.querySelector("#comment-card");
+          const modal = document.querySelector("#submit-modal");
+          const key = "reviw:comments:preview-regression.md";
+          return {
+            cardVisible: !!card && getComputedStyle(card).display !== "none",
+            submitVisible: !!modal && modal.classList.contains("visible"),
+            stored: localStorage.getItem(key),
+          };
+        });
+
+        assert.equal(state.submitVisible, false, "comment-input shortcut must not open submit modal");
+        assert.equal(state.cardVisible, false, "comment-input shortcut should save and close the comment card");
+        assert.ok(state.stored && state.stored.includes("saved via shortcut"), "comment-input shortcut should persist the comment draft");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("h1 heading text and icon behave differently", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+
+        const summary = page.locator(".md-preview details.heading-toggle > summary.heading-summary").first();
+        const heading = summary.locator(".md-heading-toggle").first();
+        const icon = summary.locator(".heading-toggle-icon").first();
+
+        const headingBox = await getBox(heading);
+        const iconBox = await getBox(icon);
+        assert.ok(headingBox, "heading box should exist");
+        assert.ok(iconBox, "toggle icon box should exist");
+
+        const textClickPoint = {
+          x: Math.min(headingBox.x + headingBox.width - 8, iconBox.x + iconBox.width + 48),
+          y: headingBox.y + headingBox.height / 2,
+        };
+
+        await page.mouse.click(textClickPoint.x, textClickPoint.y);
+        await waitForCommentCard(page);
+        await page.waitForTimeout(150);
+
+        const detailsAfterTextClick = await page.evaluate(() => {
+          const summary = document.querySelector(".md-preview details.heading-toggle > summary.heading-summary");
+          const heading = summary?.querySelector(".md-heading-toggle");
+          const details = summary?.closest("details");
+          const card = document.querySelector("#comment-card");
+          return {
+            headingTag: heading?.tagName || "",
+            open: !!details?.hasAttribute("open"),
+            cardVisible: !!card && getComputedStyle(card).display !== "none",
+          };
+        });
+
+        assert.equal(detailsAfterTextClick.headingTag, "H1", "the first toggleable heading should be the H1 heading");
+        assert.equal(detailsAfterTextClick.open, true, "text click should not collapse the heading");
+        assert.equal(detailsAfterTextClick.cardVisible, true, "text click should open the comment card");
+
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(150);
+
+        const cardAfterEscape = await page.evaluate(() => {
+          const card = document.querySelector("#comment-card");
+          return !!card && getComputedStyle(card).display !== "none";
+        });
+        assert.equal(cardAfterEscape, false, "Escape should close the comment card before icon testing");
+
+        await icon.click();
+        await page.waitForTimeout(200);
+
+        const detailsAfterIconClick = await page.evaluate(() => {
+          const summary = document.querySelector(".md-preview details.heading-toggle > summary.heading-summary");
+          const details = summary?.closest("details");
+          const card = document.querySelector("#comment-card");
+          return {
+            open: !!details?.hasAttribute("open"),
+            cardVisible: !!card && getComputedStyle(card).display !== "none",
+          };
+        });
+
+        assert.equal(detailsAfterIconClick.open, false, "icon click should collapse the heading");
+        assert.equal(detailsAfterIconClick.cardVisible, false, "icon click should not keep the comment card open");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("Comments pill opens populated list for preview-origin comments", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+
+        const paragraph = page.locator(".md-preview p").first();
+        await clickAt(paragraph, { x: 24, y: 8 });
+        await waitForCommentCard(page);
+        await page.locator("#comment-input").fill("paragraph note");
+        await page.locator("#save-comment").click();
+        await page.waitForTimeout(150);
+
+        const quote = page.locator(".md-preview blockquote").first();
+        await clickAt(quote, { x: 24, y: 10 });
+        await waitForCommentCard(page);
+        await page.locator("#comment-input").fill("blockquote note");
+        await page.locator("#save-comment").click();
+        await page.waitForTimeout(150);
+
+        await page.locator("#pill-comments").click();
+        await page.waitForTimeout(200);
+
+        const panelState = await page.evaluate(() => {
+          const panel = document.querySelector(".comment-list");
+          const list = document.querySelector("#comment-list");
+          const items = Array.from(document.querySelectorAll("#comment-list li")).map((item) =>
+            item.textContent?.trim() || "",
+          );
+          return {
+            open: !!panel && !panel.classList.contains("collapsed"),
+            text: list?.textContent?.trim() || "",
+            items,
+            countBadge: document.querySelector("#comment-count")?.textContent?.trim() || "",
+          };
+        });
+
+        assert.equal(panelState.open, true, "Comments pill should open the comment list panel");
+        assert.equal(panelState.countBadge, "2", "comment badge should reflect preview-origin saved comments");
+        assert.ok(panelState.items.length >= 2, "comment list should show saved comments instead of the empty-state");
+        assert.ok(panelState.text.includes("paragraph note"), "comment list should contain the first preview comment");
+        assert.ok(panelState.text.includes("blockquote note"), "comment list should contain the second preview comment");
+        assert.ok(!/^No comments yet$/i.test(panelState.text), "comment list must not claim to be empty when comments exist");
+      } finally {
+        await context.close();
+      }
+    });
+
+    await runScenario("main preview targets all map to source selections", async () => {
+      const { context, page } = await createPage(browser);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForSelector(".md-preview");
+        await page.waitForSelector(".md-right");
+
+        const cases = [
+          {
+            name: "paragraph",
+            locator: page.locator(".md-preview p").first(),
+            minRows: 1,
+            expectedFirstRow: 4,
+          },
+          {
+            name: "blockquote",
+            locator: page.locator(".md-preview blockquote").first(),
+            minRows: 1,
+            expectedFirstRow: 7,
+          },
+          {
+            name: "table cell",
+            locator: page.locator(".md-preview table td").first(),
+            minRows: 1,
+            expectedFirstRow: 12,
+          },
+          {
+            name: "code block",
+            locator: page.locator(".md-preview pre").first(),
+            minRows: 2,
+            expectedFirstRow: 15,
+          },
+          {
+            name: "mermaid",
+            locator: page.locator(".md-preview .mermaid-container .mermaid").first(),
+            minRows: 2,
+            expectedFirstRow: 21,
+          },
+        ];
+
+        for (const item of cases) {
+          await page.keyboard.press("Escape").catch(() => {});
+          await page.waitForTimeout(100);
+
+          await clickAt(item.locator, { x: 20, y: 10 });
+          await waitForCommentCard(page);
+          await page.waitForTimeout(250);
+
+          const rows = await getSelectedRows(page);
+          assert.ok(rows.length >= item.minRows, `${item.name} should select at least ${item.minRows} source row(s)`);
+          assertContiguousRows(rows, `${item.name} selection`);
+          assert.equal(rows[0], item.expectedFirstRow, `${item.name} should anchor to the expected source row`);
+
+          const card = await getBox(page.locator("#comment-card"));
+          const target = await getBox(item.locator);
+          assert.ok(card, `${item.name} should render a comment card`);
+          assert.ok(target, `${item.name} should be measurable`);
+          assert.equal(
+            boxIntersectionArea(card, target),
+            0,
+            `${item.name} comment card must not overlap the clicked target`,
+          );
+        }
+      } finally {
+        await context.close();
+      }
+    });
+
+    console.log(`\nSummary: ${passed} passed, ${failed} failed`);
+    if (failed > 0) {
+      process.exitCode = 1;
+    }
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+    try {
+      server.kill("SIGKILL");
+    } catch (_) {}
+  }
+}
+
+await main();

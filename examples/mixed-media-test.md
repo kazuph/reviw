@@ -18,6 +18,14 @@ A short test video:
 
 ![After](assets/screenshot-after.png)
 
+## Section 3.5: Portrait Screenshots
+
+Smartphone-like tall screenshots:
+
+![Before Portrait](assets/screenshot-before-portrait.png)
+
+![After Portrait](assets/screenshot-after-portrait.png)
+
 ## Section 4: Mermaid Diagram
 
 ```mermaid

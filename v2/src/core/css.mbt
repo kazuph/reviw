@@ -297,7 +297,7 @@ fn build_css() -> String {
     #|  box-shadow: 0 0 0 4px rgba(34,197,94,0.15);
     #|}
     #|.floating {
-    #|  position: absolute;
+    #|  position: fixed;
     #|  z-index: 10;
     #|  background: var(--panel-solid);
     #|  border: 1px solid var(--border);
@@ -697,8 +697,10 @@ fn build_css() -> String {
     #|}
     #|.sidebar-minimap {
     #|  position: absolute;
-    #|  bottom: 8px;
+    #|  top: 12px;
     #|  right: 8px;
+    #|  bottom: auto;
+    #|  left: auto;
     #|  width: 140px;
     #|  height: 100px;
     #|  background: var(--panel-alpha);
@@ -924,11 +926,12 @@ fn build_css() -> String {
     #|}
     #|/* Heading toggle feature */
     #|.md-preview .md-heading-toggle {
-    #|  display: flex;
-    #|  align-items: center;
-    #|  gap: 6px;
+    #|  margin: 0;
     #|}
     #|.md-preview .heading-toggle-icon {
+    #|  display: inline-flex;
+    #|  align-items: center;
+    #|  justify-content: center;
     #|  font-size: 0.6em;
     #|  transition: transform 150ms ease;
     #|  color: var(--muted);
@@ -950,10 +953,16 @@ fn build_css() -> String {
     #|}
     #|.md-preview details.heading-toggle > summary {
     #|  list-style: none;
-    #|  cursor: pointer;
+    #|  cursor: default;
+    #|  display: flex;
+    #|  align-items: center;
+    #|  gap: 6px;
     #|}
     #|.md-preview details.heading-toggle > summary::-webkit-details-marker {
     #|  display: none;
+    #|}
+    #|.md-preview details.heading-toggle > summary > .md-heading-toggle {
+    #|  flex: 1;
     #|}
     #|.md-preview details.heading-toggle:not([open]) > .toggle-content {
     #|  display: none;

@@ -91,8 +91,8 @@ pub fn create_zoom_pan_viewer_moonbit(
   setup_touch_events(state)
   setup_double_click(state)
 
-  // Initial fit
-  fit_to_viewport(state)
+  // Initial fit: wait until the viewport has a real size.
+  request_fit_to_viewport_when_ready(state, fn() {})
 
   // Setup minimap if enabled
   if has_minimap {
@@ -302,10 +302,13 @@ fn zoom_at_center(state : ZPVState, factor : Double) -> Unit {
 }
 
 ///| Fit content to viewport
-fn fit_to_viewport(state : ZPVState) -> Unit {
+fn fit_to_viewport_now(state : ZPVState) -> Bool {
   let rect = get_bounding_rect(state.viewport)
   let vp_w = rect[2]
   let vp_h = rect[3]
+  if vp_w <= 0.0 || vp_h <= 0.0 || state.natural_width <= 0.0 || state.natural_height <= 0.0 {
+    return false
+  }
 
   let scale_w = vp_w / state.natural_width
   let scale_h = vp_h / state.natural_height
@@ -319,6 +322,39 @@ fn fit_to_viewport(state : ZPVState) -> Unit {
   state.pan_y = (vp_h - scaled_h) / 2.0
 
   update_transform(state)
+  true
+}
+
+///| Fit content to viewport when layout is stable
+pub fn request_fit_to_viewport_when_ready(state : ZPVState, on_ready : () -> Unit) -> Unit {
+  request_fit_to_viewport_when_ready_impl(state, on_ready, 0)
+}
+
+fn request_fit_to_viewport_when_ready_impl(
+  state : ZPVState,
+  on_ready : () -> Unit,
+  attempt : Int
+) -> Unit {
+  if fit_to_viewport_now(state) {
+    on_ready()
+    return
+  }
+  if attempt >= 60 {
+    return
+  }
+  ignore(
+    set_timeout(
+      fn() {
+        request_fit_to_viewport_when_ready_impl(state, on_ready, attempt + 1)
+      },
+      16,
+    ),
+  )
+}
+
+///| Fit content to viewport
+pub fn fit_to_viewport(state : ZPVState) -> Unit {
+  ignore(fit_to_viewport_now(state))
 }
 
 ///| Setup minimap indicators
@@ -330,8 +366,13 @@ fn setup_minimap(state : ZPVState) -> Unit {
 
 ///| Update minimap viewport indicator position
 fn update_minimap_viewport(state : ZPVState) -> Unit {
-  if is_null(state.minimap_viewport_el) { return }
+  if is_null(state.minimap_viewport_el) || state.current_zoom <= 0.0 {
+    return
+  }
   let vp_rect = get_bounding_rect(state.viewport)
+  if vp_rect[2] <= 0.0 || vp_rect[3] <= 0.0 {
+    return
+  }
   let minimap = closest(state.minimap_viewport_el, ".minimap, .sidebar-minimap")
   if is_null(minimap) { return }
   let minimap_content = query_in(minimap, ".minimap-content, .sidebar-minimap-content")

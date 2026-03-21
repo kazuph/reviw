@@ -91,7 +91,11 @@ extern "js" fn off_doc(event : String, handler : (Event) -> Unit) -> Unit =
   #|(event, handler) => document.removeEventListener(event, handler)
 
 extern "js" fn event_target(e : Event) -> Element =
-  #|(e) => e.target
+  #|(e) => {
+  #|  const target = e?.target;
+  #|  if (!target) return null;
+  #|  return target.nodeType === 3 ? target.parentElement : target;
+  #|}
 
 extern "js" fn event_key(e : Event) -> String =
   #|(e) => e.key || ""
@@ -156,6 +160,34 @@ extern "js" fn fetch_post(url : String, body : String, callback : (String) -> Un
   #|  }).then(r => r.text()).then(cb).catch(() => cb("error"));
   #|}
 
+extern "js" fn fetch_post_keepalive(url : String, body : String) -> Unit =
+  #|(url, body) => {
+  #|  fetch(url, {
+  #|    method: "POST",
+  #|    headers: {"Content-Type": "application/json"},
+  #|    body: body,
+  #|    keepalive: true
+  #|  }).catch(() => {});
+  #|}
+
+extern "js" fn send_beacon_json(url : String, body : String) -> Unit =
+  #|(url, body) => {
+  #|  try {
+  #|    if (navigator.sendBeacon) {
+  #|      const blob = new Blob([body], { type: "application/json" });
+  #|      if (navigator.sendBeacon(url, blob)) {
+  #|        return;
+  #|      }
+  #|    }
+  #|  } catch (_) {}
+  #|  fetch(url, {
+  #|    method: "POST",
+  #|    headers: {"Content-Type": "application/json"},
+  #|    body: body,
+  #|    keepalive: true
+  #|  }).catch(() => {});
+  #|}
+
 ///| localStorage
 extern "js" fn ls_get(key : String) -> String =
   #|(key) => localStorage.getItem(key) || ""
@@ -175,6 +207,27 @@ extern "js" fn get_reviw_mode() -> String =
 
 extern "js" fn get_reviw_filename() -> String =
   #|() => window.__REVIW_FILENAME__ || ""
+
+extern "js" fn get_or_create_tab_id() -> String =
+  #|() => {
+  #|  const key = "reviw:tab-id";
+  #|  try {
+  #|    let id = sessionStorage.getItem(key);
+  #|    if (!id) {
+  #|      id = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  #|      sessionStorage.setItem(key, id);
+  #|    }
+  #|    return id;
+  #|  } catch (_) {
+  #|    if (!window.name) {
+  #|      window.name = `reviw-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  #|    }
+  #|    return window.name;
+  #|  }
+  #|}
+
+extern "js" fn create_page_instance_id() -> String =
+  #|() => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
 ///| Focus
 extern "js" fn focus_element(el : Element) -> Unit =

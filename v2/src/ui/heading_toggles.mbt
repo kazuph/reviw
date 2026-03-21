@@ -25,7 +25,7 @@ struct ToggleConfig {
 ///| Default configuration
 fn default_toggle_config() -> ToggleConfig {
   ToggleConfig::{
-    start_level: 2,
+    start_level: 1,
     end_level: 6,
     initially_open: true,
     animate: true,
@@ -99,11 +99,12 @@ fn process_heading(heading : Element, config : ToggleConfig) -> Unit {
   // Create content container
   let content = create_element("div")
   set_class_name(content, "toggle-content")
-  ignore(ensure_toggle_icon(heading, summary, config.initially_open))
+  let icon = ensure_toggle_icon(heading, config.initially_open)
 
   // Build structure
   insert_before(heading, details)
   append_child(details, summary)
+  append_child(summary, icon)
   append_child(summary, heading)
   append_child(details, content)
   content_els.each(fn(el) {
@@ -120,6 +121,12 @@ fn process_heading(heading : Element, config : ToggleConfig) -> Unit {
     is_open: config.initially_open,
     handles: [],
     content_nodes: content_els,
+  }
+
+  let stored = ls_get(toggle_storage_key(toggle))
+  if stored == "collapsed" {
+    toggle.is_open = false
+    remove_attribute(details, "open")
   }
 
   // Setup event handlers
@@ -167,29 +174,68 @@ fn create_toggle_icon(is_open : Bool) -> Element {
 }
 
 ///| Reuse the heading icon when available, otherwise inject a fallback icon
-fn ensure_toggle_icon(heading : Element, summary : Element, is_open : Bool) -> Element {
+fn ensure_toggle_icon(heading : Element, is_open : Bool) -> Element {
   let icon = query_in(heading, ".heading-toggle-icon")
   if not(is_null(icon)) {
     set_text_content(icon, if is_open { "▼" } else { "▶" })
     remove_class(icon, "collapsed")
     icon
   } else {
-    let fallback = create_toggle_icon(is_open)
-    append_child(summary, fallback)
-    fallback
+    create_toggle_icon(is_open)
   }
 }
 
 ///| Setup event handlers for a toggle
 fn setup_toggle_handlers(toggle : HeadingToggle, config : ToggleConfig) -> Unit {
+  let summary_click = on_with_handle(toggle.summary_el, "click", fn(e) {
+    let target = event_target(e)
+    let icon = closest(target, ".heading-toggle-icon")
+    prevent_default(e)
+    if not(is_null(icon)) {
+      stop_propagation(e)
+      set_toggle_open(toggle, not(toggle.is_open), config)
+    }
+  }, passive=false)
+  toggle.handles.push(summary_click)
+  let summary_keydown = on_with_handle(toggle.summary_el, "keydown", fn(e) {
+    let key = event_key(e)
+    if key == "Enter" || key == " " || key == "Spacebar" {
+      prevent_default(e)
+      stop_propagation(e)
+      set_toggle_open(toggle, not(toggle.is_open), config)
+    }
+  }, passive=false)
+  toggle.handles.push(summary_keydown)
   let h = on_with_handle(toggle.details_el, "toggle", fn(_) {
     let is_open_now = has_attribute(toggle.details_el, "open")
     if is_open_now != toggle.is_open {
-      toggle.is_open = is_open_now
-      update_toggle_state(toggle, config)
+      set_toggle_open(toggle, is_open_now, config)
     }
   })
   toggle.handles.push(h)
+}
+
+fn toggle_storage_key(toggle : HeadingToggle) -> String {
+  let key = get_attribute(toggle.original_heading, "data-heading-key")
+  if key.length() > 0 {
+    "reviw:heading:" + key
+  } else {
+    ""
+  }
+}
+
+fn set_toggle_open(toggle : HeadingToggle, is_open : Bool, config : ToggleConfig) -> Unit {
+  toggle.is_open = is_open
+  if is_open {
+    set_attribute(toggle.details_el, "open", "")
+  } else {
+    remove_attribute(toggle.details_el, "open")
+  }
+  let storage_key = toggle_storage_key(toggle)
+  if storage_key.length() > 0 {
+    ls_set(storage_key, if is_open { "expanded" } else { "collapsed" })
+  }
+  update_toggle_state(toggle, config)
 }
 
 ///| Update toggle visual state
@@ -263,13 +309,7 @@ fn setup_heading_observer() -> Unit {
 pub fn toggle_all_sections(open : Bool) -> Unit {
   active_toggles.val.each(fn(toggle) {
     if toggle.is_open != open {
-      toggle.is_open = open
-      if open {
-        set_attribute(toggle.details_el, "open", "")
-      } else {
-        remove_attribute(toggle.details_el, "open")
-      }
-      update_toggle_state(toggle, default_toggle_config())
+      set_toggle_open(toggle, open, default_toggle_config())
     }
   })
 }
@@ -279,9 +319,7 @@ pub fn expand_section_by_id(id : String) -> Unit {
   active_toggles.val.each(fn(toggle) {
     let toggle_id = get_attribute(toggle.original_heading, "id")
     if toggle_id == id && not(toggle.is_open) {
-      toggle.is_open = true
-      set_attribute(toggle.details_el, "open", "")
-      update_toggle_state(toggle, default_toggle_config())
+      set_toggle_open(toggle, true, default_toggle_config())
       scroll_into_view(toggle.details_el)
     }
   })
@@ -292,9 +330,7 @@ pub fn collapse_section_by_id(id : String) -> Unit {
   active_toggles.val.each(fn(toggle) {
     let toggle_id = get_attribute(toggle.original_heading, "id")
     if toggle_id == id && toggle.is_open {
-      toggle.is_open = false
-      remove_attribute(toggle.details_el, "open")
-      update_toggle_state(toggle, default_toggle_config())
+      set_toggle_open(toggle, false, default_toggle_config())
     }
   })
 }

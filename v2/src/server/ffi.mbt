@@ -48,6 +48,12 @@ extern "js" fn process_exit(code : Int) -> Unit =
 extern "js" fn process_stdout_write(data : String) -> Unit =
   #|(data) => process.stdout.write(data)
 
+extern "js" fn js_null() -> JsValue =
+  #|() => null
+
+extern "js" fn js_is_nullish(value : JsValue) -> Bool =
+  #|(value) => value == null
+
 ///| Read stdin via /dev/stdin (Linux/macOS)
 fn read_stdin_sync() -> String {
   read_file_sync("/dev/stdin", "utf-8")
@@ -110,6 +116,12 @@ extern "js" fn on_close(obj : JsValue, callback : () -> Unit) -> Unit =
 ///| Timer
 extern "js" fn set_interval(callback : () -> Unit, ms : Int) -> JsValue =
   #|(cb, ms) => setInterval(cb, ms)
+
+extern "js" fn set_timeout(callback : () -> Unit, ms : Int) -> JsValue =
+  #|(cb, ms) => setTimeout(cb, ms)
+
+extern "js" fn clear_timeout(timer : JsValue) -> Unit =
+  #|(timer) => { if (timer != null) clearTimeout(timer); }
 
 ///| Open browser - import exec via #module
 #module("node:child_process")

@@ -70,7 +70,7 @@ describe('v2 UI regressions', () => {
     killServer(serverProcess);
   });
 
-  test('heading toggle keeps open state, icon, and content visibility in sync', async () => {
+  test('heading text keeps selection behavior while icon alone toggles open state', async () => {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.goto(`http://127.0.0.1:${port}`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
@@ -104,7 +104,24 @@ describe('v2 UI regressions', () => {
     expect(before.ariaExpanded).toBe('true');
     expect(before.display).not.toBe('none');
 
-    await page.locator('.md-preview details.heading-toggle > summary.heading-summary').first().click();
+    const summary = page.locator('.md-preview details.heading-toggle > summary.heading-summary').first();
+    const heading = summary.locator('.md-heading-toggle').first();
+    const icon = summary.locator('.heading-toggle-icon').first();
+
+    await heading.click({ position: { x: 48, y: 10 } });
+    await page.waitForTimeout(300);
+
+    const afterTextClick = await state();
+    expect(afterTextClick.open).toBe(true);
+    expect(afterTextClick.icon).toBe('▼');
+    expect(afterTextClick.ariaExpanded).toBe('true');
+    await expect(page.locator('#comment-card')).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#comment-card')).not.toBeVisible();
+
+    await icon.click();
     await page.waitForTimeout(300);
 
     const collapsed = await state();
@@ -113,16 +130,28 @@ describe('v2 UI regressions', () => {
     expect(collapsed.ariaExpanded).toBe('false');
     expect(collapsed.display).toBe('none');
     expect(collapsed.hidden).toBe('true');
+    await expect(page.locator('#comment-card')).not.toBeVisible();
 
-    await page.locator('.md-preview details.heading-toggle > summary.heading-summary').first().click();
-    await page.waitForTimeout(300);
+    await page.close();
+  });
 
-    const reopened = await state();
-    expect(reopened.open).toBe(true);
-    expect(reopened.icon).toBe('▼');
-    expect(reopened.ariaExpanded).toBe('true');
-    expect(reopened.display).not.toBe('none');
-    expect(reopened.hidden).toBe('false');
+  test('inline body text in preview still maps to the markdown source row', async () => {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.goto(`http://127.0.0.1:${port}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+
+    const inlineStrong = page.locator('.md-preview p strong').first();
+    await inlineStrong.click();
+    await page.waitForTimeout(250);
+
+    const selectedRows = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('.md-right td.selected'))
+        .map((cell) => Number(cell.getAttribute('data-row')))
+        .sort((a, b) => a - b);
+    });
+
+    expect(selectedRows).toEqual([56]);
+    await expect(page.locator('#comment-card')).toBeVisible();
 
     await page.close();
   });

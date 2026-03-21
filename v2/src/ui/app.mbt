@@ -6,6 +6,20 @@ struct AppComment {
   mut image : String
 }
 
+struct Rect {
+  left : Double
+  top : Double
+  width : Double
+  height : Double
+}
+
+struct CardPlacement {
+  left : Double
+  top : Double
+  overlap_area : Double
+  overflow_penalty : Double
+}
+
 ///| Application state
 let comments : Map[String, AppComment] = {}
 
@@ -25,6 +39,10 @@ let drag_end_row : Ref[Int] = Ref::new(-1)
 ///| Image state for paste attachment
 let current_comment_image : Ref[String] = Ref::new("")
 let submit_images : Array[String] = []
+let close_report_sent : Ref[Bool] = Ref::new(false)
+let submit_in_flight : Ref[Bool] = Ref::new(false)
+let review_tab_id : Ref[String] = Ref::new("")
+let page_instance_id : Ref[String] = Ref::new("")
 
 ///| Delegate to core's parse_int_safe
 fn str_to_int(s : String) -> Int {
@@ -43,6 +61,328 @@ fn truncate(s : String, max : Int) -> String {
     }
     buf.to_string()
   }
+}
+
+fn rect_right(rect : Rect) -> Double {
+  rect.left + rect.width
+}
+
+fn rect_bottom(rect : Rect) -> Double {
+  rect.top + rect.height
+}
+
+fn viewport_rect() -> Rect {
+  Rect::{
+    left: 0.0,
+    top: 0.0,
+    width: window_inner_width().to_double(),
+    height: window_inner_height().to_double(),
+  }
+}
+
+fn rect_from_element(el : Element) -> Rect {
+  let rect = get_bounding_rect(el)
+  Rect::{
+    left: rect[0],
+    top: rect[1],
+    width: rect[2],
+    height: rect[3],
+  }
+}
+
+fn clamp_card_coord(value : Double, min_value : Double, max_value : Double) -> Double {
+  if value < min_value {
+    min_value
+  } else if value > max_value {
+    max_value
+  } else {
+    value
+  }
+}
+
+fn rect_intersection_area(a : Rect, b : Rect) -> Double {
+  let overlap_left = if a.left > b.left { a.left } else { b.left }
+  let overlap_top = if a.top > b.top { a.top } else { b.top }
+  let overlap_right = if rect_right(a) < rect_right(b) { rect_right(a) } else { rect_right(b) }
+  let overlap_bottom = if rect_bottom(a) < rect_bottom(b) { rect_bottom(a) } else { rect_bottom(b) }
+  let overlap_width = overlap_right - overlap_left
+  let overlap_height = overlap_bottom - overlap_top
+  if overlap_width > 0.0 && overlap_height > 0.0 {
+    overlap_width * overlap_height
+  } else {
+    0.0
+  }
+}
+
+fn rect_union(a : Rect, b : Rect) -> Rect {
+  let left = if a.left < b.left { a.left } else { b.left }
+  let top = if a.top < b.top { a.top } else { b.top }
+  let right = if rect_right(a) > rect_right(b) { rect_right(a) } else { rect_right(b) }
+  let bottom = if rect_bottom(a) > rect_bottom(b) { rect_bottom(a) } else { rect_bottom(b) }
+  Rect::{ left, top, width: right - left, height: bottom - top }
+}
+
+fn bounds_overflow_penalty(rect : Rect, bounds : Rect, margin : Double) -> Double {
+  let overflow_left = if rect.left < bounds.left + margin { (bounds.left + margin) - rect.left } else { 0.0 }
+  let overflow_top = if rect.top < bounds.top + margin { (bounds.top + margin) - rect.top } else { 0.0 }
+  let overflow_right = if rect_right(rect) > rect_right(bounds) - margin {
+    rect_right(rect) - (rect_right(bounds) - margin)
+  } else {
+    0.0
+  }
+  let overflow_bottom = if rect_bottom(rect) > rect_bottom(bounds) - margin {
+    rect_bottom(rect) - (rect_bottom(bounds) - margin)
+  } else {
+    0.0
+  }
+  overflow_left + overflow_top + overflow_right + overflow_bottom
+}
+
+fn make_card_candidate(
+  anchor : Rect,
+  keepout : Rect,
+  bounds : Rect,
+  card_width : Double,
+  card_height : Double,
+  desired_left : Double,
+  desired_top : Double,
+  margin : Double
+) -> CardPlacement {
+  let min_left = bounds.left + margin
+  let min_top = bounds.top + margin
+  let max_left = rect_right(bounds) - card_width - margin
+  let max_top = rect_bottom(bounds) - card_height - margin
+  let left = clamp_card_coord(desired_left, min_left, if max_left > min_left { max_left } else { min_left })
+  let top = clamp_card_coord(desired_top, min_top, if max_top > min_top { max_top } else { min_top })
+  let rect = Rect::{ left, top, width: card_width, height: card_height }
+  CardPlacement::{
+    left,
+    top,
+    overlap_area: rect_intersection_area(keepout, rect),
+    overflow_penalty: bounds_overflow_penalty(rect, bounds, margin),
+  }
+}
+
+fn placement_score(candidate : CardPlacement) -> Double {
+  candidate.overlap_area * 1000.0 + candidate.overflow_penalty
+}
+
+fn choose_card_placement(
+  anchor : Rect,
+  keepout : Rect,
+  bounds : Rect,
+  card_width : Double,
+  card_height : Double,
+  prefer_below : Bool
+) -> CardPlacement {
+  let margin = 12.0
+  let mid_left = anchor.left + (anchor.width - card_width) / 2.0
+  let below = make_card_candidate(anchor, keepout, bounds, card_width, card_height, mid_left, rect_bottom(anchor) + margin, margin)
+  let above = make_card_candidate(anchor, keepout, bounds, card_width, card_height, mid_left, anchor.top - card_height - margin, margin)
+  let right_side = make_card_candidate(anchor, keepout, bounds, card_width, card_height, rect_right(anchor) + margin, anchor.top, margin)
+  let left_side = make_card_candidate(anchor, keepout, bounds, card_width, card_height, anchor.left - card_width - margin, anchor.top, margin)
+  let center = make_card_candidate(
+    anchor,
+    keepout,
+    bounds,
+    card_width,
+    card_height,
+    bounds.left + (bounds.width - card_width) / 2.0,
+    bounds.top + (bounds.height - card_height) / 2.0,
+    margin,
+  )
+  let candidates = if prefer_below {
+    [below, above, right_side, left_side, center]
+  } else {
+    [right_side, left_side, below, above, center]
+  }
+  let mut best = candidates[0]
+  let mut best_score = placement_score(best)
+  for candidate in candidates {
+    let score = placement_score(candidate)
+    if score < best_score {
+      best = candidate
+      best_score = score
+    }
+  }
+  best
+}
+
+fn choose_keepout_escape_placement(
+  keepout : Rect,
+  bounds : Rect,
+  card_width : Double,
+  card_height : Double,
+  fallback : CardPlacement
+) -> CardPlacement {
+  if fallback.overlap_area == 0.0 {
+    return fallback
+  }
+  let margin = 12.0
+  let centered_left = keepout.left + (keepout.width - card_width) / 2.0
+  let centered_top = keepout.top + (keepout.height - card_height) / 2.0
+  let candidates = [
+    make_card_candidate(keepout, keepout, bounds, card_width, card_height, centered_left, keepout.top - card_height - margin, margin),
+    make_card_candidate(keepout, keepout, bounds, card_width, card_height, centered_left, rect_bottom(keepout) + margin, margin),
+    make_card_candidate(keepout, keepout, bounds, card_width, card_height, keepout.left - card_width - margin, centered_top, margin),
+    make_card_candidate(keepout, keepout, bounds, card_width, card_height, rect_right(keepout) + margin, centered_top, margin),
+    fallback,
+  ]
+  let mut best = candidates[0]
+  let mut best_score = placement_score(best)
+  for candidate in candidates {
+    let score = placement_score(candidate)
+    if score < best_score {
+      best = candidate
+      best_score = score
+    }
+  }
+  best
+}
+
+fn position_comment_card_for_rects(
+  card : Element,
+  anchor : Rect,
+  keepout : Rect,
+  bounds : Rect,
+  prefer_below : Bool
+) -> Unit {
+  set_style(card, "display", "block")
+  set_style(card, "visibility", "hidden")
+  let card_width = get_bounding_rect_width(card)
+  let card_height = get_bounding_rect_height(card)
+  let placement = choose_card_placement(anchor, keepout, bounds, card_width, card_height, prefer_below)
+  let resolved = choose_keepout_escape_placement(keepout, bounds, card_width, card_height, placement)
+  set_style(card, "top", "\{resolved.top.to_int()}px")
+  set_style(card, "left", "\{resolved.left.to_int()}px")
+  set_style(card, "visibility", "visible")
+}
+
+fn position_comment_card(card : Element, target : Element, prefer_below : Bool) -> Unit {
+  let anchor = rect_from_element(target)
+  let bounds = viewport_rect()
+  position_comment_card_for_rects(card, anchor, anchor, bounds, prefer_below)
+}
+
+fn rect_union_of_elements(elements : Array[Element]) -> Rect? {
+  let mut union_rect : Rect? = None
+  for el in elements {
+    if not(is_null(el)) {
+      let rect = rect_from_element(el)
+      union_rect = match union_rect {
+        Some(existing) => Some(rect_union(existing, rect))
+        None => Some(rect)
+      }
+    }
+  }
+  union_rect
+}
+
+fn populate_comment_card(target : Element, key : String, row : Int, col : Int, textarea : Element) -> Unit {
+  active_key.val = key
+  let card_title = query("#card-title")
+  let cell_preview = query("#cell-preview")
+  if not(is_null(card_title)) {
+    if col > 0 {
+      set_text_content(card_title, "Comment on R\{row} C\{col}")
+    } else if row > 0 {
+      set_text_content(card_title, "Comment on line \{row}")
+    } else {
+      set_text_content(card_title, "Cell Comment")
+    }
+  }
+  if not(is_null(cell_preview)) {
+    let content = resolve_comment_target_preview(target)
+    if content.length() > 0 {
+      let preview = if col > 0 {
+        "Cell value: " + truncate(content, 80)
+      } else {
+        truncate(content, 80)
+      }
+      set_text_content(cell_preview, preview)
+    } else {
+      set_text_content(cell_preview, "(empty)")
+    }
+  }
+  match comments.get(key) {
+    Some(comment) => {
+      set_value(textarea, comment.text)
+      current_comment_image.val = comment.image
+    }
+    None => {
+      set_value(textarea, "")
+      current_comment_image.val = ""
+      comments.set(key, { row, col, text: "", image: "" })
+    }
+  }
+  render_comment_image_preview()
+}
+
+fn resolve_comment_target_preview(target : Element) -> String {
+  if is_null(target) {
+    return ""
+  }
+  let content = get_text_content(target)
+  if content.length() > 0 {
+    return content
+  }
+  let tag = get_tag_name(target)
+  if tag == "IMG" {
+    let alt = get_attr(target, "alt")
+    if alt.length() > 0 {
+      return alt
+    }
+    let src = get_src(target)
+    if src.length() > 0 {
+      return "[image] " + extract_filename(src)
+    }
+  }
+  if tag == "VIDEO" {
+    let title = get_attr(target, "title")
+    if title.length() > 0 {
+      return title
+    }
+    let src = get_attr(target, "src")
+    if src.length() > 0 {
+      return "[video] " + extract_filename(src)
+    }
+  }
+  if has_class(target, "mermaid-container") {
+    return "Mermaid diagram"
+  }
+  let image = query_in(target, "img")
+  if not(is_null(image)) {
+    return resolve_comment_target_preview(image)
+  }
+  let video = query_in(target, "video.video-preview")
+  if not(is_null(video)) {
+    return resolve_comment_target_preview(video)
+  }
+  let mermaid = query_in(target, ".mermaid-container")
+  if not(is_null(mermaid)) {
+    return "Mermaid diagram"
+  }
+  ""
+}
+
+fn show_comment_card_in_rects(
+  target : Element,
+  key : String,
+  row : Int,
+  col : Int,
+  anchor : Rect,
+  keepout : Rect,
+  bounds : Rect,
+  prefer_below : Bool
+) -> Unit {
+  let card = query("#comment-card")
+  let textarea = query("#comment-input")
+  if is_null(card) || is_null(textarea) {
+    return
+  }
+  populate_comment_card(target, key, row, col, textarea)
+  position_comment_card_for_rects(card, anchor, keepout, bounds, prefer_below)
+  focus_element(textarea)
 }
 
 ///| Get localStorage key for comment storage (cli.cjs compatible)
@@ -104,6 +444,16 @@ pub fn init_app() -> Unit {
   let save_btn = query("#save-comment")
   if not(is_null(save_btn)) {
     on(save_btn, "click", fn(_e) { save_comment() })
+  }
+  let comment_input = query("#comment-input")
+  if not(is_null(comment_input)) {
+    on(comment_input, "keydown", fn(e) {
+      if event_key(e) == "Enter" && (event_meta_key(e) || event_ctrl_key(e)) {
+        prevent_default(e)
+        stop_propagation(e)
+        save_comment()
+      }
+    })
   }
   // Copy selection button (cli.cjs compatible)
   let copy_btn = query("#copy-selection")
@@ -194,17 +544,7 @@ pub fn init_app() -> Unit {
     on(
       pill_comments,
       "click",
-      fn(_e) {
-        // Build comment list HTML and show in a panel or scrollTo first comment
-        let first_commented = query(".has-comment")
-        if not(is_null(first_commented)) {
-          scroll_into_view(first_commented)
-          // Trigger click to open comment card
-          click_element(first_commented)
-        } else {
-          show_toast("No comments yet")
-        }
-      },
+      fn(_e) { toggle_comment_list_panel() },
     )
   }
   // Setup click handlers based on mode
@@ -253,6 +593,8 @@ pub fn init_app() -> Unit {
   setup_paste_handler()
   // Check for saved comments and show recovery modal if present
   check_recovery()
+  // Register the tab so the server can tell reload from close.
+  setup_close_detection(port)
   // Setup SSE for live reload
   setup_sse(port)
 }
@@ -358,6 +700,7 @@ fn check_recovery() -> Unit {
   }
   let modal = query("#recovery-modal")
   if not(is_null(modal)) {
+    add_class(modal, "visible")
     remove_class(modal, "hidden")
   }
 }
@@ -394,6 +737,7 @@ fn discard_comments() -> Unit {
 fn hide_recovery_modal() -> Unit {
   let modal = query("#recovery-modal")
   if not(is_null(modal)) {
+    remove_class(modal, "visible")
     add_class(modal, "hidden")
   }
 }
@@ -405,55 +749,8 @@ fn show_comment_card(target : Element, key : String, row : Int, col : Int) -> Un
   if is_null(card) || is_null(textarea) {
     return
   }
-  active_key.val = key
-  // Update card title and cell preview (cli.cjs compatible)
-  let card_title = query("#card-title")
-  let cell_preview = query("#cell-preview")
-  if not(is_null(card_title)) {
-    if col > 0 {
-      set_text_content(card_title, "Comment on R\{row} C\{col}")
-    } else if row > 0 {
-      set_text_content(card_title, "Comment on line \{row}")
-    } else {
-      set_text_content(card_title, "Cell Comment")
-    }
-  }
-  if not(is_null(cell_preview)) {
-    let content = get_text_content(target)
-    if content.length() > 0 {
-      let preview = if col > 0 {
-        "Cell value: " + truncate(content, 80)
-      } else {
-        truncate(content, 80)
-      }
-      set_text_content(cell_preview, preview)
-    } else {
-      set_text_content(cell_preview, "(empty)")
-    }
-  }
-  let top = get_bounding_rect_bottom(target)
-  let left = get_bounding_rect_left(target)
-  let win_height = window_inner_height()
-  let actual_top = if top.to_int() + 200 > win_height {
-    get_bounding_rect_top(target).to_int() - 200
-  } else {
-    top.to_int()
-  }
-  set_style(card, "top", "\{actual_top}px")
-  set_style(card, "left", "\{left.to_int()}px")
-  set_style(card, "display", "block")
-  match comments.get(key) {
-    Some(comment) => {
-      set_value(textarea, comment.text)
-      current_comment_image.val = comment.image
-    }
-    None => {
-      set_value(textarea, "")
-      current_comment_image.val = ""
-      comments.set(key, { row, col, text: "", image: "" })
-    }
-  }
-  render_comment_image_preview()
+  populate_comment_card(target, key, row, col, textarea)
+  position_comment_card(card, target, true)
   focus_element(textarea)
 }
 
@@ -464,6 +761,108 @@ fn hide_comment_card() -> Unit {
     set_style(card, "display", "none")
   }
   active_key.val = ""
+}
+
+fn comment_has_content(comment : AppComment) -> Bool {
+  comment.text.length() > 0 || comment.image.length() > 0
+}
+
+fn comment_location_label(comment : AppComment) -> String {
+  if comment.col > 0 {
+    "R" + comment.row.to_string() + " C" + comment.col.to_string()
+  } else if comment.row > 0 {
+    "Line " + comment.row.to_string()
+  } else {
+    "General"
+  }
+}
+
+fn resolve_comment_indicator_target(comment : AppComment) -> Element {
+  if comment.col > 0 {
+    let exact = query("[data-row=\"\{comment.row}\"][data-col=\"\{comment.col}\"]")
+    if not(is_null(exact)) {
+      return exact
+    }
+  }
+  let line_cell = query("td[data-row=\"\{comment.row}\"][data-col=\"1\"]")
+  if not(is_null(line_cell)) {
+    return line_cell
+  }
+  let text_line = query(".text-line[data-row=\"\{comment.row}\"]")
+  if not(is_null(text_line)) {
+    return text_line
+  }
+  null_element()
+}
+
+fn render_comment_list() -> Unit {
+  let list = query("#comment-list")
+  if is_null(list) {
+    return
+  }
+  let buf = StringBuilder::new()
+  let mut count = 0
+  comments.each(fn(key, comment) {
+    if comment_has_content(comment) {
+      count = count + 1
+      buf.write_string("<li>")
+      buf.write_string("<button class=\"comment-list-entry\" data-comment-key=\"")
+      buf.write_string(@core.escape_html(key))
+      buf.write_string("\" style=\"all:unset;display:block;width:100%;cursor:pointer\">")
+      buf.write_string("<strong>")
+      buf.write_string(@core.escape_html(comment_location_label(comment)))
+      buf.write_string("</strong>")
+      buf.write_string("<div>")
+      if comment.text.length() > 0 {
+        buf.write_string(@core.escape_html(truncate(comment.text, 120)))
+      } else {
+        buf.write_string("[image only]")
+      }
+      buf.write_string("</div></button></li>")
+    }
+  })
+  if count == 0 {
+    set_inner_html(
+      list,
+      "<li style=\"color:var(--text-dim);list-style:none;margin-left:-18px\">No comments yet</li>",
+    )
+    return
+  }
+  set_inner_html(list, buf.to_string())
+  let entries = query_all(".comment-list-entry")
+  for entry in entries {
+    on(entry, "click", fn(e) {
+      let target = event_target(e)
+      let button = closest(target, ".comment-list-entry")
+      if is_null(button) {
+        return
+      }
+      let key = get_attr(button, "data-comment-key")
+      match comments.get(key) {
+        Some(comment) => {
+          let comment_target = resolve_comment_indicator_target(comment)
+          if not(is_null(comment_target)) {
+            scroll_into_view(comment_target)
+            show_comment_card(comment_target, key, comment.row, comment.col)
+          }
+        }
+        None => ()
+      }
+    })
+  }
+}
+
+fn toggle_comment_list_panel() -> Unit {
+  let panel = query(".comment-list")
+  if is_null(panel) {
+    return
+  }
+  render_comment_list()
+  if has_class(panel, "collapsed") {
+    remove_class(panel, "collapsed")
+  } else {
+    add_class(panel, "collapsed")
+  }
 }
 
 ///|
@@ -501,10 +900,9 @@ fn update_comment_indicators() -> Unit {
   let mut count = 0
   comments.each(
     fn(_key, comment) {
-      if comment.text.length() > 0 {
+      if comment_has_content(comment) {
         count = count + 1
-        let selector = "[data-row=\"\{comment.row}\"][data-col=\"\{comment.col}\"]"
-        let el = query(selector)
+        let el = resolve_comment_indicator_target(comment)
         if not(is_null(el)) {
           add_class(el, "has-comment")
         }
@@ -516,6 +914,7 @@ fn update_comment_indicators() -> Unit {
   if not(is_null(count_el)) {
     set_text_content(count_el, count.to_string())
   }
+  render_comment_list()
 }
 
 ///|
@@ -580,8 +979,32 @@ fn hide_submit_modal() -> Unit {
   }
 }
 
-///|
-fn submit_review(port : Int) -> Unit {
+fn sync_active_comment_draft() -> Unit {
+  let key = active_key.val
+  if key.length() == 0 {
+    return
+  }
+  let textarea = query("#comment-input")
+  if is_null(textarea) {
+    return
+  }
+  let text = get_value(textarea)
+  match comments.get(key) {
+    Some(comment) => {
+      comment.text = text
+      comment.image = current_comment_image.val
+      if text.length() == 0 && current_comment_image.val.length() == 0 {
+        ignore(comments.remove(key))
+      }
+    }
+    None => ()
+  }
+  update_comment_indicators()
+  persist_comments()
+}
+
+fn build_review_payload() -> String {
+  sync_active_comment_draft()
   let summary_el = query("#global-comment")
   let summary = if is_null(summary_el) { "" } else { get_value(summary_el) }
   let buf = StringBuilder::new()
@@ -641,10 +1064,42 @@ fn submit_review(port : Int) -> Unit {
     buf.write_string("]")
   }
   buf.write_string("}")
+  buf.to_string()
+}
+
+fn report_tab_closed(port : Int) -> Unit {
+  if submit_in_flight.val || close_report_sent.val {
+    return
+  }
+  close_report_sent.val = true
+  let url = "http://127.0.0.1:\{port}/close"
+  let payload =
+    "{\"tabId\":" + json_encode_string(review_tab_id.val) +
+    ",\"instanceId\":" + json_encode_string(page_instance_id.val) +
+    ",\"draft\":" + json_encode_string(build_review_payload()) + "}"
+  send_beacon_json(url, payload)
+}
+
+fn setup_close_detection(port : Int) -> Unit {
+  review_tab_id.val = get_or_create_tab_id()
+  page_instance_id.val = create_page_instance_id()
+  let open_url = "http://127.0.0.1:\{port}/session/open"
+  let open_payload =
+    "{\"tabId\":" + json_encode_string(review_tab_id.val) +
+    ",\"instanceId\":" + json_encode_string(page_instance_id.val) + "}"
+  fetch_post_keepalive(open_url, open_payload)
+  on_window("pagehide", fn(_e) { report_tab_closed(port) })
+  on_window("beforeunload", fn(_e) { report_tab_closed(port) })
+}
+
+///|
+fn submit_review(port : Int) -> Unit {
+  submit_in_flight.val = true
+  close_report_sent.val = true
   let url = "http://127.0.0.1:\{port}/exit"
   fetch_post(
     url,
-    buf.to_string(),
+    build_review_payload(),
     fn(_response) {
       ls_remove(get_storage_key())
       window_close()
@@ -1373,7 +1828,38 @@ fn strip_markdown(s : String) -> String {
   let buf = StringBuilder::new()
   let len = chars.length()
   let mut i = 0
+  let mut at_line_start = true
   while i < len {
+    if at_line_start {
+      while i < len && chars[i] == ' ' {
+        i = i + 1
+      }
+      while i < len && chars[i] == '>' {
+        i = i + 1
+        while i < len && chars[i] == ' ' {
+          i = i + 1
+        }
+      }
+      if i + 1 < len &&
+         (chars[i] == '-' || chars[i] == '*' || chars[i] == '+') &&
+         chars[i + 1] == ' ' {
+        i = i + 2
+      } else {
+        let mut j = i
+        while j < len && chars[j] >= '0' && chars[j] <= '9' {
+          j = j + 1
+        }
+        if j > i && j + 1 < len &&
+           (chars[j] == '.' || chars[j] == ')') &&
+           chars[j + 1] == ' ' {
+          i = j + 2
+        }
+      }
+      at_line_start = false
+      if i >= len {
+        break
+      }
+    }
     // Skip leading # for headings
     if i == 0 && chars[i] == '#' {
       while i < len && chars[i] == '#' {
@@ -1406,6 +1892,7 @@ fn strip_markdown(s : String) -> String {
       continue
     }
     buf.write_char(chars[i])
+    at_line_start = chars[i] == '\n' || chars[i] == '\r'
     i = i + 1
   }
   normalize_text(buf.to_string())
@@ -1462,64 +1949,73 @@ fn get_heading_source_line(heading_el : Element) -> Int {
 ///| Find source line matching text, starting from start_from (1-indexed result, -1 if not found)
 fn find_source_line(text : String, _element : Element, start_from : Int) -> Int {
   let data = js_get_data()
-  let search_text = normalize_text(text)
+  let search_text = normalize_preview_search_text(text)
   if search_text.length() == 0 {
     return -1
   }
-  let stripped_search = strip_markdown(search_text)
-  // First pass: search from start_from onwards
   let start = if start_from >= 0 { start_from } else { 0 }
+  let allow_contains = search_text.length() >= 8
+  let mut fuzzy_match = -1
   for i = start; i < data.length(); i = i + 1 {
     if data[i].length() > 0 {
-      let src = strip_markdown(data[i][0])
-      if src == stripped_search || src.contains(stripped_search) || stripped_search.contains(src) {
+      if preview_source_line_matches(data[i][0], search_text, false) {
         return i + 1 // 1-indexed
+      }
+      if allow_contains && fuzzy_match < 0 && preview_source_line_matches(data[i][0], search_text, true) {
+        fuzzy_match = i + 1
       }
     }
   }
-  // Second pass: search from beginning
   if start > 0 {
     for i = 0; i < start; i = i + 1 {
       if data[i].length() > 0 {
-        let src = strip_markdown(data[i][0])
-        if src == stripped_search || src.contains(stripped_search) || stripped_search.contains(src) {
+        if preview_source_line_matches(data[i][0], search_text, false) {
           return i + 1
+        }
+        if allow_contains && fuzzy_match < 0 && preview_source_line_matches(data[i][0], search_text, true) {
+          fuzzy_match = i + 1
         }
       }
     }
   }
-  -1
+  fuzzy_match
 }
 
 ///| Find source line for table cell
 fn find_table_source_line(text : String, start_from : Int) -> Int {
   let data = js_get_data()
-  let search = normalize_text(text)
+  let search = normalize_preview_search_text(text)
   if search.length() == 0 {
     return -1
   }
   let start = if start_from >= 0 { start_from } else { 0 }
-  // Search for table row containing this text
+  let allow_contains = search.length() >= 8
+  let mut fuzzy_match = -1
   for i = start; i < data.length(); i = i + 1 {
     if data[i].length() > 0 {
       let src = data[i][0]
-      if src.contains("|") && src.contains(search) {
+      if src.contains("|") && preview_table_line_matches(src, search, false) {
         return i + 1
+      }
+      if allow_contains && fuzzy_match < 0 && src.contains("|") && preview_table_line_matches(src, search, true) {
+        fuzzy_match = i + 1
       }
     }
   }
-  // Fallback: search from beginning
   if start > 0 {
     for i = 0; i < start; i = i + 1 {
       if data[i].length() > 0 {
         let src = data[i][0]
-        if src.contains("|") && src.contains(search) {
+        if src.contains("|") && preview_table_line_matches(src, search, false) {
           return i + 1
+        }
+        if allow_contains && fuzzy_match < 0 && src.contains("|") && preview_table_line_matches(src, search, true) {
+          fuzzy_match = i + 1
         }
       }
     }
   }
-  find_source_line(text, query("body"), start_from)
+  fuzzy_match
 }
 
 ///| Find code block range in source (returns (start_line_1indexed, end_line_1indexed))
@@ -1556,6 +2052,21 @@ fn find_code_block_range(code_text : String) -> (Int, Int) {
     i = i + 1
   }
   (-1, -1)
+}
+
+fn get_mermaid_source_range(target : Element) -> (Int, Int) {
+  let container = closest(target, ".mermaid-container")
+  if is_null(container) {
+    return (-1, -1)
+  }
+  let start_line = str_to_int(get_attr(container, "data-source-start-line"))
+  let end_line = str_to_int(get_attr(container, "data-source-end-line"))
+  if start_line > 0 {
+    let actual_end = if end_line >= start_line { end_line } else { start_line }
+    (start_line, actual_end)
+  } else {
+    (-1, -1)
+  }
 }
 
 ///| Find image source line by src attribute
@@ -1601,6 +2112,182 @@ fn extract_filename(path : String) -> String {
   } else {
     path
   }
+}
+
+fn normalize_preview_search_text(text : String) -> String {
+  strip_markdown(normalize_text(text))
+}
+
+fn preview_source_line_matches(src : String, search : String, allow_contains : Bool) -> Bool {
+  let normalized_src = normalize_preview_search_text(src)
+  if normalized_src.length() == 0 || search.length() == 0 {
+    return false
+  }
+  if normalized_src == search {
+    return true
+  }
+  if not(allow_contains) || search.length() < 8 {
+    return false
+  }
+  normalized_src.contains(search) || search.contains(normalized_src)
+}
+
+fn split_table_cells(line : String) -> Array[String] {
+  let cells : Array[String] = []
+  let normalized = normalize_text(line)
+  let inner = if normalized.has_prefix("|") {
+    @core.safe_slice(normalized, 1)
+  } else {
+    normalized
+  }
+  let trimmed = if inner.has_suffix("|") {
+    @core.safe_slice_range(inner, 0, inner.length() - 1)
+  } else {
+    inner
+  }
+  for part in trimmed.split("|") {
+    let cell = normalize_text(part.to_string())
+    if cell.length() > 0 {
+      cells.push(cell)
+    }
+  }
+  cells
+}
+
+fn preview_table_line_matches(src : String, search : String, allow_contains : Bool) -> Bool {
+  let normalized_src = normalize_preview_search_text(src)
+  if normalized_src == search {
+    return true
+  }
+  let cells = split_table_cells(src)
+  for cell in cells {
+    if normalize_preview_search_text(cell) == search {
+      return true
+    }
+  }
+  if not(allow_contains) || search.length() < 8 {
+    return false
+  }
+  if normalized_src.contains(search) || search.contains(normalized_src) {
+    return true
+  }
+  for cell in cells {
+    let normalized_cell = normalize_preview_search_text(cell)
+    if normalized_cell.contains(search) || search.contains(normalized_cell) {
+      return true
+    }
+  }
+  false
+}
+
+fn find_media_source_line_in_block(block : Element, start_from : Int) -> Int {
+  if is_null(block) {
+    return -1
+  }
+  let image = query_in(block, "img")
+  if not(is_null(image)) {
+    let line = find_image_source_line(get_src(image), start_from)
+    if line > 0 {
+      return line
+    }
+  }
+  let video = query_in(block, "video.video-preview")
+  if not(is_null(video)) {
+    let line = find_image_source_line(get_attr(video, "src"), start_from)
+    if line > 0 {
+      return line
+    }
+  }
+  -1
+}
+
+fn resolve_preview_media_anchor(block : Element) -> Element {
+  if is_null(block) {
+    return block
+  }
+  let image = query_in(block, "img")
+  if not(is_null(image)) {
+    return image
+  }
+  let video = query_in(block, "video.video-preview")
+  if not(is_null(video)) {
+    return video
+  }
+  let mermaid = query_in(block, ".mermaid-container")
+  if not(is_null(mermaid)) {
+    return mermaid
+  }
+  block
+}
+
+fn resolve_preview_block_text(block : Element) -> String {
+  if is_null(block) {
+    return ""
+  }
+  let text = normalize_text(get_text_content(block))
+  if text.length() > 0 {
+    return text
+  }
+  let image = query_in(block, "img")
+  if not(is_null(image)) {
+    let alt = get_attr(image, "alt")
+    if alt.length() > 0 {
+      return alt
+    }
+  }
+  let video = query_in(block, "video.video-preview")
+  if not(is_null(video)) {
+    let title = get_attr(video, "title")
+    if title.length() > 0 {
+      return title
+    }
+  }
+  ""
+}
+
+fn resolve_preview_click_block(target : Element) -> Element {
+  if is_null(target) {
+    return target
+  }
+  let block = closest(target, "summary, td, th, blockquote, li, p, h1, h2, h3, h4, h5, h6")
+  normalize_preview_block_target(block)
+}
+
+fn normalize_preview_block_target(block : Element) -> Element {
+  if is_null(block) {
+    return block
+  }
+  let tag = get_tag_name(block)
+  if tag == "P" {
+    let quote = closest(block, "blockquote")
+    if not(is_null(quote)) {
+      return quote
+    }
+    let list_item = closest(block, "li")
+    if not(is_null(list_item)) {
+      return list_item
+    }
+  }
+  block
+}
+
+fn get_comment_bounds_rect(source_hidden : Bool) -> Rect {
+  if source_hidden {
+    // In preview-only mode the card must never cover the selected preview target,
+    // so allow it to escape to the full viewport instead of trapping it in the pane.
+    viewport_rect()
+  } else {
+    let md_right = query(".md-right")
+    if not(is_null(md_right)) && not(is_element_hidden(md_right)) {
+      rect_from_element(md_right)
+    } else {
+      viewport_rect()
+    }
+  }
+}
+
+fn get_selected_source_rect() -> Rect? {
+  rect_union_of_elements(query_all(".md-right td.selected"))
 }
 
 ///| Select source range and open comment card (mirrors cli.cjs selectSourceRange)
@@ -1653,20 +2340,28 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element, col
   } else {
     (start_row - 1).to_string() + "-" + (actual_end - 1).to_string()
   }
+  let source_target = query("td[data-row=\"\{start_row - 1}\"][data-col=\"1\"]")
   // Position card: check if source is hidden (preview-only mode)
   let is_source_hidden = not(is_null(md_right)) && is_element_hidden(md_right)
   if is_source_hidden && not(is_null(preview_el)) {
-    // Preview-only mode: position card below clicked element
-    show_comment_card_below(preview_el, key, start_row - 1, col)
+    let preview_rect = rect_from_element(preview_el)
+    let bounds = get_comment_bounds_rect(true)
+    show_comment_card_in_rects(preview_el, key, start_row - 1, col, preview_rect, preview_rect, bounds, true)
   } else {
-    let target = if not(is_null(preview_el)) {
+    let target = if not(is_null(source_target)) {
+      source_target
+    } else if not(is_null(preview_el)) {
       preview_el
     } else {
-      let cell = query("td[data-row=\"\{start_row - 1}\"][data-col=\"1\"]")
-      cell
+      source_target
     }
     if not(is_null(target)) {
-      show_comment_card(target, key, start_row - 1, col)
+      let keepout = match get_selected_source_rect() {
+        Some(rect) => rect
+        None => rect_from_element(target)
+      }
+      let bounds = get_comment_bounds_rect(false)
+      show_comment_card_in_rects(target, key, start_row - 1, col, keepout, keepout, bounds, true)
     }
   }
   // Re-enable scroll sync after 500ms
@@ -1678,44 +2373,8 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element, col
 
 ///| Show comment card below element (for preview-only mode)
 fn show_comment_card_below(target : Element, key : String, row : Int, col : Int) -> Unit {
-  let card = query("#comment-card")
-  let textarea = query("#comment-input")
-  if is_null(card) || is_null(textarea) {
-    return
-  }
-  active_key.val = key
-  let rect_bottom = get_bounding_rect_bottom(target)
-  let rect_left = get_bounding_rect_left(target)
-  let rect_top = get_bounding_rect_top(target)
-  let win_height = window_inner_height()
-  let card_height = 200
-  let margin = 12
-  // Try below first
-  let top = if rect_bottom.to_int() + card_height + margin < win_height {
-    rect_bottom.to_int() + margin
-  } else if rect_top.to_int() - card_height - margin > 0 {
-    // Above
-    rect_top.to_int() - card_height - margin
-  } else {
-    // Fallback: center
-    (win_height - card_height) / 2
-  }
-  set_style(card, "top", "\{top}px")
-  set_style(card, "left", "\{rect_left.to_int()}px")
-  set_style(card, "display", "block")
-  match comments.get(key) {
-    Some(comment) => {
-      set_value(textarea, comment.text)
-      current_comment_image.val = comment.image
-    }
-    None => {
-      set_value(textarea, "")
-      current_comment_image.val = ""
-      comments.set(key, { row, col, text: "", image: "" })
-    }
-  }
-  render_comment_image_preview()
-  focus_element(textarea)
+  let target_rect = rect_from_element(target)
+  show_comment_card_in_rects(target, key, row, col, target_rect, target_rect, viewport_rect(), true)
 }
 
 ///| Setup preview click handler for markdown mode
@@ -1727,6 +2386,14 @@ fn setup_preview_click() -> Unit {
   on(preview, "click", fn(e) {
     let target = event_target(e)
     if is_null(target) {
+      return
+    }
+    if not(is_null(closest(target, ".mermaid-fullscreen-btn"))) {
+      return
+    }
+    let mermaid_range = get_mermaid_source_range(target)
+    if mermaid_range.0 > 0 {
+      select_source_range(mermaid_range.0, mermaid_range.1, closest(target, ".mermaid-container"))
       return
     }
     let tag = get_tag_name(target)
@@ -1751,36 +2418,21 @@ fn setup_preview_click() -> Unit {
       }
       return
     }
-    // Link click: find parent block, sync to source, but don't prevent default
-    if tag == "A" {
-      let parent_block = closest(target, "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th")
-      if not(is_null(parent_block)) {
-        let text = get_text_content(parent_block)
-        let heading = find_closest_heading_above(parent_block)
-        let h_line = get_heading_source_line(heading)
-        let parent_tag = get_tag_name(parent_block)
-        let line = if parent_tag == "TD" || parent_tag == "TH" {
-          find_table_source_line(text, h_line)
-        } else {
-          find_source_line(text, parent_block, h_line)
-        }
-        if line > 0 {
-          let cell_col = if parent_tag == "TD" || parent_tag == "TH" {
-            get_cell_index(parent_block) + 1 // 1-indexed: col=0 is line comment, col>=1 is cell comment
-          } else {
-            0
-          }
-          select_source_range(line, line, parent_block, col=cell_col)
-        }
-      }
-      return // Don't prevent default for links
-    }
     // Generic block element click
-    let block = closest(target, "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th, summary")
+    let block = resolve_preview_click_block(target)
     if not(is_null(block)) {
-      let text = get_text_content(block)
       let heading = find_closest_heading_above(block)
       let h_line = get_heading_source_line(heading)
+      let media_line = find_media_source_line_in_block(block, h_line)
+      if media_line > 0 {
+        let media_anchor = resolve_preview_media_anchor(block)
+        select_source_range(media_line, media_line, media_anchor)
+        return
+      }
+      let text = resolve_preview_block_text(block)
+      if text.length() == 0 {
+        return
+      }
       let block_tag = get_tag_name(block)
       let line = if block_tag == "TD" || block_tag == "TH" {
         find_table_source_line(text, h_line)
@@ -1811,17 +2463,25 @@ fn setup_preview_mouseup() -> Unit {
       if is_null(sel) || selection_is_collapsed(sel) {
         return
       }
-      let text = selection_to_string(sel)
-      if text.length() < 5 {
-        return
-      }
       // Get container element
       let container = selection_get_range_container(sel)
       if is_null(container) {
         return
       }
+      let selection_block = resolve_preview_click_block(container)
+      let meaningful_container = if is_null(selection_block) { container } else { selection_block }
+      let mermaid_range = get_mermaid_source_range(container)
+      if mermaid_range.0 > 0 {
+        selection_remove_all_ranges(sel)
+        select_source_range(mermaid_range.0, mermaid_range.1, closest(container, ".mermaid-container"))
+        return
+      }
+      let text = selection_to_string(sel)
+      if normalize_text(text).length() == 0 {
+        return
+      }
       // Find heading context
-      let heading = find_closest_heading_above(container)
+      let heading = find_closest_heading_above(meaningful_container)
       let h_line = get_heading_source_line(heading)
       // Split text into lines and find start/end
       let lines_arr : Array[String] = []
@@ -1833,9 +2493,9 @@ fn setup_preview_mouseup() -> Unit {
       }
       let first_line = if lines_arr.length() > 0 { lines_arr[0] } else { "" }
       let last_line = if lines_arr.length() > 1 { lines_arr[lines_arr.length() - 1] } else { first_line }
-      let start_line = find_source_line(first_line, container, h_line)
+      let start_line = find_source_line(first_line, meaningful_container, h_line)
       let end_line = if lines_arr.length() > 1 {
-        find_source_line(last_line, container, h_line)
+        find_source_line(last_line, meaningful_container, h_line)
       } else {
         start_line
       }
@@ -1844,7 +2504,7 @@ fn setup_preview_mouseup() -> Unit {
       }
       selection_remove_all_ranges(sel)
       let actual_end = if end_line > 0 { end_line } else { start_line }
-      select_source_range(start_line, actual_end, container)
+      select_source_range(start_line, actual_end, meaningful_container)
     }, 10))
   })
 }
@@ -2094,13 +2754,8 @@ fn setup_mermaid_fullscreen_moonbit() -> Unit {
     fn(e) {
       let target = event_target(e)
       let btn = closest(target, ".mermaid-fullscreen-btn")
-      let cont = closest(target, ".mermaid-container")
-      if not(is_null(btn)) || not(is_null(cont)) {
-        let container = if not(is_null(btn)) {
-          closest(btn, ".mermaid-container")
-        } else {
-          cont
-        }
+      if not(is_null(btn)) {
+        let container = closest(btn, ".mermaid-container")
         let svg = query_in(container, ".mermaid svg")
         if not(is_null(svg)) {
           // Don't open fullscreen for error SVGs
