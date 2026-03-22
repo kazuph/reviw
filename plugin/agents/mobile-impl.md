@@ -133,8 +133,15 @@ for runtime,devices in data['devices'].items():
             print(d['udid']); sys.exit()
 ")
 
+# 起動中のシミュレータがない場合はエラーで中断
+if [ -z "$DEVICE_UDID" ]; then
+  echo "エラー: 起動中の iOS シミュレータが見つかりません。先にシミュレータを boot してから再実行してください。" >&2
+  exit 1
+fi
+
 # 2. 録画開始（バックグラウンド）
 VIDEO_PATH=".artifacts/<feature>/demo.mp4"
+mkdir -p "$(dirname "$VIDEO_PATH")"
 xcrun simctl io "$DEVICE_UDID" recordVideo --codec=h264 "$VIDEO_PATH" &
 RECORD_PID=$!
 
@@ -142,7 +149,7 @@ RECORD_PID=$!
 #    tap_on, input_text, run_flow 等
 
 # 4. 録画停止（SIGINT で正常終了 → ファイルが正しくファイナライズされる）
-kill -INT $RECORD_PID
+kill -INT "$RECORD_PID"
 sleep 3  # ファイナライズ待ち
 
 # 5. 動画ファイルの検証
@@ -152,8 +159,8 @@ ffprobe "$VIDEO_PATH" 2>&1 | grep Duration
 
 | 停止方法 | 結果 |
 |---------|------|
-| `kill -INT $PID` (SIGINT) | ✅ ファイルが正常にファイナライズされ再生可能 |
-| `kill $PID` / `kill -9 $PID` | ❌ ファイルが破損し再生不能 |
+| `kill -INT $RECORD_PID` (SIGINT) | ✅ ファイルが正常にファイナライズされ再生可能 |
+| `kill $RECORD_PID` / `kill -9 $RECORD_PID` | ❌ ファイルが破損し再生不能 |
 
 動画ファイルが破損した場合は、削除して再録画すること。
 
