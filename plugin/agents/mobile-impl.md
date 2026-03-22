@@ -116,6 +116,47 @@ context: fork
 8. stop_app → テスト完了
 ```
 
+### iOS シミュレータ動画撮影
+
+E2Eフローの動画エビデンスが必要な場合、`xcrun simctl io recordVideo` を使用する。
+
+**重要: 録画停止は必ず `kill -INT`（SIGINT）を使用すること。`kill` や `kill -9` で終了すると動画ファイルが破損し再生できなくなる。**
+
+```bash
+# 1. 起動中のシミュレータの UDID を取得
+DEVICE_UDID=$(xcrun simctl list devices booted -j | python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+for runtime,devices in data['devices'].items():
+    for d in devices:
+        if d['state']=='Booted':
+            print(d['udid']); sys.exit()
+")
+
+# 2. 録画開始（バックグラウンド）
+VIDEO_PATH=".artifacts/<feature>/demo.mp4"
+xcrun simctl io "$DEVICE_UDID" recordVideo --codec=h264 "$VIDEO_PATH" &
+RECORD_PID=$!
+
+# 3. Maestro MCP でフロー操作を実行
+#    tap_on, input_text, run_flow 等
+
+# 4. 録画停止（SIGINT で正常終了 → ファイルが正しくファイナライズされる）
+kill -INT $RECORD_PID
+sleep 3  # ファイナライズ待ち
+
+# 5. 動画ファイルの検証
+ffprobe "$VIDEO_PATH" 2>&1 | grep Duration
+# → "Duration: 00:01:30.00" のように表示されれば正常
+```
+
+| 停止方法 | 結果 |
+|---------|------|
+| `kill -INT $PID` (SIGINT) | ✅ ファイルが正常にファイナライズされ再生可能 |
+| `kill $PID` / `kill -9 $PID` | ❌ ファイルが破損し再生不能 |
+
+動画ファイルが破損した場合は、削除して再録画すること。
+
 ## TestID Patterns by Framework
 
 ### React Native
