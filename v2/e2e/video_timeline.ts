@@ -1,6 +1,5 @@
 /**
  * Video Timeline E2E Test
- * Consolidated from e2e/video-timeline-test.mjs and e2e/video-timeline-verify.mjs
  *
  * Tests:
  * - Video thumbnail detection and click
@@ -8,313 +7,294 @@
  * - Arrow key navigation between thumbnails
  * - Multiple video timeline verification
  *
- * Run: npx tsx v2/e2e/video_timeline.ts
- * Requires a running server (e.g. on localhost:18765)
+ * Run: node --experimental-strip-types v2/e2e/video_timeline.ts
  */
-import { chromium, type Browser, type Page } from 'playwright';
-import path from 'node:path';
-import { mkdirSync } from 'node:fs';
+import http, { type IncomingMessage } from "node:http";
+import { spawn, type ChildProcess } from "node:child_process";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import { chromium, type Browser, type Page } from "playwright";
 
-const ARTIFACTS_DIR = '/Users/kazuph/src/github.com/kazuph/reviw/.artifacts/video-timeline-fix';
-const BASE_URL = 'http://localhost:18765';
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const ROOT = join(__dirname, "..", "..");
+const SERVER_JS = join(ROOT, "v2", "_build", "js", "release", "build", "server", "server.js");
+const FIXTURE_MD = join(ROOT, "examples", "mixed-media-test.md");
+const LOCK_DIR = join(tmpdir(), "reviw-video-timeline-locks");
+const ARTIFACTS_DIR = join(ROOT, ".artifacts", "video-timeline");
 
+mkdirSync(LOCK_DIR, { recursive: true });
 mkdirSync(ARTIFACTS_DIR, { recursive: true });
 
-// ===== Part 1: Detailed DOM investigation (from video-timeline-test.mjs) =====
+let passed = 0;
+let failed = 0;
 
-async function runDetailedTest(): Promise<void> {
-  console.log('\n========================================');
-  console.log('=== Part 1: Detailed Timeline Test ===');
-  console.log('========================================');
+function assert(condition: boolean, msg: string): void {
+  if (condition) {
+    passed++;
+    console.log(`  PASS: ${msg}`);
+  } else {
+    failed++;
+    console.error(`  FAIL: ${msg}`);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function waitForServer(port: number, timeoutMs = 15000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const poll = () => {
+      if (Date.now() - start > timeoutMs) { resolve(false); return; }
+      http
+        .get(`http://127.0.0.1:${port}/healthz`, (res: IncomingMessage) => {
+          if (res.statusCode === 200) resolve(true);
+          else setTimeout(poll, 200);
+          res.resume();
+        })
+        .on("error", () => setTimeout(poll, 200));
+    };
+    poll();
+  });
+}
+
+interface ServerHandle {
+  proc: ChildProcess;
+  port: number;
+}
+
+async function startServer(testFile: string, preferredPort: number): Promise<ServerHandle> {
+  const proc = spawn("node", [SERVER_JS, testFile, "--no-open", "--port", String(preferredPort)], {
+    stdio: ["pipe", "pipe", "pipe"],
+    env: { ...process.env, REVIW_LOCK_DIR: LOCK_DIR },
+  });
+
+  let stdout = "";
+  proc.stdout!.on("data", (d: Buffer) => { stdout += d.toString(); });
+  proc.stderr!.on("data", (d: Buffer) => { stdout += d.toString(); });
+
+  const port = await new Promise<number>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Server start timed out. Output: ${stdout.substring(0, 300)}`)), 15000);
+    const check = () => {
+      const match = stdout.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+      if (match) {
+        clearTimeout(timeout);
+        resolve(parseInt(match[1], 10));
+      } else if (proc.exitCode !== null) {
+        clearTimeout(timeout);
+        reject(new Error(`Server exited before ready. Output: ${stdout.substring(0, 300)}`));
+      } else {
+        setTimeout(check, 200);
+      }
+    };
+    setTimeout(check, 300);
+  });
+
+  const ready = await waitForServer(port);
+  if (!ready) throw new Error(`Server on port ${port} never became healthy`);
+
+  return { proc, port };
+}
+
+function killServer(handle: ServerHandle): void {
+  try { handle.proc.kill("SIGKILL"); } catch (_: unknown) {}
+}
+
+// ===== Part 1: Detailed Timeline Test =====
+
+async function runDetailedTest(server: ServerHandle): Promise<void> {
+  console.log("\n--- Part 1: Detailed Timeline Test ---");
 
   const browser: Browser = await chromium.launch({ headless: true });
   const page: Page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
   try {
-    // 1. Access the page
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(10000); // Wait for ffmpeg thumbnail generation
+    await page.goto(`http://127.0.0.1:${server.port}`, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    // 2. Screenshot of sidebar
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, '01-sidebar-thumbnails.png') });
-    console.log('Screenshot: 01-sidebar-thumbnails.png');
+    // Wait for video thumbnails to appear (ffmpeg generation may take time)
+    const hasVideoThumbs = await page.waitForSelector(".media-sidebar-thumb-video", { timeout: 30000 })
+      .then(() => true).catch(() => false);
 
-    // 3. Click video thumbnail (using media-sidebar-thumb-video class)
-    const videoThumbs = await page.$$('.media-sidebar-thumb-video');
-    console.log(`Found ${videoThumbs.length} video thumbnails in sidebar`);
+    await page.screenshot({ path: join(ARTIFACTS_DIR, "01-sidebar-thumbnails.png") });
 
-    if (videoThumbs.length > 0) {
-      // Click the first video thumbnail
-      await videoThumbs[0].click();
-      await page.waitForTimeout(2000);
-
-      // 4. Video viewer screenshot
-      await page.screenshot({ path: path.join(ARTIFACTS_DIR, '02-video-viewer.png') });
-      console.log('Screenshot: 02-video-viewer.png');
-
-      // 5. Get video duration
-      const videoInfo = await page.evaluate(() => {
-        const video = document.querySelector('video');
-        if (!video) return { found: false };
-        return {
-          found: true,
-          duration: video.duration,
-          currentTime: video.currentTime,
-          readyState: video.readyState,
-          src: video.src?.substring(0, 200)
-        };
-      });
-      console.log('Video info:', JSON.stringify(videoInfo));
-
-      // 6. Check if fullscreen overlay is open
-      const overlay = await page.$('.video-fullscreen-overlay, .fullscreen-overlay');
-      if (overlay) {
-        const overlayVisible = await overlay.isVisible();
-        console.log('Fullscreen overlay visible:', overlayVisible);
-      }
-
-      // 7. Investigate video-fullscreen-overlay contents
-      const overlayInfo = await page.evaluate(() => {
-        const overlay = document.querySelector('.video-fullscreen-overlay');
-        if (!overlay) return { found: false };
-        return {
-          found: true,
-          display: getComputedStyle(overlay).display,
-          visibility: getComputedStyle(overlay).visibility,
-          innerHTML: overlay.innerHTML.substring(0, 3000),
-          childClasses: Array.from(overlay.querySelectorAll('[class]')).map((el: Element) => el.className).slice(0, 30)
-        };
-      });
-      console.log('Video fullscreen overlay:', JSON.stringify(overlayInfo, null, 2));
-
-      // 8. Investigate timeline details
-      const timelineDetails = await page.evaluate(() => {
-        // Search for video-preview class elements
-        const previews = document.querySelectorAll('.video-preview, [class*="preview"], [class*="timeline"]');
-        const results: Array<{ className: string; childCount: number; textContent: string; visible: boolean }> = [];
-        previews.forEach((el: Element) => {
-          results.push({
-            className: el.className,
-            childCount: el.children.length,
-            textContent: el.textContent?.substring(0, 500) || '',
-            visible: getComputedStyle(el).display !== 'none'
-          });
-        });
-
-        // Extract timestamp labels from canvas or div
-        const allText: Array<{ text: string; className: string; tag: string; parentClass: string }> = [];
-        document.querySelectorAll('*').forEach((el: Element) => {
-          if (el.children.length === 0) {
-            const text = el.textContent?.trim();
-            if (text && text.length < 10 && /\d/.test(text)) {
-              allText.push({
-                text,
-                className: el.className,
-                tag: el.tagName,
-                parentClass: el.parentElement?.className || ''
-              });
-            }
-          }
-        });
-
-        return { previews: results, timestampCandidates: allText };
-      });
-      console.log('Timeline details:', JSON.stringify(timelineDetails, null, 2));
-
-      // 9. Re-click sidebar video thumbnail to open fullscreen video viewer
-      const videoFullscreen = await page.$('.video-fullscreen-overlay');
-      if (!videoFullscreen || !(await videoFullscreen.isVisible())) {
-        const vThumbs = await page.$$('.media-sidebar-thumb-video');
-        if (vThumbs.length > 0) {
-          await vThumbs[0].click();
-          await page.waitForTimeout(2000);
-        }
-      }
-
-      // 10. Fullscreen video viewer screenshot
-      await page.screenshot({ path: path.join(ARTIFACTS_DIR, '03-video-fullscreen.png') });
-      console.log('Screenshot: 03-video-fullscreen.png');
-
-      // 11. Get timeline thumbnails and labels from DOM
-      const timelineLabels = await page.evaluate(() => {
-        const video = document.querySelector('video');
-        const duration = video ? video.duration : null;
-
-        // Check all text nodes in fullscreen overlay
-        const overlay = document.querySelector('.video-fullscreen-overlay');
-        const texts: Array<{ text: string; parentTag: string; parentClass: string }> = [];
-        if (overlay) {
-          const walker = document.createTreeWalker(overlay, NodeFilter.SHOW_TEXT, null);
-          let node: Node | null;
-          while (node = walker.nextNode()) {
-            const text = node.textContent?.trim();
-            if (text) texts.push({
-              text,
-              parentTag: (node as ChildNode).parentElement?.tagName || '',
-              parentClass: (node as ChildNode).parentElement?.className || ''
-            });
-          }
-        }
-
-        // Extract time-format labels (M:SS or MM:SS)
-        const timeLabels = texts.filter(t => /^\d+:\d{2}$/.test(t.text));
-
-        // Check img elements (thumbnails) in video-preview
-        const previewImgs: Array<{
-          src: string;
-          alt: string;
-          title: string;
-          width: number;
-          nextText: string;
-          parentText: string;
-        }> = [];
-        if (overlay) {
-          overlay.querySelectorAll('img').forEach((img: HTMLImageElement) => {
-            previewImgs.push({
-              src: img.src?.substring(img.src.lastIndexOf('/') + 1),
-              alt: img.alt,
-              title: img.title,
-              width: img.naturalWidth,
-              nextText: img.nextElementSibling?.textContent?.trim() || '',
-              parentText: img.parentElement?.textContent?.trim() || ''
-            });
-          });
-        }
-
-        return {
-          videoDuration: duration,
-          videoDurationFormatted: duration ? `${Math.floor(duration / 60)}:${String(Math.floor(duration % 60)).padStart(2, '0')}` : null,
-          allTextsInOverlay: texts,
-          timeLabels: timeLabels,
-          previewImages: previewImgs,
-          maxTimeLabelSeconds: timeLabels.length > 0 ?
-            Math.max(...timeLabels.map(t => {
-              const parts = t.text.split(':');
-              return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-            })) : null
-        };
-      });
-      console.log('\n=== TIMELINE LABEL ANALYSIS ===');
-      console.log(JSON.stringify(timelineLabels, null, 2));
-
-      // 12. Verification result
-      const { videoDuration, maxTimeLabelSeconds, timeLabels } = timelineLabels;
-      console.log('\n=== VERIFICATION RESULT ===');
-      console.log(`Video duration: ${videoDuration}s (${timelineLabels.videoDurationFormatted})`);
-      console.log(`Time labels found: ${timeLabels.length}`);
-      if (timeLabels.length > 0) {
-        console.log(`Time labels: ${timeLabels.map(t => t.text).join(', ')}`);
-        console.log(`Max timestamp: ${maxTimeLabelSeconds}s`);
-        if (videoDuration !== null && maxTimeLabelSeconds !== null && maxTimeLabelSeconds > Math.ceil(videoDuration)) {
-          console.log('BUG DETECTED: Timeline max timestamp exceeds video duration!');
-          console.log(`  Max timestamp (${maxTimeLabelSeconds}s) > Video duration (${Math.ceil(videoDuration)}s)`);
-        } else {
-          console.log('OK: Timeline timestamps are within video duration');
-        }
-      } else {
-        console.log('No time labels found - checking preview images for clues');
-        if (timelineLabels.previewImages.length > 0) {
-          console.log(`Found ${timelineLabels.previewImages.length} preview images`);
-          timelineLabels.previewImages.forEach((img, i) => {
-            console.log(`  Image ${i}: ${img.src} | parent text: "${img.parentText}"`);
-          });
-        }
-      }
-
-      // 13. Arrow key navigation
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(500);
-
-      await page.keyboard.press('ArrowRight');
-      await page.waitForTimeout(1000);
-      await page.screenshot({ path: path.join(ARTIFACTS_DIR, '04-after-arrow-right.png') });
-      console.log('Screenshot: 04-after-arrow-right.png');
-
-      await page.keyboard.press('ArrowRight');
-      await page.waitForTimeout(1000);
-      await page.screenshot({ path: path.join(ARTIFACTS_DIR, '05-after-second-arrow.png') });
-      console.log('Screenshot: 05-after-second-arrow.png');
-
-      // 14. Click 2nd video thumbnail and verify
-      const videoThumbs2 = await page.$$('.media-sidebar-thumb-video');
-      if (videoThumbs2.length > 1) {
-        await videoThumbs2[1].click();
-        await page.waitForTimeout(2000);
-        await page.screenshot({ path: path.join(ARTIFACTS_DIR, '06-second-video.png') });
-        console.log('Screenshot: 06-second-video.png');
-
-        const secondVideoInfo = await page.evaluate(() => {
-          const video = document.querySelector('video');
-          if (!video) return null;
-          // Re-fetch timeline labels
-          const overlay = document.querySelector('.video-fullscreen-overlay');
-          const timeLabels: string[] = [];
-          if (overlay) {
-            const walker = document.createTreeWalker(overlay, NodeFilter.SHOW_TEXT, null);
-            let node: Node | null;
-            while (node = walker.nextNode()) {
-              const text = node.textContent?.trim();
-              if (text && /^\d+:\d{2}$/.test(text)) timeLabels.push(text);
-            }
-          }
-          return {
-            duration: video.duration,
-            timeLabels: timeLabels
-          };
-        });
-        console.log('Second video info:', JSON.stringify(secondVideoInfo));
-      }
-    } else {
-      console.log('ERROR: No video thumbnails found!');
+    assert(hasVideoThumbs, "Video thumbnails appeared in sidebar");
+    if (!hasVideoThumbs) {
+      await browser.close();
+      return;
     }
 
-    console.log('\n=== DETAILED TEST COMPLETE ===');
+    const videoThumbs = await page.$$(".media-sidebar-thumb-video");
+    assert(videoThumbs.length > 0, `Found ${videoThumbs.length} video thumbnails in sidebar`);
 
-  } catch (err: unknown) {
-    console.error('Error:', (err as Error).message, (err as Error).stack);
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'error-screenshot.png') });
+    // Click the first video thumbnail
+    await videoThumbs[0].click();
+
+    // Wait for video element to appear and load metadata
+    const videoLoaded = await page.waitForFunction(() => {
+      const video = document.querySelector("video");
+      return video && video.readyState >= 1 && video.duration > 0;
+    }, { timeout: 10000 }).then(() => true).catch(() => false);
+
+    await page.screenshot({ path: join(ARTIFACTS_DIR, "02-video-viewer.png") });
+    assert(videoLoaded, "Video loaded with valid duration after thumbnail click");
+
+    // Get video info
+    const videoInfo = await page.evaluate(() => {
+      const video = document.querySelector("video");
+      if (!video) return { found: false, duration: 0, readyState: 0 };
+      return {
+        found: true,
+        duration: video.duration,
+        readyState: video.readyState,
+      };
+    });
+    assert(videoInfo.found, "Video element found in DOM");
+    assert(videoInfo.duration > 0, `Video has valid duration: ${videoInfo.duration}s`);
+
+    // Check fullscreen overlay visibility
+    const overlayVisible = await page.evaluate(() => {
+      const overlay = document.querySelector(".video-fullscreen-overlay");
+      return overlay ? getComputedStyle(overlay).display !== "none" : false;
+    });
+    // Note: overlay may or may not be visible depending on viewer mode; just log it
+    console.log(`  INFO: Video fullscreen overlay visible: ${overlayVisible}`);
+
+    await page.screenshot({ path: join(ARTIFACTS_DIR, "03-video-fullscreen.png") });
+
+    // Get timeline labels and validate
+    const timelineLabels = await page.evaluate(() => {
+      const video = document.querySelector("video");
+      const duration = video ? video.duration : null;
+
+      const overlay = document.querySelector(".video-fullscreen-overlay");
+      const texts: string[] = [];
+      if (overlay) {
+        const walker = document.createTreeWalker(overlay, NodeFilter.SHOW_TEXT, null);
+        let node: Node | null;
+        while (node = walker.nextNode()) {
+          const text = node.textContent?.trim();
+          if (text && /^\d+:\d{2}$/.test(text)) texts.push(text);
+        }
+      }
+
+      // Also check .timeline-time elements
+      const timeElements = document.querySelectorAll(".timeline-time");
+      timeElements.forEach((el: Element) => {
+        const text = el.textContent?.trim();
+        if (text && /^\d+:\d{2}$/.test(text) && !texts.includes(text)) texts.push(text);
+      });
+
+      const labelSeconds = texts.map((t) => {
+        const parts = t.split(":");
+        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+      });
+      const maxLabelSeconds = labelSeconds.length > 0 ? Math.max(...labelSeconds) : null;
+
+      return { duration, texts, maxLabelSeconds };
+    });
+
+    if (timelineLabels.texts.length > 0) {
+      assert(timelineLabels.texts.length > 0, `Found ${timelineLabels.texts.length} time labels: ${timelineLabels.texts.join(", ")}`);
+
+      if (timelineLabels.duration !== null && timelineLabels.maxLabelSeconds !== null) {
+        const withinDuration = timelineLabels.maxLabelSeconds <= Math.ceil(timelineLabels.duration);
+        assert(withinDuration,
+          `Max timestamp (${timelineLabels.maxLabelSeconds}s) <= video duration (${Math.ceil(timelineLabels.duration)}s)`);
+      }
+    } else {
+      console.log("  INFO: No time labels found in overlay (may be canvas-rendered)");
+    }
+
+    // Arrow key navigation
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => {
+      const overlay = document.querySelector(".video-fullscreen-overlay");
+      return !overlay || getComputedStyle(overlay).display === "none";
+    }, { timeout: 3000 }).catch(() => {});
+
+    // Get active thumb before arrow
+    const activeBefore = await page.evaluate(() => {
+      const active = document.querySelector(".media-sidebar-thumb.active");
+      return active?.getAttribute("data-index") || null;
+    });
+
+    await page.keyboard.press("ArrowRight");
+    await sleep(500);
+
+    const activeAfter = await page.evaluate(() => {
+      const active = document.querySelector(".media-sidebar-thumb.active");
+      return active?.getAttribute("data-index") || null;
+    });
+
+    await page.screenshot({ path: join(ARTIFACTS_DIR, "04-after-arrow-right.png") });
+
+    if (activeBefore !== null && activeAfter !== null) {
+      assert(activeBefore !== activeAfter, `Arrow key navigation changed active thumb: ${activeBefore} -> ${activeAfter}`);
+    } else {
+      console.log("  INFO: Could not verify arrow navigation (no active thumb detected)");
+    }
+
+    // Click 2nd video thumbnail if available
+    const videoThumbs2 = await page.$$(".media-sidebar-thumb-video");
+    if (videoThumbs2.length > 1) {
+      await videoThumbs2[1].click();
+
+      const secondVideoLoaded = await page.waitForFunction(() => {
+        const video = document.querySelector("video");
+        return video && video.readyState >= 1 && video.duration > 0;
+      }, { timeout: 10000 }).then(() => true).catch(() => false);
+
+      await page.screenshot({ path: join(ARTIFACTS_DIR, "05-second-video.png") });
+      assert(secondVideoLoaded, "Second video loaded after clicking 2nd thumbnail");
+    }
+
   } finally {
     await browser.close();
   }
 }
 
-// ===== Part 2: Timeline label verification loop (from video-timeline-verify.mjs) =====
+// ===== Part 2: Timeline Label Verification =====
 
-async function runLabelVerification(): Promise<void> {
-  console.log('\n========================================');
-  console.log('=== Part 2: Timeline Label Verification ===');
-  console.log('========================================');
+async function runLabelVerification(server: ServerHandle): Promise<void> {
+  console.log("\n--- Part 2: Timeline Label Verification ---");
 
   const browser: Browser = await chromium.launch({ headless: true });
   const page: Page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
   try {
-    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
-    await page.waitForTimeout(10000);
+    await page.goto(`http://127.0.0.1:${server.port}`, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    // Click all video thumbnails and verify labels
-    const videoThumbs = await page.$$('.media-sidebar-thumb-video');
-    console.log(`Found ${videoThumbs.length} video thumbnails`);
+    // Wait for video thumbnails
+    await page.waitForSelector(".media-sidebar-thumb-video", { timeout: 30000 }).catch(() => {});
 
-    // Iterate through all video thumbnails
+    const videoThumbs = await page.$$(".media-sidebar-thumb-video");
+    assert(videoThumbs.length > 0, `Found ${videoThumbs.length} video thumbnails for verification`);
+
     for (let vi = 0; vi < videoThumbs.length; vi++) {
-      const vt = (await page.$$('.media-sidebar-thumb-video'))[vi];
-      await vt.click();
-      await page.waitForTimeout(3000);
+      // Re-query to avoid stale references
+      const currentThumbs = await page.$$(".media-sidebar-thumb-video");
+      if (vi >= currentThumbs.length) break;
 
-      // Get timeline labels
+      await currentThumbs[vi].click();
+
+      // Wait for video to load
+      await page.waitForFunction(() => {
+        const video = document.querySelector("video");
+        return video && video.readyState >= 1 && video.duration > 0;
+      }, { timeout: 10000 }).catch(() => {});
+
       const result = await page.evaluate(() => {
-        const video = document.querySelector('video');
+        const video = document.querySelector("video");
         const duration = video ? video.duration : null;
 
-        // Get labels from timeline-time class elements
-        const timeElements = document.querySelectorAll('.timeline-time');
-        const labels = Array.from(timeElements).map((el: Element) => el.textContent?.trim() || '');
+        const timeElements = document.querySelectorAll(".timeline-time");
+        const labels = Array.from(timeElements).map((el: Element) => el.textContent?.trim() || "");
 
-        // Convert labels to seconds
-        const labelSeconds = labels.map((label: string) => {
-          if (!label) return 0;
-          const parts = label.split(':');
+        const labelSeconds = labels.filter(Boolean).map((label: string) => {
+          const parts = label.split(":");
           return parseInt(parts[0]) * 60 + parseInt(parts[1]);
         });
 
@@ -322,55 +302,54 @@ async function runLabelVerification(): Promise<void> {
 
         return {
           videoDuration: duration,
-          labels,
-          labelSeconds,
+          labels: labels.filter(Boolean),
           maxLabelSeconds,
-          exceedsDuration: duration !== null && maxLabelSeconds !== null && maxLabelSeconds > Math.ceil(duration)
+          exceedsDuration: duration !== null && maxLabelSeconds !== null && maxLabelSeconds > Math.ceil(duration),
         };
       });
 
-      console.log(`\n--- Video ${vi + 1} ---`);
-      console.log(`Duration: ${result.videoDuration}s`);
-      console.log(`Timeline labels: ${result.labels.join(', ')}`);
-      console.log(`Label seconds: ${result.labelSeconds.join(', ')}`);
-      console.log(`Max label: ${result.maxLabelSeconds}s`);
+      console.log(`  Video ${vi + 1}: duration=${result.videoDuration}s, labels=[${result.labels.join(", ")}]`);
 
-      if (result.exceedsDuration) {
-        console.log(`FAIL: Max label (${result.maxLabelSeconds}s) > duration (${result.videoDuration}s)`);
-      } else if (result.labels.length === 0) {
-        console.log('WARN: No timeline labels found');
-      } else {
-        console.log(`PASS: All labels within duration`);
+      if (result.labels.length > 0 && result.videoDuration !== null) {
+        assert(!result.exceedsDuration,
+          `Video ${vi + 1}: labels within duration (max=${result.maxLabelSeconds}s, duration=${Math.ceil(result.videoDuration)}s)`);
       }
 
-      // Timeline screenshot
-      const timeline = await page.$('.video-timeline');
+      // Take timeline screenshot
+      const timeline = await page.$(".video-timeline");
       if (timeline) {
-        await timeline.screenshot({ path: path.join(ARTIFACTS_DIR, `07-timeline-video-${vi + 1}.png`) });
-        console.log(`Screenshot: 07-timeline-video-${vi + 1}.png`);
+        await timeline.screenshot({ path: join(ARTIFACTS_DIR, `06-timeline-video-${vi + 1}.png`) });
       }
 
-      // Close with X button
-      const closeBtn = await page.$('.video-close-btn');
+      // Close viewer
+      const closeBtn = await page.$(".video-close-btn");
       if (closeBtn && await closeBtn.isVisible()) {
         await closeBtn.click();
       } else {
-        await page.keyboard.press('Escape');
+        await page.keyboard.press("Escape");
       }
-      await page.waitForTimeout(500);
+      await sleep(300);
     }
 
-    console.log('\n=== LABEL VERIFICATION COMPLETE ===');
-
-  } catch (err: unknown) {
-    console.error('Error:', (err as Error).message, (err as Error).stack);
-    await page.screenshot({ path: path.join(ARTIFACTS_DIR, 'error-verify.png') });
   } finally {
     await browser.close();
   }
 }
 
 // ===== Run both parts =====
-await runDetailedTest();
-await runLabelVerification();
-console.log('\n=== ALL TESTS COMPLETE ===');
+let server: ServerHandle | null = null;
+try {
+  server = await startServer(FIXTURE_MD, 5210);
+  await runDetailedTest(server);
+  await runLabelVerification(server);
+} catch (err: unknown) {
+  failed++;
+  console.error(`  FAIL: ${(err as Error).message}`);
+} finally {
+  if (server) killServer(server);
+}
+
+console.log(`\n============================`);
+console.log(`Results: ${passed} passed, ${failed} failed`);
+console.log(`============================`);
+if (failed > 0) process.exit(1);
