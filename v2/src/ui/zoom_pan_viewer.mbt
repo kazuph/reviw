@@ -357,6 +357,23 @@ pub fn fit_to_viewport(state : ZPVState) -> Unit {
   ignore(fit_to_viewport_now(state))
 }
 
+///| Fit content to viewport width (may overflow vertically)
+pub fn fit_to_width(state : ZPVState) -> Unit {
+  let rect = get_bounding_rect(state.viewport)
+  let vp_w = rect[2]
+  let vp_h = rect[3]
+  if vp_w <= 0.0 || state.natural_width <= 0.0 {
+    return
+  }
+  let scale = vp_w / state.natural_width
+  state.current_zoom = scale
+  let scaled_h = state.natural_height * scale
+  state.pan_x = 0.0
+  // If image fits vertically, center it; otherwise top-align
+  state.pan_y = if scaled_h <= vp_h { (vp_h - scaled_h) / 2.0 } else { 0.0 }
+  update_transform(state)
+}
+
 ///| Setup minimap indicators
 fn setup_minimap(state : ZPVState) -> Unit {
   // Minimap is drawn via CSS/marker elements in the HTML

@@ -399,7 +399,7 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
   // Create viewport
   let viewport = create_element("div")
   set_style(viewport, "width", "100%")
-  set_style(viewport, "height", "calc(100vh - 140px)")
+  set_style(viewport, "flex", "1")
   set_style(viewport, "overflow", "hidden")
   set_style(viewport, "position", "relative")
   set_style(viewport, "cursor", "grab")
@@ -488,6 +488,17 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
     set_style(img, "width", nw.to_string() + "px")
     set_style(img, "height", nh.to_string() + "px")
 
+    // Adjust viewport height to match image aspect ratio (eliminate vertical gaps)
+    let vp_w = get_client_width(viewport)
+    if vp_w > 0.0 {
+      let scale = vp_w / nw
+      let fitted_h = nh * scale
+      let max_h = get_client_height(content)
+      let target_h = if fitted_h < max_h { fitted_h } else { max_h }
+      set_style(viewport, "height", target_h.to_string() + "px")
+      set_style(viewport, "flex", "none")
+    }
+
     let zpv = create_zoom_pan_viewer_moonbit(
       viewport,
       wrapper,
@@ -507,27 +518,25 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
     zpv_ref = Some(zpv)
     state.current_zpv = zpv_ref
 
-    // Wrap update transform to call our callback
-    // Note: This would need a callback registration mechanism
     request_fit_to_viewport_when_ready(zpv, fn() {
       set_style(wrapper, "visibility", "visible")
     })
   }
 
+  // Always delay init until after viewer transition completes (0.3s css transition)
+  // This prevents double-fit and size jank
+  let schedule_init = fn() {
+    ignore(set_timeout(fn() { init_zpv() }, 400))
+  }
+
   let h = on_with_handle(img, "load", fn(e) {
-    if get_client_width(viewport) > 100 {
-      init_zpv()
-    } else {
-      // Viewport not yet expanded — retry after transition completes
-      ignore(set_timeout(fn() { init_zpv() }, 500))
-    }
+    schedule_init()
   })
   state.handles.push(h)
 
   // If already loaded (cached image)
   if get_natural_width(img) > 0.0 {
-    // Image already loaded but viewer panel not yet open — schedule init
-    ignore(set_timeout(fn() { init_zpv() }, 500))
+    schedule_init()
   }
 
   // Cleanup function

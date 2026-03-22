@@ -651,7 +651,7 @@ fn build_css() -> String {
     #|  width: 45vw;
     #|  max-width: calc(100vw - 400px);
     #|  overflow: hidden;
-    #|  padding: 16px;
+    #|  padding: 0;
     #|  border-right: 1px solid var(--border);
     #|  display: flex;
     #|  flex-direction: column;
@@ -664,17 +664,16 @@ fn build_css() -> String {
     #|  flex: 1;
     #|  min-height: 0;
     #|  overflow: hidden;
-    #|  padding-top: 32px;
+    #|  padding: 0;
     #|}
     #|.media-sidebar-viewer-content img {
-    #|  max-width: 100%;
-    #|  max-height: calc(100vh - 170px);
-    #|  object-fit: contain;
-    #|  border-radius: 8px;
+    #|  max-width: none;
+    #|  max-height: none;
+    #|  border-radius: 0;
     #|}
     #|.media-sidebar-viewer-content video {
     #|  max-width: 100%;
-    #|  max-height: calc(100vh - 170px);
+    #|  max-height: 100vh;
     #|  border-radius: 8px;
     #|  background: #000;
     #|}
@@ -856,7 +855,7 @@ fn build_css() -> String {
     #|.media-sidebar-viewer-close {
     #|  position: absolute;
     #|  top: 8px;
-    #|  right: 8px;
+    #|  left: 8px;
     #|  background: var(--panel);
     #|  border: 1px solid var(--border);
     #|  border-radius: 6px;
@@ -2446,19 +2445,19 @@ fn build_css() -> String {
     #|  width: 45vw;
     #|  max-width: calc(100vw - 400px);
     #|  overflow: hidden;
-    #|  padding: 16px;
+    #|  padding: 0;
     #|  border-right: 1px solid var(--border);
     #|  display: flex;
     #|  flex-direction: column;
     #|}
     #|.media-sidebar-viewer-close {
     #|  position: absolute;
-    #|  top: 8px;
-    #|  right: 8px;
-    #|  z-index: 2;
-    #|  background: var(--selected-bg);
-    #|  border: 1px solid var(--border);
-    #|  color: var(--text);
+    #|  top: 4px;
+    #|  left: 4px;
+    #|  z-index: 10;
+    #|  background: rgba(0,0,0,0.5);
+    #|  border: none;
+    #|  color: #fff;
     #|  width: 28px;
     #|  height: 28px;
     #|  border-radius: 50%;
@@ -2476,9 +2475,10 @@ fn build_css() -> String {
     #|  flex: 1;
     #|  min-height: 0;
     #|  overflow: hidden;
+    #|  padding: 0;
     #|}
-    #|.media-sidebar-viewer-content img { max-width: 100%; max-height: calc(100vh - 140px); object-fit: contain; border-radius: 8px; }
-    #|.media-sidebar-viewer-content video { max-width: 100%; max-height: calc(100vh - 140px); border-radius: 8px; background: #000; }
+    #|.media-sidebar-viewer-content img { max-width: none; max-height: none; border-radius: 0; }
+    #|.media-sidebar-viewer-content video { max-width: 100%; max-height: 100vh; border-radius: 0; background: #000; }
     #|.media-sidebar-viewer-label {
     #|  margin-top: 8px;
     #|  font-size: 12px;
@@ -2504,8 +2504,8 @@ fn build_css() -> String {
     #|.sidebar-zoom-indicator.hidden { opacity: 0; }
     #|.sidebar-maximize-btn {
     #|  position: absolute;
-    #|  top: 8px;
-    #|  right: 8px;
+    #|  top: 4px;
+    #|  right: 4px;
     #|  width: 36px;
     #|  height: 36px;
     #|  padding: 0;
