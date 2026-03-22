@@ -11,10 +11,7 @@
   ],
   "scripts": {
     "test": "npm run test:v2",
-    "test:v1": "vitest run",
-    "test:v2": "cd v2 && moon test --target js && moon build --target js --release && node e2e/smoke.mjs && node e2e/media_sidebar_regression.mjs && node e2e/preview_interaction_regression.mjs",
-    "test:all": "npm run test:v2 && vitest run",
-    "test:watch": "vitest",
+    "test:v2": "cd v2 && moon test --target js && moon build --target js --release && node --experimental-strip-types e2e/smoke.ts && node --experimental-strip-types e2e/media_sidebar_regression.ts && node --experimental-strip-types e2e/preview_interaction_regression.ts",
     "build": "cd v2 && moon build --target js --release",
     "prepack": "npm run build && mkdir -p dist/server dist/ui && echo '#!/usr/bin/env node' > dist/server/server.js && cat v2/_build/js/release/build/server/server.js >> dist/server/server.js && chmod +x dist/server/server.js && cp v2/_build/js/release/build/ui/ui.js dist/ui/"
   },
@@ -26,15 +23,8 @@
   "engines": {
     "node": ">=18"
   },
-  "dependencies": {
-    "chardet": "^2.0.0",
-    "iconv-lite": "^0.6.3",
-    "js-yaml": "^4.1.0",
-    "marked": "^12.0.2"
-  },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
-    "playwright": "^1.57.0",
-    "vitest": "^4.0.14"
+    "playwright": "^1.57.0"
   }
 }

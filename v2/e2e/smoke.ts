@@ -2,10 +2,10 @@
  * E2E Smoke Test for reviw v2 server
  * Verifies: server starts, serves HTML, healthz, SSE, submit flow, lock files
  *
- * Run: node e2e/smoke.mjs
+ * Run: npx tsx e2e/smoke.ts
  */
-import http from "node:http";
-import { spawn } from "node:child_process";
+import http, { type IncomingMessage } from "node:http";
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, unlinkSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -36,7 +36,7 @@ writeFileSync(TEST_CSV, "name,age\nAlice,30\nBob,25\n");
 let passed = 0;
 let failed = 0;
 
-function assert(condition, msg) {
+function assert(condition: boolean, msg: string): void {
   if (condition) {
     passed++;
     console.log(`  PASS: ${msg}`);
@@ -46,27 +46,27 @@ function assert(condition, msg) {
   }
 }
 
-function httpGet(port, path) {
+function httpGet(port: number, path: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     http
-      .get(`http://127.0.0.1:${port}${path}`, (res) => {
+      .get(`http://127.0.0.1:${port}${path}`, (res: IncomingMessage) => {
         let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => resolve({ status: res.statusCode, body: data }));
+        res.on("data", (c: string) => (data += c));
+        res.on("end", () => resolve({ status: res.statusCode!, body: data }));
       })
       .on("error", reject);
   });
 }
 
-function httpPost(port, path, body) {
+function httpPost(port: number, path: string, body: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
       `http://127.0.0.1:${port}${path}`,
       { method: "POST", headers: { "Content-Type": "application/json" } },
-      (res) => {
+      (res: IncomingMessage) => {
         let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => resolve({ status: res.statusCode, body: data }));
+        res.on("data", (c: string) => (data += c));
+        res.on("end", () => resolve({ status: res.statusCode!, body: data }));
       },
     );
     req.on("error", reject);
@@ -75,36 +75,41 @@ function httpPost(port, path, body) {
   });
 }
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function waitForServer(port, timeoutMs) {
+async function waitForServer(port: number, timeoutMs: number): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
       const res = await httpGet(port, "/healthz");
       if (res.status === 200) return true;
-    } catch (_) {}
+    } catch (_: unknown) {}
     await sleep(200);
   }
   return false;
 }
 
-function waitForProcessExit(proc, timeoutMs) {
+function waitForProcessExit(proc: ChildProcess, timeoutMs: number): Promise<{ exited: boolean; code: number | string }> {
   return new Promise((resolve) => {
     let done = false;
-    const finish = (result) => {
+    const finish = (result: { exited: boolean; code: number | string }) => {
       if (done) return;
       done = true;
       resolve(result);
     };
-    proc.once("exit", (code) => finish({ exited: true, code }));
+    proc.once("exit", (code: number | null) => finish({ exited: true, code: code ?? 0 }));
     setTimeout(() => finish({ exited: false, code: "timeout" }), timeoutMs);
   });
 }
 
-async function runTest(label, testFile, mode, testFn) {
+async function runTest(
+  label: string,
+  testFile: string,
+  mode: string,
+  testFn: (mode: string, port: number) => Promise<void>,
+): Promise<{ stdout: string; port: number }> {
   console.log(`\n--- ${label} ---`);
   const proc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT), testFile], {
     stdio: ["ignore", "pipe", "pipe"],
@@ -114,8 +119,8 @@ async function runTest(label, testFile, mode, testFn) {
   let stdout = "";
   let actualPort = BASE_PORT;
   let resolved = false;
-  const portDetected = new Promise((resolve, reject) => {
-    proc.stdout.on("data", (d) => {
+  const portDetected = new Promise<number>((resolve, reject) => {
+    proc.stdout!.on("data", (d: Buffer) => {
       stdout += d;
       if (resolved) return;
       const match = stdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
@@ -124,8 +129,8 @@ async function runTest(label, testFile, mode, testFn) {
         resolve(parseInt(match[1], 10));
       }
     });
-    proc.stderr.on("data", (d) => (stdout += d));
-    proc.on("exit", (code) => {
+    proc.stderr!.on("data", (d: Buffer) => (stdout += d));
+    proc.on("exit", (code: number | null) => {
       if (!resolved) {
         resolved = true;
         reject(new Error(`Server exited (code ${code}) before port detected. Output: ${stdout.substring(0, 300)}`));
@@ -141,10 +146,10 @@ async function runTest(label, testFile, mode, testFn) {
 
   try {
     actualPort = await portDetected;
-  } catch (err) {
+  } catch (err: unknown) {
     failed++;
-    console.error(`  FAIL: ${err.message}`);
-    try { proc.kill("SIGKILL"); } catch (_) {}
+    console.error(`  FAIL: ${(err as Error).message}`);
+    try { proc.kill("SIGKILL"); } catch (_: unknown) {}
     return { stdout, port: BASE_PORT };
   }
 
@@ -152,15 +157,15 @@ async function runTest(label, testFile, mode, testFn) {
   if (!ready) {
     failed++;
     console.error(`  FAIL: Server not ready on port ${actualPort} after 5s`);
-    try { proc.kill("SIGKILL"); } catch (_) {}
+    try { proc.kill("SIGKILL"); } catch (_: unknown) {}
     return { stdout, port: actualPort };
   }
 
   try {
     await testFn(mode, actualPort);
-  } catch (err) {
+  } catch (err: unknown) {
     failed++;
-    console.error(`  FAIL: ${err.message}`);
+    console.error(`  FAIL: ${(err as Error).message}`);
   }
 
   // Submit to exit the server
@@ -173,21 +178,21 @@ async function runTest(label, testFile, mode, testFn) {
         comments: [{ row: 0, col: 0, text: "test comment" }],
       }),
     );
-  } catch (_) {}
+  } catch (_: unknown) {}
 
   await sleep(500);
 
   // Ensure process is dead
   try {
     proc.kill("SIGKILL");
-  } catch (_) {}
+  } catch (_: unknown) {}
 
   return { stdout, port: actualPort };
 }
 
 // ===== Test: Markdown =====
-let lastTestResult;
-lastTestResult = await runTest("Markdown Server", TEST_MD, "markdown", async (mode, port) => {
+let lastTestResult: { stdout: string; port: number };
+lastTestResult = await runTest("Markdown Server", TEST_MD, "markdown", async (mode: string, port: number) => {
   const html = await httpGet(port, "/");
   assert(html.status === 200, "HTML returns 200");
   assert(html.body.includes("<!DOCTYPE html>"), "HTML has doctype");
@@ -215,7 +220,7 @@ lastTestResult = await runTest("Markdown Server", TEST_MD, "markdown", async (mo
 });
 
 // ===== Test: CSV =====
-lastTestResult = await runTest("CSV Server", TEST_CSV, "csv", async (mode, port) => {
+lastTestResult = await runTest("CSV Server", TEST_CSV, "csv", async (mode: string, port: number) => {
   const html = await httpGet(port, "/");
   assert(html.status === 200, "CSV HTML returns 200");
   assert(html.body.includes(`__REVIW_MODE__="${mode}"`), `Mode is ${mode}`);
@@ -250,7 +255,7 @@ const VIDEO_BYTES = Buffer.alloc(4096);
 for (let i = 0; i < 4096; i++) VIDEO_BYTES[i] = i & 0xff;
 writeFileSync(TEST_VIDEO_FILE, VIDEO_BYTES);
 
-lastTestResult = await runTest("Static File Serving", TEST_MD, "markdown", async (mode, port) => {
+lastTestResult = await runTest("Static File Serving", TEST_MD, "markdown", async (mode: string, port: number) => {
   // Test: static image file serving
   const img = await httpGet(port, "/assets/test-image.png");
   assert(img.status === 200, "Static image returns 200");
@@ -260,28 +265,28 @@ lastTestResult = await runTest("Static File Serving", TEST_MD, "markdown", async
   assert(missing.status === 404, "Missing static file returns 404");
 
   // Test: path traversal blocked (raw request with .. in path)
-  const traversal = await new Promise((resolve, reject) => {
+  const traversal = await new Promise<{ status: number; body: string }>((resolve, reject) => {
     const opts = {
       hostname: "127.0.0.1", port, method: "GET",
       path: "/assets/..%2F..%2Fetc/passwd",
     };
-    http.request(opts, (res) => {
+    http.request(opts, (res: IncomingMessage) => {
       let data = "";
-      res.on("data", (c) => (data += c));
-      res.on("end", () => resolve({ status: res.statusCode, body: data }));
+      res.on("data", (c: string) => (data += c));
+      res.on("end", () => resolve({ status: res.statusCode!, body: data }));
     }).on("error", reject).end();
   });
   assert(traversal.status === 403, "Path traversal returns 403");
 
   // Test: Range request on video file
-  const rangeRes = await new Promise((resolve, reject) => {
+  const rangeRes = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; bodyLength: number }>((resolve, reject) => {
     http.get(`http://127.0.0.1:${port}/assets/test.mp4`, {
       headers: { "Range": "bytes=0-99" }
-    }, (res) => {
-      let chunks = [];
-      res.on("data", (c) => chunks.push(c));
+    }, (res: IncomingMessage) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () => resolve({
-        status: res.statusCode,
+        status: res.statusCode!,
         headers: res.headers,
         bodyLength: Buffer.concat(chunks).length
       }));
@@ -292,14 +297,14 @@ lastTestResult = await runTest("Static File Serving", TEST_MD, "markdown", async
   assert(rangeRes.bodyLength === 100, "Range response body is 100 bytes");
 
   // Test: Range request mid-file
-  const midRange = await new Promise((resolve, reject) => {
+  const midRange = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; bodyLength: number }>((resolve, reject) => {
     http.get(`http://127.0.0.1:${port}/assets/test.mp4`, {
       headers: { "Range": "bytes=1000-1999" }
-    }, (res) => {
-      let chunks = [];
-      res.on("data", (c) => chunks.push(c));
+    }, (res: IncomingMessage) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () => resolve({
-        status: res.statusCode,
+        status: res.statusCode!,
         headers: res.headers,
         bodyLength: Buffer.concat(chunks).length
       }));
@@ -310,12 +315,12 @@ lastTestResult = await runTest("Static File Serving", TEST_MD, "markdown", async
   assert(midRange.bodyLength === 1000, "Mid-file range body is 1000 bytes");
 
   // Test: Full GET on video (no Range header) returns 200
-  const fullVideo = await new Promise((resolve, reject) => {
-    http.get(`http://127.0.0.1:${port}/assets/test.mp4`, (res) => {
-      let chunks = [];
-      res.on("data", (c) => chunks.push(c));
+  const fullVideo = await new Promise<{ status: number; bodyLength: number }>((resolve, reject) => {
+    http.get(`http://127.0.0.1:${port}/assets/test.mp4`, (res: IncomingMessage) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () => resolve({
-        status: res.statusCode,
+        status: res.statusCode!,
         bodyLength: Buffer.concat(chunks).length
       }));
     }).on("error", reject);
@@ -325,7 +330,7 @@ lastTestResult = await runTest("Static File Serving", TEST_MD, "markdown", async
 });
 
 // ===== Test: video-timeline path traversal protection =====
-lastTestResult = await runTest("Video Timeline Security", TEST_MD, "markdown", async (mode, port) => {
+lastTestResult = await runTest("Video Timeline Security", TEST_MD, "markdown", async (mode: string, port: number) => {
   // Test: path traversal via video-timeline
   const vtTraversal = await httpGet(port, "/video-timeline?path=../../etc/passwd&scene=0.01");
   assert(vtTraversal.status === 400 || vtTraversal.status === 403, "video-timeline rejects path traversal");
@@ -339,22 +344,22 @@ lastTestResult = await runTest("Video Timeline Security", TEST_MD, "markdown", a
 console.log("\n--- localStorage Format Compatibility ---");
 
 // Replicate parse_stored_comments logic from dom.mbt FFI
-function parseStoredComments(json) {
+function parseStoredComments(json: string): [string, string, string, string][] {
   try {
     const data = JSON.parse(json);
     const comments = data.comments;
     if (!comments || typeof comments !== "object") return [];
-    return Object.entries(comments).map(([k, v]) => [k, String(v.row||0), String(v.col||0), v.text||""]);
-  } catch(e) { return []; }
+    return Object.entries(comments).map(([k, v]: [string, any]) => [k, String(v.row||0), String(v.col||0), v.text||""]);
+  } catch(e: unknown) { return []; }
 }
 
 // Replicate is_storage_expired logic from dom.mbt FFI
-function isStorageExpired(json) {
+function isStorageExpired(json: string): boolean {
   try {
     const data = JSON.parse(json);
     const TTL = 3 * 60 * 60 * 1000;
     return !data.timestamp || (Date.now() - data.timestamp > TTL);
-  } catch(e) { return true; }
+  } catch(e: unknown) { return true; }
 }
 
 // Test: cli.cjs format is correctly parsed
@@ -418,10 +423,10 @@ function isStorageExpired(json) {
 console.log("\n--- Recovery Restore/Discard Logic (CRV-007) ---");
 
 // Simulate restore_comments() logic from app.mbt:
-// parse stored data → apply to comments map (non-empty entries only)
-function simulateRestore(json) {
+// parse stored data -> apply to comments map (non-empty entries only)
+function simulateRestore(json: string): Record<string, { row: number; col: number; text: string }> {
   const entries = parseStoredComments(json);
-  const restoredComments = {};
+  const restoredComments: Record<string, { row: number; col: number; text: string }> = {};
   for (const [key, rowStr, colStr, text] of entries) {
     if (text.length > 0) {
       restoredComments[key] = { row: parseInt(rowStr, 10), col: parseInt(colStr, 10), text };
@@ -451,7 +456,7 @@ function simulateRestore(json) {
 
 // Test: discard is equivalent to clearing storage (empty parse result)
 {
-  // After discard, ls_remove is called → next parse returns empty
+  // After discard, ls_remove is called -> next parse returns empty
   const discarded = simulateRestore("{}");
   assert(Object.keys(discarded).length === 0, "CRV-007: discard (empty storage) yields no comments");
 }
@@ -472,34 +477,34 @@ const lockFile = join(LOCK_DIR, `${lastTestResult.port}.lock`);
 assert(!existsSync(lockFile), "Lock file cleaned up after exit");
 
 // ===== Test: HEAD method for /ui.js and /history =====
-lastTestResult = await runTest("HEAD Method Extended", TEST_MD, "markdown", async (mode, port) => {
-  const headUiJs = await new Promise((resolve, reject) => {
-    http.request(`http://127.0.0.1:${port}/ui.js`, { method: "HEAD" }, (res) => {
+lastTestResult = await runTest("HEAD Method Extended", TEST_MD, "markdown", async (mode: string, port: number) => {
+  const headUiJs = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+    http.request(`http://127.0.0.1:${port}/ui.js`, { method: "HEAD" }, (res: IncomingMessage) => {
       let data = "";
-      res.on("data", (c) => (data += c));
-      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
+      res.on("data", (c: string) => (data += c));
+      res.on("end", () => resolve({ status: res.statusCode!, headers: res.headers, body: data }));
     }).on("error", reject).end();
   });
   assert(headUiJs.status === 200, "HEAD /ui.js returns 200");
   assert((headUiJs.headers["content-type"] || "").includes("javascript"), "HEAD /ui.js has JS content-type");
   assert(headUiJs.body.length === 0, "HEAD /ui.js has empty body");
 
-  const headHistory = await new Promise((resolve, reject) => {
-    http.request(`http://127.0.0.1:${port}/history`, { method: "HEAD" }, (res) => {
+  const headHistory = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+    http.request(`http://127.0.0.1:${port}/history`, { method: "HEAD" }, (res: IncomingMessage) => {
       let data = "";
-      res.on("data", (c) => (data += c));
-      res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
+      res.on("data", (c: string) => (data += c));
+      res.on("end", () => resolve({ status: res.statusCode!, headers: res.headers, body: data }));
     }).on("error", reject).end();
   });
   assert(headHistory.status === 200, "HEAD /history returns 200");
   assert((headHistory.headers["content-type"] || "").includes("json"), "HEAD /history has JSON content-type");
   assert(headHistory.body.length === 0, "HEAD /history has empty body");
 
-  const headHealth = await new Promise((resolve, reject) => {
-    http.request(`http://127.0.0.1:${port}/healthz`, { method: "HEAD" }, (res) => {
+  const headHealth = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+    http.request(`http://127.0.0.1:${port}/healthz`, { method: "HEAD" }, (res: IncomingMessage) => {
       let data = "";
-      res.on("data", (c) => (data += c));
-      res.on("end", () => resolve({ status: res.statusCode, body: data }));
+      res.on("data", (c: string) => (data += c));
+      res.on("end", () => resolve({ status: res.statusCode!, body: data }));
     }).on("error", reject).end();
   });
   assert(headHealth.status === 200, "HEAD /healthz returns 200");
@@ -516,14 +521,14 @@ console.log("\n--- Submit Data Persistence ---");
   });
   let sStdout = "";
   let sResolved = false;
-  const sPortDetected = new Promise((resolve, reject) => {
-    submitProc.stdout.on("data", (d) => {
+  const sPortDetected = new Promise<number>((resolve, reject) => {
+    submitProc.stdout!.on("data", (d: Buffer) => {
       sStdout += d;
       if (sResolved) return;
       const match = sStdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
       if (match) { sResolved = true; resolve(parseInt(match[1], 10)); }
     });
-    submitProc.stderr.on("data", (d) => (sStdout += d));
+    submitProc.stderr!.on("data", (d: Buffer) => (sStdout += d));
     submitProc.on("exit", () => { if (!sResolved) { sResolved = true; reject(new Error("Server exited")); } });
     setTimeout(() => { if (!sResolved) { sResolved = true; reject(new Error("Timeout")); } }, 10000);
   });
@@ -545,20 +550,20 @@ console.log("\n--- Submit Data Persistence ---");
     try {
       const submitRes = await httpPost(submitPort, "/exit", payload);
       submitOk = submitRes.status === 200;
-    } catch (e) {
-      // ECONNRESET / socket hang up means server exited after processing — still success
-      submitOk = e.message.includes("socket hang up") || e.message.includes("ECONNRESET");
+    } catch (e: unknown) {
+      // ECONNRESET / socket hang up means server exited after processing -- still success
+      submitOk = (e as Error).message.includes("socket hang up") || (e as Error).message.includes("ECONNRESET");
     }
     assert(submitOk, "Submit with comments+answers accepted by server");
     // Wait for server to write YAML output
     await sleep(1000);
     assert(sStdout.includes("line 1 comment"), "Submit: server output includes comment text");
     assert(sStdout.includes("e2e test review summary"), "Submit: server output includes summary");
-  } catch (err) {
+  } catch (err: unknown) {
     failed++;
-    console.error(`  FAIL: Submit test: ${err.message}`);
+    console.error(`  FAIL: Submit test: ${(err as Error).message}`);
   }
-  try { submitProc.kill("SIGKILL"); } catch (_) {}
+  try { submitProc.kill("SIGKILL"); } catch (_: unknown) {}
 }
 
 // ===== Test: stale close after reload must not terminate the server =====
@@ -570,8 +575,8 @@ console.log("\n--- Session Close Ordering ---");
   });
   let sessionStdout = "";
   let sessionResolved = false;
-  const sessionPortDetected = new Promise((resolve, reject) => {
-    sessionProc.stdout.on("data", (d) => {
+  const sessionPortDetected = new Promise<number>((resolve, reject) => {
+    sessionProc.stdout!.on("data", (d: Buffer) => {
       sessionStdout += d;
       if (sessionResolved) return;
       const match = sessionStdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
@@ -580,7 +585,7 @@ console.log("\n--- Session Close Ordering ---");
         resolve(parseInt(match[1], 10));
       }
     });
-    sessionProc.stderr.on("data", (d) => (sessionStdout += d));
+    sessionProc.stderr!.on("data", (d: Buffer) => (sessionStdout += d));
     sessionProc.on("exit", () => {
       if (!sessionResolved) {
         sessionResolved = true;
@@ -622,21 +627,21 @@ console.log("\n--- Session Close Ordering ---");
     assert(closed.exited === true, "Session Close: latest instance close terminates the server");
     assert(sessionStdout.includes("fresh comment"), "Session Close: latest instance draft is the one that gets flushed");
     assert(!sessionStdout.includes("stale comment"), "Session Close: stale instance draft is ignored");
-  } catch (err) {
+  } catch (err: unknown) {
     failed++;
-    console.error(`  FAIL: Session close ordering test: ${err.message}`);
+    console.error(`  FAIL: Session close ordering test: ${(err as Error).message}`);
   }
-  try { sessionProc.kill("SIGKILL"); } catch (_) {}
+  try { sessionProc.kill("SIGKILL"); } catch (_: unknown) {}
 }
 
 // ===== Test: split_json_array string safety =====
 console.log("\n--- split_json_array String Safety ---");
 {
   // Replicate split_json_array logic from app.mbt
-  function splitJsonArray(json) {
+  function splitJsonArray(json: string): string[] {
     const chars = [...json];
     const len = chars.length;
-    const result = [];
+    const result: string[] = [];
     let depth = 0;
     let start = -1;
     let inString = false;
@@ -667,12 +672,12 @@ console.log("\n--- split_json_array String Safety ---");
   // Test: basic array
   const basic = '[{"a":1},{"b":2}]';
   const basicResult = splitJsonArray(basic);
-  assert(basicResult.length === 2, "split_json_array: basic array → 2 entries");
+  assert(basicResult.length === 2, "split_json_array: basic array -> 2 entries");
 
   // Test: strings containing braces
   const withBraces = '[{"summary":"value with {braces} inside"},{"other":"normal"}]';
   const bracesResult = splitJsonArray(withBraces);
-  assert(bracesResult.length === 2, "split_json_array: strings with {} → 2 entries (not split wrongly)");
+  assert(bracesResult.length === 2, "split_json_array: strings with {} -> 2 entries (not split wrongly)");
   assert(bracesResult[0].includes("{braces}"), "split_json_array: first entry preserves {braces} in string");
 
   // Test: escaped quotes inside strings
@@ -683,12 +688,12 @@ console.log("\n--- split_json_array String Safety ---");
   // Test: nested objects
   const nested = '[{"data":{"inner":1}},{"other":"val"}]';
   const nestedResult = splitJsonArray(nested);
-  assert(nestedResult.length === 2, "split_json_array: nested objects → 2 entries");
+  assert(nestedResult.length === 2, "split_json_array: nested objects -> 2 entries");
 
   // Test: empty array
   const empty = '[]';
   const emptyResult = splitJsonArray(empty);
-  assert(emptyResult.length === 0, "split_json_array: empty array → 0 entries");
+  assert(emptyResult.length === 0, "split_json_array: empty array -> 0 entries");
 }
 
 // ===== Test: Playwright Browser E2E =====
@@ -696,7 +701,7 @@ let playwrightAvailable = false;
 try {
   const { chromium } = await import("playwright");
   playwrightAvailable = true;
-} catch (_) {
+} catch (_: unknown) {
   console.log("\n--- Playwright Browser E2E (SKIPPED: playwright not installed) ---");
 }
 
@@ -711,25 +716,25 @@ if (playwrightAvailable) {
   });
   let bStdout = "";
   let bResolved = false;
-  const bPortDetected = new Promise((resolve, reject) => {
-    browserProc.stdout.on("data", (d) => {
+  const bPortDetected = new Promise<number>((resolve, reject) => {
+    browserProc.stdout!.on("data", (d: Buffer) => {
       bStdout += d;
       if (bResolved) return;
       const match = bStdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
       if (match) { bResolved = true; resolve(parseInt(match[1], 10)); }
     });
-    browserProc.stderr.on("data", (d) => (bStdout += d));
+    browserProc.stderr!.on("data", (d: Buffer) => (bStdout += d));
     browserProc.on("exit", () => { if (!bResolved) { bResolved = true; reject(new Error("Server exited")); } });
     setTimeout(() => { if (!bResolved) { bResolved = true; reject(new Error("Timeout")); } }, 10000);
   });
 
-  let browserPort;
+  let browserPort: number | undefined;
   try {
     browserPort = await bPortDetected;
-  } catch (err) {
+  } catch (err: unknown) {
     failed++;
-    console.error(`  FAIL: Browser test server start: ${err.message}`);
-    try { browserProc.kill("SIGKILL"); } catch (_) {}
+    console.error(`  FAIL: Browser test server start: ${(err as Error).message}`);
+    try { browserProc.kill("SIGKILL"); } catch (_: unknown) {}
   }
 
   if (browserPort) {
@@ -746,7 +751,7 @@ if (playwrightAvailable) {
       const html = document.documentElement;
       const initialTheme = html.getAttribute("data-theme");
       const themeBtn = document.getElementById("theme-toggle");
-      if (!themeBtn) return { error: "no theme button" };
+      if (!themeBtn) return { error: "no theme button" } as any;
       themeBtn.click();
       const afterToggle = html.getAttribute("data-theme");
       const stored = localStorage.getItem("reviw:theme");
@@ -764,7 +769,7 @@ if (playwrightAvailable) {
     const viewResult = await page.evaluate(() => {
       const layout = document.querySelector(".md-layout");
       const viewBtn = document.getElementById("view-toggle");
-      if (!layout || !viewBtn) return { error: "missing elements" };
+      if (!layout || !viewBtn) return { error: "missing elements" } as any;
       const initialPreviewOnly = layout.classList.contains("preview-only");
       viewBtn.click();
       const afterClick = layout.classList.contains("preview-only");
@@ -783,7 +788,7 @@ if (playwrightAvailable) {
     const historyResult = await page.evaluate(() => {
       const panel = document.getElementById("history-panel");
       const btn = document.getElementById("history-toggle");
-      if (!panel || !btn) return { error: "missing history elements" };
+      if (!panel || !btn) return { error: "missing history elements" } as any;
       btn.click();
       const afterOpen = panel.classList.contains("open");
       const bodyHasClass = document.body.classList.contains("history-open");
@@ -831,8 +836,8 @@ if (playwrightAvailable) {
     await sourceCell.waitFor({ state: "visible", timeout: 5000 });
     const box = await sourceCell.boundingBox();
 
-    // mousedown on the cell triggers begin_drag, mouseup triggers finish_drag → show_comment_card
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    // mousedown on the cell triggers begin_drag, mouseup triggers finish_drag -> show_comment_card
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
     await page.mouse.down();
     await page.mouse.up();
 
@@ -854,38 +859,29 @@ if (playwrightAvailable) {
     assert(commentFlowResult.previewInCard === true, "Browser: comment card has image preview area");
 
     // Dispatch a synthetic paste event with an image blob to trigger the paste handler
-    // The on_paste_image handler iterates clipboardData.items looking for item.type.startsWith("image/")
-    // then calls item.getAsFile() and reads it via FileReader
-    const pasteResult = await page.evaluate(async () => {
+    const pasteResult = await page.evaluate(`(async () => {
       const base64Png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
       const binaryStr = atob(base64Png);
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
       const blob = new Blob([bytes], { type: "image/png" });
       const file = new File([blob], "test.png", { type: "image/png" });
-
-      // Build a mock clipboardData matching the API: e.clipboardData.items → [{ type, getAsFile() }]
-      const mockClipboardData = {
-        items: [{ type: "image/png", getAsFile: () => file }],
-      };
+      const mockClipboardData = { items: [{ type: "image/png", getAsFile: function() { return file; } }] };
       const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
       Object.defineProperty(pasteEvent, "clipboardData", { value: mockClipboardData });
       document.dispatchEvent(pasteEvent);
-
-      // Wait for FileReader.onload to fire
-      await new Promise(r => setTimeout(r, 500));
-
+      await new Promise(function(r) { setTimeout(r, 500); });
       const previewEl = document.getElementById("comment-image-preview");
       const hasImage = previewEl && previewEl.querySelector("img") !== null;
       const imgSrc = hasImage ? previewEl.querySelector("img").src.substring(0, 30) : "";
-      return { hasImage, imgSrc };
-    });
+      return { hasImage: hasImage, imgSrc: imgSrc };
+    })()`) as { hasImage: boolean; imgSrc: string };
     assert(pasteResult.hasImage === true, "Browser: paste event renders image in comment preview");
     assert(pasteResult.imgSrc.startsWith("data:image"), "Browser: pasted image has data:image src");
 
     // Save the comment (with image) and verify it's stored
     const saveResult = await page.evaluate(() => {
-      const textarea = document.getElementById("comment-input");
+      const textarea = document.getElementById("comment-input") as HTMLTextAreaElement | null;
       if (textarea) textarea.value = "comment with image";
       const saveBtn = document.getElementById("save-comment");
       if (saveBtn) saveBtn.click();
@@ -908,7 +904,7 @@ if (playwrightAvailable) {
     }
 
     // Create a promise that resolves when the server process exits
-    const serverExited = new Promise(resolve => {
+    const serverExited = new Promise<number | string>(resolve => {
       browserProc.on("exit", resolve);
       setTimeout(() => resolve("timeout"), 8000);
     });
@@ -943,8 +939,8 @@ if (playwrightAvailable) {
     });
     let closeStdout = "";
     let closeResolved = false;
-    const closePortDetected = new Promise((resolve, reject) => {
-      closeProc.stdout.on("data", (d) => {
+    const closePortDetected = new Promise<number>((resolve, reject) => {
+      closeProc.stdout!.on("data", (d: Buffer) => {
         closeStdout += d;
         if (closeResolved) return;
         const match = closeStdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
@@ -953,7 +949,7 @@ if (playwrightAvailable) {
           resolve(parseInt(match[1], 10));
         }
       });
-      closeProc.stderr.on("data", (d) => (closeStdout += d));
+      closeProc.stderr!.on("data", (d: Buffer) => (closeStdout += d));
       closeProc.on("exit", () => {
         if (!closeResolved) {
           closeResolved = true;
@@ -984,7 +980,7 @@ if (playwrightAvailable) {
     const draftCell = closePage.locator("td[data-row]").first();
     await draftCell.waitFor({ state: "visible", timeout: 5000 });
     const draftBox = await draftCell.boundingBox();
-    await closePage.mouse.move(draftBox.x + draftBox.width / 2, draftBox.y + draftBox.height / 2);
+    await closePage.mouse.move(draftBox!.x + draftBox!.width / 2, draftBox!.y + draftBox!.height / 2);
     await closePage.mouse.down();
     await closePage.mouse.up();
     await closePage.waitForFunction(() => {
@@ -1001,8 +997,8 @@ if (playwrightAvailable) {
     assert(closeStdout.includes("Close draft comment"), "Browser Close: closing flushes the in-progress draft");
 
     await browser.close();
-    try { browserProc.kill("SIGKILL"); } catch (_) {}
-    try { closeProc.kill("SIGKILL"); } catch (_) {}
+    try { browserProc.kill("SIGKILL"); } catch (_: unknown) {}
+    try { closeProc.kill("SIGKILL"); } catch (_: unknown) {}
   }
 }
 
@@ -1012,7 +1008,7 @@ try {
   unlinkSync(TEST_CSV);
   unlinkSync(TEST_STATIC_FILE);
   unlinkSync(TEST_VIDEO_FILE);
-} catch (_) {}
+} catch (_: unknown) {}
 
 // ===== Summary =====
 console.log(`\n============================`);

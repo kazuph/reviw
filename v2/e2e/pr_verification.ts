@@ -1,17 +1,17 @@
 // Playwright verification script for reviw v2
-// Test A: Image preview → Fullscreen → Esc → Comment dialog
+// Test A: Image preview -> Fullscreen -> Esc -> Comment dialog
 // Test B: Submit & Exit flow
-import { chromium } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 import { mkdirSync } from 'fs';
 
 const BASE_URL = 'http://127.0.0.1:4989';
 const ARTIFACTS = '/Users/kazuph/src/github.com/kazuph/reviw/.artifacts/pr-verification';
 mkdirSync(ARTIFACTS, { recursive: true });
 
-async function testA() {
-  console.log('=== Test A: Image preview → Fullscreen → Esc → Comment dialog ===');
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+async function testA(): Promise<boolean> {
+  console.log('=== Test A: Image preview -> Fullscreen -> Esc -> Comment dialog ===');
+  const browser: Browser = await chromium.launch({ headless: true });
+  const page: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   try {
     await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 10000 });
@@ -34,7 +34,7 @@ async function testA() {
     for (const img of mdPreviewImages) {
       const isVisible = await img.isVisible();
       // Skip mermaid images
-      const parent = await img.evaluate(el => el.closest('.mermaid-container') !== null);
+      const parent = await img.evaluate((el: Element) => el.closest('.mermaid-container') !== null);
       if (isVisible && !parent) {
         const src = await img.getAttribute('src');
         console.log(`2. Clicking #md-preview image: ${src}`);
@@ -108,15 +108,15 @@ async function testA() {
     console.log('=== Test A complete ===');
     await browser.close();
     return true;
-  } catch (err) {
-    console.error('Test A error:', err.message);
+  } catch (err: unknown) {
+    console.error('Test A error:', (err as Error).message);
     await page.screenshot({ path: `${ARTIFACTS}/testA-error.png`, fullPage: true });
     await browser.close();
     return false;
   }
 }
 
-async function testB() {
+async function testB(): Promise<boolean> {
   console.log('\n=== Test B: Submit & Exit ===');
 
   // Start a NEW server instance for test B (so we can check its exit)
@@ -130,11 +130,11 @@ async function testB() {
 
   let stdout = '';
   let stderr = '';
-  server.stdout.on('data', (d) => { stdout += d.toString(); });
-  server.stderr.on('data', (d) => { stderr += d.toString(); });
+  server.stdout!.on('data', (d: Buffer) => { stdout += d.toString(); });
+  server.stderr!.on('data', (d: Buffer) => { stderr += d.toString(); });
 
   // Wait for server to be ready
-  await new Promise((resolve) => {
+  await new Promise<void>((resolve) => {
     const check = () => {
       if (stdout.includes('reviw serving') || stderr.includes('reviw serving')) {
         resolve();
@@ -150,8 +150,8 @@ async function testB() {
   const port = portMatch ? portMatch[1] : '5100';
   console.log(`Server started on port ${port}`);
 
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const browser: Browser = await chromium.launch({ headless: true });
+  const page: Page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
   try {
     await page.goto(`http://127.0.0.1:${port}`, { waitUntil: 'domcontentloaded', timeout: 10000 });
@@ -167,7 +167,7 @@ async function testB() {
       for (const btn of buttons) {
         const text = await btn.textContent();
         const id = await btn.getAttribute('id');
-        console.log(`   button: text="${text.trim()}", id=${id}`);
+        console.log(`   button: text="${text!.trim()}", id=${id}`);
       }
     }
 
@@ -199,7 +199,7 @@ async function testB() {
     let clicked = false;
     const allButtons = await page.$$('button');
     for (const btn of allButtons) {
-      const text = (await btn.textContent()).trim();
+      const text = (await btn.textContent())!.trim();
       const vis = await btn.isVisible();
       if (vis) console.log(`   visible button: "${text}"`);
       if (vis && (text.toLowerCase().includes('submit') || text.toLowerCase().includes('送信') || text.toLowerCase().includes('confirm'))) {
@@ -228,7 +228,7 @@ async function testB() {
     await page.screenshot({ path: `${ARTIFACTS}/07-after-submit.png`, fullPage: false });
 
     // Check if server process exited
-    const exited = await new Promise((resolve) => {
+    const exited = await new Promise<boolean>((resolve) => {
       const timeout = setTimeout(() => resolve(false), 5000);
       server.on('exit', () => {
         clearTimeout(timeout);
@@ -255,8 +255,8 @@ async function testB() {
     await browser.close();
     if (!exited) server.kill();
     return true;
-  } catch (err) {
-    console.error('Test B error:', err.message);
+  } catch (err: unknown) {
+    console.error('Test B error:', (err as Error).message);
     await page.screenshot({ path: `${ARTIFACTS}/testB-error.png`, fullPage: true }).catch(() => {});
     await browser.close();
     server.kill();
@@ -269,7 +269,7 @@ async function testB() {
   const resultA = await testA();
   const resultB = await testB();
   console.log(`\n=== Results ===`);
-  console.log(`Test A (Image preview → Comment): ${resultA ? 'PASS' : 'FAIL'}`);
+  console.log(`Test A (Image preview -> Comment): ${resultA ? 'PASS' : 'FAIL'}`);
   console.log(`Test B (Submit & Exit): ${resultB ? 'PASS' : 'FAIL'}`);
   process.exit(resultA && resultB ? 0 : 1);
 })();

@@ -875,24 +875,24 @@ fn build_css() -> String {
     #|}
     #|.sidebar-viewer-settings-btn {
     #|  position: absolute;
-    #|  top: 8px;
-    #|  right: 44px;
-    #|  background: var(--panel);
-    #|  border: 1px solid var(--border);
-    #|  border-radius: 6px;
-    #|  width: 28px;
-    #|  height: 28px;
+    #|  top: 4px;
+    #|  right: 4px;
+    #|  background: rgba(0,0,0,0.5);
+    #|  border: none;
+    #|  border-radius: 8px;
+    #|  width: 36px;
+    #|  height: 36px;
     #|  display: flex;
     #|  align-items: center;
     #|  justify-content: center;
     #|  cursor: pointer;
-    #|  color: var(--text);
-    #|  font-size: 14px;
-    #|  z-index: 2;
-    #|  transition: background 0.15s ease;
+    #|  color: #fff;
+    #|  font-size: 16px;
+    #|  z-index: 5;
+    #|  transition: background 120ms ease;
     #|}
     #|.sidebar-viewer-settings-btn:hover {
-    #|  background: var(--hover-bg);
+    #|  background: rgba(0,0,0,0.8);
     #|}
     #|.sidebar-viewer-settings-btn + .video-settings-panel {
     #|  position: absolute;

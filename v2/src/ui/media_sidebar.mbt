@@ -330,18 +330,6 @@ fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
   // Clear and setup viewer panel
   clear_children(state.viewer_panel)
 
-  // Create close button
-  let close_btn = create_element("button")
-  set_class_name(close_btn, "media-sidebar-viewer-close")
-  set_text_content(close_btn, "✕")
-  set_attribute(close_btn, "title", "Close viewer (ESC)")
-  let h1 = on_with_handle(close_btn, "click", fn(e) {
-    stop_propagation(e)
-    close_viewer(state)
-  })
-  state.handles.push(h1)
-  append_child(state.viewer_panel, close_btn)
-
   // Create content container
   let content = create_element("div")
   set_class_name(content, "media-sidebar-viewer-content")
@@ -659,7 +647,14 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
       }
 
       let h = on_with_handle(btn, "click", fn(e) {
+        stop_propagation(e)
         on_change(val)
+        // Update selected state on all sibling buttons
+        let siblings = query_all_in(row, "button")
+        for sib in siblings {
+          remove_class(sib, "selected")
+        }
+        add_class(btn, "selected")
       })
       state.handles.push(h)
 

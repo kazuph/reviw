@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
-import http from "node:http";
+import http, { type IncomingMessage } from "node:http";
 import net from "node:net";
 import { mkdirSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { chromium } from "playwright";
+import { chromium, type Browser, type Page, type BrowserContext, type Locator } from "playwright";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = join(__dirname, "..", "..");
 const SERVER_JS = join(ROOT, "v2", "_build", "js", "release", "build", "server", "server.js");
-const FIXTURE_MD = join(ROOT, "tests", "fixtures", "preview-regression.md");
+const FIXTURE_MD = join(ROOT, "examples", "preview-regression.md");
 const LOCK_DIR = join(tmpdir(), "reviw-preview-interaction-locks");
 
 mkdirSync(LOCK_DIR, { recursive: true });
@@ -19,24 +19,24 @@ mkdirSync(LOCK_DIR, { recursive: true });
 let passed = 0;
 let failed = 0;
 
-function logPass(message) {
+function logPass(message: string): void {
   passed += 1;
   console.log(`PASS: ${message}`);
 }
 
-function logFail(message, error) {
+function logFail(message: string, error?: unknown): void {
   failed += 1;
   console.error(`FAIL: ${message}`);
   if (error) {
-    console.error(error.stack || error.message || String(error));
+    console.error((error as Error).stack || (error as Error).message || String(error));
   }
 }
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function waitForServer(port) {
+function waitForServer(port: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const timeout = setTimeout(() => {
@@ -45,7 +45,7 @@ function waitForServer(port) {
 
     const poll = () => {
       http
-        .get(`http://127.0.0.1:${port}/healthz`, (res) => {
+        .get(`http://127.0.0.1:${port}/healthz`, (res: IncomingMessage) => {
           if (res.statusCode === 200) {
             clearTimeout(timeout);
             resolve();
@@ -72,7 +72,7 @@ function waitForServer(port) {
   });
 }
 
-async function isPortAvailable(port) {
+async function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.unref();
@@ -83,7 +83,7 @@ async function isPortAvailable(port) {
   });
 }
 
-async function findAvailablePort(startPort, attempts = 200) {
+async function findAvailablePort(startPort: number, attempts = 200): Promise<number> {
   for (let offset = 0; offset < attempts; offset += 1) {
     const port = startPort + offset;
     // Pick a truly free port up front so we never talk to a stale server.
@@ -94,7 +94,7 @@ async function findAvailablePort(startPort, attempts = 200) {
   throw new Error(`failed to find an available port from ${startPort}`);
 }
 
-function startServer(port) {
+function startServer(port: number): ChildProcess {
   return spawn(
     "node",
     [SERVER_JS, "--no-open", "--port", String(port), FIXTURE_MD],
@@ -106,7 +106,19 @@ function startServer(port) {
   );
 }
 
-function boxIntersectionArea(a, b) {
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+function boxIntersectionArea(a: Box | null, b: Box | null): number {
   if (!a || !b) {
     return 0;
   }
@@ -119,7 +131,7 @@ function boxIntersectionArea(a, b) {
   return width * height;
 }
 
-function rectContains(outer, inner, tolerance = 0) {
+function rectContains(outer: Box | null, inner: Box | null, tolerance = 0): boolean {
   if (!outer || !inner) {
     return false;
   }
@@ -131,7 +143,7 @@ function rectContains(outer, inner, tolerance = 0) {
   );
 }
 
-function pointInRect(rect, point, tolerance = 0) {
+function pointInRect(rect: Box | null, point: Point | null, tolerance = 0): boolean {
   if (!rect || !point) {
     return false;
   }
@@ -143,7 +155,7 @@ function pointInRect(rect, point, tolerance = 0) {
   );
 }
 
-function centerOf(rect) {
+function centerOf(rect: Box | null): Point | null {
   if (!rect) {
     return null;
   }
@@ -153,7 +165,7 @@ function centerOf(rect) {
   };
 }
 
-async function createPage(browser, viewport = { width: 1440, height: 1000 }) {
+async function createPage(browser: Browser, viewport = { width: 1440, height: 1000 }): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   page.on("pageerror", (err) => {
@@ -167,15 +179,15 @@ async function createPage(browser, viewport = { width: 1440, height: 1000 }) {
   return { context, page };
 }
 
-async function gotoFixture(page, port) {
+async function gotoFixture(page: Page, port: number): Promise<void> {
   const url = `http://127.0.0.1:${port}`;
-  let lastError = null;
+  let lastError: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15000 });
       return;
-    } catch (error) {
-      lastError = error;
+    } catch (error: unknown) {
+      lastError = error as Error;
       if (attempt === 2) {
         throw error;
       }
@@ -185,7 +197,7 @@ async function gotoFixture(page, port) {
   throw lastError;
 }
 
-async function waitForCommentCard(page) {
+async function waitForCommentCard(page: Page): Promise<void> {
   await page.waitForFunction(() => {
     const card = document.querySelector("#comment-card");
     if (!card) {
@@ -196,7 +208,7 @@ async function waitForCommentCard(page) {
   });
 }
 
-async function getSelectedRows(page) {
+async function getSelectedRows(page: Page): Promise<number[]> {
   return page.evaluate(() => {
     return Array.from(document.querySelectorAll(".md-right td.selected"))
       .map((cell) => Number(cell.getAttribute("data-row")))
@@ -205,31 +217,31 @@ async function getSelectedRows(page) {
   });
 }
 
-async function waitForSelectedRowCount(page, minCount) {
+async function waitForSelectedRowCount(page: Page, minCount: number): Promise<void> {
   await page.waitForFunction(
-    (expected) => document.querySelectorAll(".md-right td.selected").length >= expected,
+    (expected: number) => document.querySelectorAll(".md-right td.selected").length >= expected,
     minCount,
   );
 }
 
-async function getBox(locator) {
+async function getBox(locator: Locator): Promise<Box | null> {
   return locator.boundingBox();
 }
 
-function assertContiguousRows(rows, message) {
+function assertContiguousRows(rows: number[], message: string): void {
   assert.ok(rows.length > 0, `${message}: selected row list is empty`);
   for (let i = 1; i < rows.length; i += 1) {
     assert.equal(rows[i], rows[i - 1] + 1, `${message}: selected rows are not contiguous`);
   }
 }
 
-async function clickAt(locator, position) {
+async function clickAt(locator: Locator, position: { x: number; y: number }): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
   await locator.click({ position });
 }
 
-async function getTextNodeClickPoint(page, selector) {
-  return page.evaluate((targetSelector) => {
+async function getTextNodeClickPoint(page: Page, selector: string): Promise<Point | null> {
+  return page.evaluate((targetSelector: string) => {
     const root = document.querySelector(targetSelector);
     if (!root) {
       return null;
@@ -254,27 +266,27 @@ async function getTextNodeClickPoint(page, selector) {
   }, selector);
 }
 
-async function runScenario(name, fn) {
+async function runScenario(name: string, fn: () => Promise<void>): Promise<void> {
   console.log(`\n--- ${name} ---`);
   try {
     await fn();
     logPass(name);
-  } catch (error) {
+  } catch (error: unknown) {
     logFail(name, error);
   }
 }
 
-async function main() {
+async function main(): Promise<void> {
   const port = await findAvailablePort(5359);
   const server = startServer(port);
-  let browser;
+  let browser: Browser | undefined;
 
   try {
     await waitForServer(port);
     browser = await chromium.launch({ headless: true });
 
     await runScenario("mermaid click selects multiple source rows", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -300,7 +312,7 @@ async function main() {
     });
 
     await runScenario("split view places the comment card on md-right without covering the preview target", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -331,7 +343,7 @@ async function main() {
     });
 
     await runScenario("paragraph text-node clicks still select the source row", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -341,7 +353,7 @@ async function main() {
         const point = await getTextNodeClickPoint(page, selector);
         assert.ok(point, "paragraph text node should expose a clickable client rect");
 
-        await page.mouse.click(point.x, point.y);
+        await page.mouse.click(point!.x, point!.y);
         await waitForCommentCard(page);
         await page.waitForTimeout(200);
 
@@ -364,7 +376,7 @@ async function main() {
     });
 
     await runScenario("preview-only keeps the comment card off the clicked element", async () => {
-      const { context, page } = await createPage(browser, { width: 1280, height: 900 });
+      const { context, page } = await createPage(browser!, { width: 1280, height: 900 });
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -391,7 +403,7 @@ async function main() {
     });
 
     await runScenario("saved draft shows the recovery modal and restore works", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -448,7 +460,7 @@ async function main() {
     });
 
     await runScenario("image-side whitespace still anchors to the image instead of empty space", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -461,14 +473,14 @@ async function main() {
 
         assert.ok(imageBox, "fixture image should be measurable");
         assert.ok(paragraphBox, "image paragraph should be measurable");
-        assert.ok(paragraphBox.width > imageBox.width + 24, "image paragraph should include clickable right-side whitespace");
+        assert.ok(paragraphBox!.width > imageBox!.width + 24, "image paragraph should include clickable right-side whitespace");
 
         const clickPoint = {
-          x: Math.min(paragraphBox.x + paragraphBox.width - 8, imageBox.x + imageBox.width + 32),
-          y: imageBox.y + imageBox.height / 2,
+          x: Math.min(paragraphBox!.x + paragraphBox!.width - 8, imageBox!.x + imageBox!.width + 32),
+          y: imageBox!.y + imageBox!.height / 2,
         };
         assert.ok(
-          clickPoint.x > imageBox.x + imageBox.width,
+          clickPoint.x > imageBox!.x + imageBox!.width,
           "whitespace click point should be outside the image box on the right side",
         );
 
@@ -491,7 +503,7 @@ async function main() {
     });
 
     await runScenario("source clicks keep the comment card off the selected markdown row", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-right");
@@ -513,7 +525,7 @@ async function main() {
     });
 
     await runScenario("Cmd/Ctrl+Enter in comment input saves the comment without opening submit modal", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -547,7 +559,7 @@ async function main() {
     });
 
     await runScenario("h1 heading text and icon behave differently", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -562,8 +574,8 @@ async function main() {
         assert.ok(iconBox, "toggle icon box should exist");
 
         const textClickPoint = {
-          x: Math.min(headingBox.x + headingBox.width - 8, iconBox.x + iconBox.width + 48),
-          y: headingBox.y + headingBox.height / 2,
+          x: Math.min(headingBox!.x + headingBox!.width - 8, iconBox!.x + iconBox!.width + 48),
+          y: headingBox!.y + headingBox!.height / 2,
         };
 
         await page.mouse.click(textClickPoint.x, textClickPoint.y);
@@ -616,7 +628,7 @@ async function main() {
     });
 
     await runScenario("Comments pill opens populated list for preview-origin comments", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -664,7 +676,7 @@ async function main() {
     });
 
     await runScenario("main preview targets all map to source selections", async () => {
-      const { context, page } = await createPage(browser);
+      const { context, page } = await createPage(browser!);
       try {
         await gotoFixture(page, port);
         await page.waitForSelector(".md-preview");
@@ -741,7 +753,7 @@ async function main() {
     }
     try {
       server.kill("SIGKILL");
-    } catch (_) {}
+    } catch (_: unknown) {}
   }
 }
 

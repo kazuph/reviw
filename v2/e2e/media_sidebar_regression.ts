@@ -1,8 +1,8 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { mkdirSync } from "node:fs";
-import { chromium } from "playwright";
+import { chromium, type Browser, type Page } from "playwright";
 
 const BASE_PORT = 5349;
 const SERVER_JS = new URL(
@@ -16,14 +16,14 @@ mkdirSync(LOCK_DIR, { recursive: true });
 
 let failed = 0;
 
-function pass(msg, detail) {
+function pass(msg: string, detail?: unknown): void {
   console.log(`PASS: ${msg}`);
   if (detail !== undefined) {
     console.log(JSON.stringify(detail, null, 2));
   }
 }
 
-function fail(msg, detail) {
+function fail(msg: string, detail?: unknown): void {
   failed++;
   console.error(`FAIL: ${msg}`);
   if (detail !== undefined) {
@@ -31,7 +31,7 @@ function fail(msg, detail) {
   }
 }
 
-function assert(condition, msg, detail) {
+function assert(condition: boolean, msg: string, detail?: unknown): void {
   if (condition) {
     pass(msg, detail);
   } else {
@@ -39,11 +39,11 @@ function assert(condition, msg, detail) {
   }
 }
 
-function waitForServerOutput(proc) {
+function waitForServerOutput(proc: ChildProcess): Promise<number> {
   let stdout = "";
   let resolved = false;
   return new Promise((resolve, reject) => {
-    proc.stdout.on("data", (chunk) => {
+    proc.stdout!.on("data", (chunk: Buffer) => {
       stdout += String(chunk);
       if (resolved) return;
       const match = stdout.match(/http:\/\/127\.0\.0\.1:(\d+)/);
@@ -52,10 +52,10 @@ function waitForServerOutput(proc) {
         resolve(parseInt(match[1], 10));
       }
     });
-    proc.stderr.on("data", (chunk) => {
+    proc.stderr!.on("data", (chunk: Buffer) => {
       stdout += String(chunk);
     });
-    proc.on("exit", (code) => {
+    proc.on("exit", (code: number | null) => {
       if (!resolved) {
         resolved = true;
         reject(new Error(`server exited before ready (code=${code})\n${stdout}`));
@@ -70,18 +70,45 @@ function waitForServerOutput(proc) {
   });
 }
 
-async function waitForHealth(port) {
+async function waitForHealth(port: number): Promise<void> {
   for (let i = 0; i < 50; i++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/healthz`);
       if (res.ok) return;
-    } catch (_) {}
+    } catch (_: unknown) {}
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`healthz timeout on ${port}`);
 }
 
-async function measureMinimap(page, selectors) {
+interface MinimapSelectors {
+  source: string;
+  wrapper: string;
+  viewport: string;
+  minimap: string;
+  minimapSvg: string;
+  minimapViewport: string;
+}
+
+interface MinimapMeasurement {
+  ok: boolean;
+  reason?: string;
+  found?: Record<string, boolean>;
+  sourceRect?: DOMRect;
+  wrapperRect?: DOMRect;
+  viewportRect?: DOMRect;
+  minimapRect?: DOMRect;
+  minimapSvgRect?: DOMRect;
+  actualRect?: Record<string, number>;
+  expectedRect?: Record<string, number>;
+  delta?: Record<string, number>;
+  maxAbsDelta?: number;
+  zoom?: number;
+  panX?: number;
+  panY?: number;
+}
+
+async function measureMinimap(page: Page, selectors: MinimapSelectors): Promise<MinimapMeasurement> {
   return page.evaluate((sel) => {
     const source = document.querySelector(sel.source);
     const wrapper = document.querySelector(sel.wrapper);
@@ -105,7 +132,7 @@ async function measureMinimap(page, selectors) {
       };
     }
 
-    const rect = (el) => {
+    const rect = (el: Element) => {
       const r = el.getBoundingClientRect();
       return {
         left: r.left,
@@ -150,14 +177,14 @@ async function measureMinimap(page, selectors) {
         minimapRect,
         minimapSvgRect,
         actualRect,
-      };
+      } as any;
     }
 
     const visibleW = viewportRect.width / zoom;
     const visibleH = viewportRect.height / zoom;
     const worldX = -panX / zoom;
     const worldY = -panY / zoom;
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
     const visibleLeft = clamp(worldX, 0, naturalWidth);
     const visibleTop = clamp(worldY, 0, naturalHeight);
     const visibleRight = clamp(worldX + visibleW, 0, naturalWidth);
@@ -208,18 +235,37 @@ async function measureMinimap(page, selectors) {
       zoom,
       panX,
       panY,
-    };
+    } as any;
   }, selectors);
 }
 
-async function measureOverlayPlacement(page, selectors) {
+interface OverlaySelectors {
+  viewport: string;
+  minimap: string;
+}
+
+interface OverlayPlacement {
+  ok: boolean;
+  reason?: string;
+  found?: Record<string, boolean>;
+  viewportRect?: Record<string, number>;
+  minimapRect?: Record<string, number>;
+  marginTop?: number;
+  marginRight?: number;
+  centerY?: number;
+  viewportMidY?: number;
+  isUpperHalf?: boolean;
+  insideViewport?: boolean;
+}
+
+async function measureOverlayPlacement(page: Page, selectors: OverlaySelectors): Promise<OverlayPlacement> {
   return page.evaluate((sel) => {
     const viewport = document.querySelector(sel.viewport);
     const minimap = document.querySelector(sel.minimap);
     if (!viewport || !minimap) {
       return { ok: false, reason: "missing-elements", found: { viewport: !!viewport, minimap: !!minimap } };
     }
-    const rect = (el) => {
+    const rect = (el: Element) => {
       const r = el.getBoundingClientRect();
       return {
         left: r.left,
@@ -263,15 +309,15 @@ const proc = spawn(
   },
 );
 
-let browser;
+let browser: Browser | undefined;
 
 try {
   const port = await waitForServerOutput(proc);
   await waitForHealth(port);
 
   browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
-  const pageErrors = [];
+  const page: Page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  const pageErrors: string[] = [];
 
   page.on("pageerror", (err) => {
     pageErrors.push(String(err));
@@ -302,7 +348,7 @@ try {
           childTag: media?.tagName || null,
           width: rect?.width || 0,
           height: rect?.height || 0,
-          text: thumb.textContent.trim().slice(0, 80),
+          text: thumb.textContent!.trim().slice(0, 80),
         };
       }),
     };
@@ -331,7 +377,7 @@ try {
     minimapViewport: ".sidebar-minimap-viewport",
   });
   assert(
-    sidebarMeasure.ok && sidebarMeasure.maxAbsDelta <= 3,
+    sidebarMeasure.ok && sidebarMeasure.maxAbsDelta! <= 3,
     "Sidebar Mermaid ミニマップが表示領域に追従する",
     sidebarMeasure,
   );
@@ -341,21 +387,21 @@ try {
   });
   assert(
     sidebarPlacement.ok &&
-      sidebarPlacement.insideViewport &&
-      sidebarPlacement.isUpperHalf &&
-      sidebarPlacement.marginTop >= 0 &&
-      sidebarPlacement.marginTop <= 32 &&
-      sidebarPlacement.marginRight >= 0 &&
-      sidebarPlacement.marginRight <= 24,
+      sidebarPlacement.insideViewport! &&
+      sidebarPlacement.isUpperHalf! &&
+      sidebarPlacement.marginTop! >= 0 &&
+      sidebarPlacement.marginTop! <= 32 &&
+      sidebarPlacement.marginRight! >= 0 &&
+      sidebarPlacement.marginRight! <= 24,
     "Sidebar Mermaid ミニマップが右下ではなく右上に固定される",
     sidebarPlacement,
   );
 
   const sidebarViewport = page.locator(".sidebar-mermaid-viewport");
   const sidebarBox = await sidebarViewport.boundingBox();
-  await page.mouse.move(sidebarBox.x + sidebarBox.width * 0.72, sidebarBox.y + sidebarBox.height * 0.46);
+  await page.mouse.move(sidebarBox!.x + sidebarBox!.width * 0.72, sidebarBox!.y + sidebarBox!.height * 0.46);
   await page.mouse.down();
-  await page.mouse.move(sidebarBox.x + sidebarBox.width * 0.54, sidebarBox.y + sidebarBox.height * 0.34, {
+  await page.mouse.move(sidebarBox!.x + sidebarBox!.width * 0.54, sidebarBox!.y + sidebarBox!.height * 0.34, {
     steps: 8,
   });
   await page.mouse.up();
@@ -369,7 +415,7 @@ try {
     minimapViewport: ".sidebar-minimap-viewport",
   });
   assert(
-    sidebarAfterPan.ok && sidebarAfterPan.maxAbsDelta <= 3,
+    sidebarAfterPan.ok && sidebarAfterPan.maxAbsDelta! <= 3,
     "Sidebar Mermaid ミニマップがパン後も表示領域に追従する",
     sidebarAfterPan,
   );
@@ -387,16 +433,16 @@ try {
     minimapViewport: "#fs-minimap-viewport",
   });
   assert(
-    fullscreenMeasure.ok && fullscreenMeasure.maxAbsDelta <= 3,
+    fullscreenMeasure.ok && fullscreenMeasure.maxAbsDelta! <= 3,
     "Fullscreen Mermaid ミニマップが表示領域に追従する",
     fullscreenMeasure,
   );
 
   const fullscreenViewport = page.locator("#fs-content");
   const fullscreenBox = await fullscreenViewport.boundingBox();
-  await page.mouse.move(fullscreenBox.x + fullscreenBox.width * 0.72, fullscreenBox.y + fullscreenBox.height * 0.46);
+  await page.mouse.move(fullscreenBox!.x + fullscreenBox!.width * 0.72, fullscreenBox!.y + fullscreenBox!.height * 0.46);
   await page.mouse.down();
-  await page.mouse.move(fullscreenBox.x + fullscreenBox.width * 0.54, fullscreenBox.y + fullscreenBox.height * 0.34, {
+  await page.mouse.move(fullscreenBox!.x + fullscreenBox!.width * 0.54, fullscreenBox!.y + fullscreenBox!.height * 0.34, {
     steps: 8,
   });
   await page.mouse.up();
@@ -410,13 +456,13 @@ try {
     minimapViewport: "#fs-minimap-viewport",
   });
   assert(
-    fullscreenAfterPan.ok && fullscreenAfterPan.maxAbsDelta <= 3,
+    fullscreenAfterPan.ok && fullscreenAfterPan.maxAbsDelta! <= 3,
     "Fullscreen Mermaid ミニマップがパン後も表示領域に追従する",
     fullscreenAfterPan,
   );
 
   await page.keyboard.down("Control");
-  await page.mouse.move(fullscreenBox.x + fullscreenBox.width / 2, fullscreenBox.y + fullscreenBox.height / 2);
+  await page.mouse.move(fullscreenBox!.x + fullscreenBox!.width / 2, fullscreenBox!.y + fullscreenBox!.height / 2);
   await page.mouse.wheel(0, -500);
   await page.keyboard.up("Control");
   await page.waitForTimeout(250);
@@ -429,16 +475,53 @@ try {
     minimapViewport: "#fs-minimap-viewport",
   });
   assert(
-    fullscreenAfterZoom.ok && fullscreenAfterZoom.maxAbsDelta <= 3,
+    fullscreenAfterZoom.ok && fullscreenAfterZoom.maxAbsDelta! <= 3,
     "Fullscreen Mermaid ミニマップがズーム後も表示領域に追従する",
     fullscreenAfterZoom,
   );
 
+  // --- Video settings panel button functionality ---
+  // Find and click a video thumbnail
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  const videoThumb = page.locator(".media-sidebar-thumb").filter({ has: page.locator("video") }).first();
+  if (await videoThumb.count() > 0) {
+    await videoThumb.click();
+    await page.waitForTimeout(1500);
+
+    // Open settings panel
+    const settingsBtn = page.locator(".sidebar-viewer-settings-btn");
+    if (await settingsBtn.count() > 0) {
+      await settingsBtn.click();
+      await page.waitForTimeout(300);
+
+      const panelVisible = await page.evaluate(() => {
+        const p = document.querySelector(".video-settings-panel");
+        return p ? p.classList.contains("visible") : false;
+      });
+      assert(panelVisible, "Video settings panel opens on button click");
+
+      // Click a non-selected button in Scene Sensitivity
+      const result = await page.evaluate(() => {
+        const rows = document.querySelectorAll(".video-settings-panel .video-settings-buttons");
+        if (!rows[0]) return { ok: false, reason: "no button row", rowCount: rows.length };
+        const buttons = rows[0].querySelectorAll("button");
+        if (buttons.length < 2) return { ok: false, reason: "not enough buttons", count: buttons.length };
+        const initialSelected = Array.from(buttons).findIndex(b => b.classList.contains("selected"));
+        const targetIdx = initialSelected === 0 ? 1 : 0;
+        (buttons[targetIdx] as HTMLElement).click();
+        const newSelected = Array.from(buttons).findIndex(b => b.classList.contains("selected"));
+        return { ok: newSelected === targetIdx, initialSelected, newSelected, targetIdx };
+      });
+      assert(result.ok, "Video settings button click updates selected state", result);
+    }
+  }
+
   if (failed > 0) {
     process.exitCode = 1;
   }
-} catch (err) {
-  fail("media sidebar regression test aborted", { message: err.message, stack: err.stack });
+} catch (err: unknown) {
+  fail("media sidebar regression test aborted", { message: (err as Error).message, stack: (err as Error).stack });
   process.exitCode = 1;
 } finally {
   if (browser) {

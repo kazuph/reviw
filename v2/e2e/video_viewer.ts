@@ -1,4 +1,14 @@
-import { chromium } from 'playwright';
+/**
+ * Video Viewer Check E2E Test
+ * Converted from e2e/video-viewer-check.mjs
+ *
+ * Tests sidebar thumbnail clicks, viewer panel population,
+ * timeline labels vs video duration, and arrow key navigation.
+ *
+ * Run: npx tsx v2/e2e/video_viewer.ts
+ * Requires a running server (e.g. on localhost:18900)
+ */
+import { chromium, type Browser, type Page, type BrowserContext } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 
@@ -7,7 +17,7 @@ const SCREENSHOT_DIR = '/Users/kazuph/src/github.com/kazuph/reviw/.artifacts/vid
 
 fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 
-async function screenshot(page, name) {
+async function screenshot(page: Page, name: string): Promise<string> {
   const p = path.join(SCREENSHOT_DIR, name);
   await page.screenshot({ path: p, fullPage: false });
   console.log(`  Screenshot saved: ${name}`);
@@ -15,16 +25,16 @@ async function screenshot(page, name) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
-  const page = await context.newPage();
+  const browser: Browser = await chromium.launch({ headless: true });
+  const context: BrowserContext = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const page: Page = await context.newPage();
 
   // Collect console errors
-  const consoleErrors = [];
-  page.on('console', msg => {
+  const consoleErrors: string[] = [];
+  page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
   });
-  page.on('pageerror', err => consoleErrors.push(err.message));
+  page.on('pageerror', (err) => consoleErrors.push(err.message));
 
   console.log('=== Step a: Opening page ===');
   await page.goto(BASE_URL, { waitUntil: 'load', timeout: 15000 });
@@ -60,22 +70,22 @@ async function screenshot(page, name) {
       class: t.className,
       dataType: t.getAttribute('data-type'),
       dataIndex: t.getAttribute('data-index'),
-      text: t.textContent?.trim().substring(0, 30),
+      text: t.textContent?.trim().substring(0, 30) || '',
       hasCanvas: t.querySelector('canvas') !== null,
       hasImg: t.querySelector('img') !== null,
       isActive: t.classList.contains('active'),
     }));
   });
   console.log('  Thumbnail details:');
-  thumbDetails.forEach(t => console.log(`    [${t.index}] type=${t.dataType} active=${t.isActive} text="${t.text}"`));
+  thumbDetails.forEach((t) => console.log(`    [${t.index}] type=${t.dataType} active=${t.isActive} text="${t.text}"`));
 
   // Check media-sidebar-viewer state BEFORE click
   const viewerBefore = await page.evaluate(() => {
     const viewer = document.querySelector('.media-sidebar-viewer');
-    if (!viewer) return { exists: false };
+    if (!viewer) return { exists: false } as const;
     return {
       exists: true,
-      className: viewer.className,
+      className: (viewer as HTMLElement).className,
       display: getComputedStyle(viewer).display,
       width: getComputedStyle(viewer).width,
       innerHTML: viewer.innerHTML.substring(0, 300),
@@ -93,10 +103,10 @@ async function screenshot(page, name) {
 
     const viewerAfter1 = await page.evaluate(() => {
       const viewer = document.querySelector('.media-sidebar-viewer');
-      if (!viewer) return { exists: false, error: 'No .media-sidebar-viewer found' };
+      if (!viewer) return { exists: false, error: 'No .media-sidebar-viewer found' } as const;
       return {
         exists: true,
-        className: viewer.className,
+        className: (viewer as HTMLElement).className,
         display: getComputedStyle(viewer).display,
         width: getComputedStyle(viewer).width,
         height: getComputedStyle(viewer).height,
@@ -106,7 +116,7 @@ async function screenshot(page, name) {
         hasImg: viewer.querySelector('img') !== null,
         hasVideo: viewer.querySelector('video') !== null,
         hasCanvas: viewer.querySelector('canvas') !== null,
-        imgSrc: viewer.querySelector('img')?.src?.substring(0, 100),
+        imgSrc: viewer.querySelector('img')?.getAttribute('src')?.substring(0, 100) || null,
       };
     });
     console.log('  Viewer after click 1:', JSON.stringify(viewerAfter1, null, 2));
@@ -115,14 +125,14 @@ async function screenshot(page, name) {
     const sidebarState = await page.evaluate(() => {
       const sidebar = document.getElementById('media-sidebar');
       return {
-        className: sidebar?.className,
-        hasViewerOpen: sidebar?.classList.contains('viewer-open'),
+        className: sidebar?.className || '',
+        hasViewerOpen: sidebar?.classList.contains('viewer-open') || false,
         width: sidebar ? getComputedStyle(sidebar).width : 'N/A',
       };
     });
     console.log('  Sidebar state:', JSON.stringify(sidebarState));
 
-    if (viewerAfter1.childCount === 0) {
+    if (viewerAfter1.exists && viewerAfter1.childCount === 0) {
       console.log('  *** BUG CONFIRMED: Viewer panel is EMPTY after clicking thumbnail ***');
       console.log('  Console errors so far:', consoleErrors);
 
@@ -131,9 +141,8 @@ async function screenshot(page, name) {
         const thumb = document.querySelector('.media-sidebar-thumb');
         // Check if onclick is set
         return {
-          hasOnclick: !!thumb?.onclick,
+          hasOnclick: !!(thumb as HTMLElement)?.onclick,
           hasEventListeners: typeof thumb?.addEventListener === 'function',
-          // Look for click handler registration
         };
       });
       console.log('  Handler info:', JSON.stringify(handlers));
@@ -149,9 +158,10 @@ async function screenshot(page, name) {
 
     const viewerAfter2 = await page.evaluate(() => {
       const viewer = document.querySelector('.media-sidebar-viewer');
-      if (!viewer) return { exists: false };
+      if (!viewer) return { exists: false } as const;
       return {
-        className: viewer.className,
+        exists: true,
+        className: (viewer as HTMLElement).className,
         innerHTML: viewer.innerHTML.substring(0, 1000),
         childCount: viewer.children.length,
         hasVideo: viewer.querySelector('video') !== null,
@@ -164,11 +174,11 @@ async function screenshot(page, name) {
     // Check if there are timeline elements anywhere on the page
     const timelineAnywhere = await page.evaluate(() => {
       const all = document.querySelectorAll('[class*="timeline"]');
-      return Array.from(all).map(el => ({
+      return Array.from(all).map((el: Element) => ({
         class: el.className,
         visible: getComputedStyle(el).display !== 'none',
-        text: el.textContent?.trim().substring(0, 80),
-        parent: el.parentElement?.className,
+        text: el.textContent?.trim().substring(0, 80) || '',
+        parent: el.parentElement?.className || '',
       }));
     });
     console.log('  All timeline elements on page:', JSON.stringify(timelineAnywhere, null, 2));
@@ -179,13 +189,13 @@ async function screenshot(page, name) {
   const timelineLabels = await page.evaluate(() => {
     // Check sidebar thumb timeline labels
     const thumbTimelines = document.querySelectorAll('.media-sidebar-thumb .video-timeline');
-    const result = [];
+    const result: Array<{ thumbIndex: number; time: string; thumbClass: string }> = [];
     thumbTimelines.forEach((tl, i) => {
       const timeEl = tl.querySelector('.timeline-time');
       result.push({
         thumbIndex: i,
-        time: timeEl?.textContent?.trim(),
-        thumbClass: tl.closest('.media-sidebar-thumb')?.className,
+        time: timeEl?.textContent?.trim() || '',
+        thumbClass: tl.closest('.media-sidebar-thumb')?.className || '',
       });
     });
     return result;
@@ -195,9 +205,9 @@ async function screenshot(page, name) {
   // All time-related elements
   const allTimeTexts = await page.evaluate(() => {
     const els = document.querySelectorAll('.timeline-time, .video-timeline, [class*="duration"]');
-    return Array.from(els).map(el => ({
+    return Array.from(els).map((el: Element) => ({
       class: el.className,
-      text: el.textContent?.trim().substring(0, 50),
+      text: el.textContent?.trim().substring(0, 50) || '',
       visible: getComputedStyle(el).display !== 'none',
     }));
   });
@@ -212,7 +222,7 @@ async function screenshot(page, name) {
       currentTime: v.currentTime,
       readyState: v.readyState,
       src: v.src?.substring(0, 100),
-      parentClass: v.parentElement?.className,
+      parentClass: v.parentElement?.className || '',
     }));
   });
   console.log('  All videos on page:', JSON.stringify(videoInfo, null, 2));
@@ -220,7 +230,7 @@ async function screenshot(page, name) {
   // === Step g: Timeline vs duration ===
   console.log('\n=== Step g: Timeline label vs duration check ===');
   if (timelineLabels.length > 0 && videoInfo.length > 0) {
-    timelineLabels.forEach(tl => {
+    timelineLabels.forEach((tl) => {
       if (tl.time) {
         const match = tl.time.match(/(\d+):(\d+)/);
         if (match) {
@@ -254,13 +264,14 @@ async function screenshot(page, name) {
     // Timeline labels for this video
     const labels5 = await page.evaluate(() => {
       const active = document.querySelector('.media-sidebar-thumb.active');
-      if (!active) return { error: 'No active thumb' };
+      if (!active) return { error: 'No active thumb' } as const;
       const tl = active.querySelector('.video-timeline');
       const time = active.querySelector('.timeline-time');
       return {
+        error: null,
         activeIndex: active.getAttribute('data-index'),
         hasTimeline: !!tl,
-        timeText: time?.textContent?.trim(),
+        timeText: time?.textContent?.trim() || '',
         thumbHTML: active.innerHTML.substring(0, 500),
       };
     });
@@ -279,8 +290,8 @@ async function screenshot(page, name) {
     const activeBefore = await page.evaluate(() => {
       const active = document.querySelector('.media-sidebar-thumb.active');
       return {
-        index: active?.getAttribute('data-index'),
-        text: active?.textContent?.trim().substring(0, 30),
+        index: active?.getAttribute('data-index') || null,
+        text: active?.textContent?.trim().substring(0, 30) || '',
       };
     });
     console.log('  Active before ArrowRight:', JSON.stringify(activeBefore));
@@ -292,8 +303,8 @@ async function screenshot(page, name) {
     const activeAfter = await page.evaluate(() => {
       const active = document.querySelector('.media-sidebar-thumb.active');
       return {
-        index: active?.getAttribute('data-index'),
-        text: active?.textContent?.trim().substring(0, 30),
+        index: active?.getAttribute('data-index') || null,
+        text: active?.textContent?.trim().substring(0, 30) || '',
       };
     });
     console.log('  Active after ArrowRight:', JSON.stringify(activeAfter));
