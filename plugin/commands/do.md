@@ -10,11 +10,13 @@ Receive requests for tasks to be done, set up the work environment, and create a
 
 **Role: You are the Project Manager (PM) interviewing the Product Owner (user).**
 
-## Phase 0: Interactive Discovery (REQUIRED)
+**ALL checkpoints must be passed before task completion. Do NOT split into separate PRs, report partial progress, or defer remaining checkpoints to "next time". This is a single continuous flow that ends with `/reviw-plugin:done`.**
+
+## ☑ 1. Interactive Discovery (REQUIRED)
 
 Before any implementation, conduct a structured interview with the user to fully understand requirements.
 
-### Step 0-1: Development Approach Question
+### 1-1. Development Approach Question
 
 **Use AskUserQuestion tool** to ask about development approach:
 
@@ -27,7 +29,7 @@ Options:
   3. "Create new branch only" - Create branch but work in main directory. Middle ground.
 ```
 
-### Step 0-1.5: Tool Installation Check (If worktree selected)
+### 1-1a. Tool Installation Check (If worktree selected)
 
 **If user selects worktree approach, check required tools:**
 
@@ -64,7 +66,7 @@ git-wt is required for worktree management. Please install it:
 - **dotenvx**: `.env` is encrypted and committed to git, decrypted only in memory at runtime
 - **Combined**: `.envrc` with `DOTENV_PRIVATE_KEY` auto-decrypts `.env` in all worktrees (no file copying needed)
 
-### Step 0-2: Specification Deep-Dive (PM Interview)
+### 1-2. Specification Deep-Dive (PM Interview)
 
 **As Project Manager, drill down into specifications with multiple rounds of questions.**
 
@@ -119,7 +121,7 @@ Q7: "Should we follow the existing pattern in [file] or try something different?
 Q8: "Given the requirements, I see two approaches: A or B. Which do you prefer?"
 ```
 
-### Step 0-2.5: Codebase Exploration (REQUIRED before architecture design)
+### 1-2a. Codebase Exploration (REQUIRED before architecture design)
 
 **Before designing architecture, deeply understand the existing codebase.**
 
@@ -134,7 +136,7 @@ Agent 3: "Identify UI patterns, testing approaches, or extension points relevant
 **After agents return:**
 1. Read ALL key files identified by agents to build deep understanding
 2. Summarize patterns, conventions, and architectural decisions found
-3. Use these findings to inform the Architecture proposal (Step 0-3)
+3. Use these findings to inform the Architecture proposal (1-3)
 
 **Why this matters:**
 - Prevents reinventing patterns that already exist in the codebase
@@ -142,7 +144,7 @@ Agent 3: "Identify UI patterns, testing approaches, or extension points relevant
 - Discovers reusable utilities and abstractions
 - Architecture proposals are grounded in actual codebase reality
 
-### Step 0-3: Architecture & Implementation Approach (Multi-Proposal)
+### 1-3. Architecture & Implementation Approach (Multi-Proposal)
 
 **After understanding requirements AND codebase, design multiple implementation approaches and let the user choose.**
 
@@ -176,7 +178,7 @@ Options:
 
 **Only proceed to implementation after user confirms approach.**
 
-### Step 0-4: Record Q&A in REPORT.md (REQUIRED)
+### 1-4. Record Q&A in REPORT.md (REQUIRED)
 
 **All questions asked and answers received MUST be recorded in REPORT.md.**
 
@@ -218,7 +220,7 @@ After completing the interview, add the following section to REPORT.md:
 - Enables traceability of decisions
 - Helps when resuming work
 
-### Step 0-5: Project Type Auto-Detection
+### 1-5. Project Type Auto-Detection
 
 **Automatically detect the project type to select appropriate implementation and verification strategies.**
 
@@ -437,9 +439,9 @@ When the user adds new requests/tasks during the session:
 3. Update todo status in real-time as you work
 4. Mark tasks complete ONLY after user approval
 
-## Phase 1: Work Environment Setup (For New Tasks)
+## ☑ 2. Work Environment Setup (For New Tasks)
 
-### 1-1. Git Repository Verification
+### 2-1. Git Repository Verification
 
 First, verify that the current project is a git repository.
 
@@ -450,7 +452,7 @@ git rev-parse --show-toplevel
 
 Next, create a worktree for the task. Branch name is automatically generated appropriately from the request content.
 
-### 1-2. worktree Naming Convention
+### 2-2. worktree Naming Convention
 
 | Type | Branch Name | Example |
 |------|-----------|-----|
@@ -494,7 +496,7 @@ myproject/
 
 direnvは親ディレクトリの`.envrc`を継承するため、プロジェクトルートに環境変数を設定しておけば、`.worktree/`内のworktreeも同じ環境変数が自動適用されます。
 
-### 1-3. .gitignore Configuration
+### 2-3. .gitignore Configuration
 
 **Important:** Exclude `.artifacts` and `.envrc` from commit targets.
 
@@ -511,7 +513,7 @@ done
 - `.artifacts/` - Evidence (screenshots/videos) excluded to prevent repository bloat
 - `.envrc` - Contains `DOTENV_PRIVATE_KEY` for decryption
 
-### 1-4. Environment Setup (direnv + dotenvx)
+### 2-4. Environment Setup (direnv + dotenvx)
 
 **Recommended: Set up encrypted environment variables**
 
@@ -567,9 +569,9 @@ git add --force .artifacts/<feature>/videos/demo.mp4
 
 The recommended approach is to exclude by default and explicitly commit only what's needed.
 
-## Phase 2: Planning
+## ☑ 3. Planning
 
-### 2-1. Deliverables Directory Preparation
+### 3-1. Deliverables Directory Preparation
 
 Create `.artifacts/<feature=branch_name>/` directory within the worktree.
 
@@ -587,7 +589,7 @@ Create `.artifacts/<feature=branch_name>/` directory within the worktree.
 mkdir -p .artifacts/<feature=branch_name>/{images,videos}
 ```
 
-### 2-2. Planning (REPORT.md)
+### 3-2. Planning (REPORT.md)
 
 Create `.artifacts/<feature=branch_name>/REPORT.md` and write the plan in the following format:
 
@@ -706,13 +708,13 @@ Mermaid diagrams should only be used when visual representation adds value that 
 <Add links to evidence collected with artifact-proof>
 ```
 
-### 2-3. Reflection to TodoWrite
+### 3-3. Reflection to TodoWrite
 
 Reflect the above PLAN to the TodoWrite tool as well. This visualizes progress.
 
-## Phase 3: Implementation
+## ☑ 4. Implementation
 
-### 3-0. t-wada TDD Cycle (MANDATORY)
+### 4-1. t-wada TDD Cycle (MANDATORY)
 
 **All implementation MUST follow the t-wada TDD cycle. Writing implementation before tests is prohibited.**
 
@@ -724,23 +726,24 @@ Refactor: Refactor while keeping tests passing
 
 **Subagents must be instructed to follow this cycle explicitly.** Include TDD instructions in every subagent prompt.
 
-### 3-1. Parallel Implementation with Subagents
+### 4-2. Parallel Implementation with Subagents
 
 **After planning, implementation MUST be executed with subagents (Task tool).**
 
 The main thread should focus on the director role and proceed with the following flow:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Main Thread (Director)                                     │
-│                                                             │
-│  1. Planning completed                                      │
-│  2. Classify tasks by dependencies                          │
-│     ├─ Independent tasks → Launch subagents in parallel     │
-│     └─ Dependent tasks → Launch after previous completion   │
-│  3. Integrate results from each subagent                    │
-│  4. Proceed to next phase                                   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  Main Thread (Director)                                         │
+│                                                                 │
+│  1. Planning completed                                          │
+│  2. Classify tasks by dependencies                              │
+│     ├─ Independent tasks → Launch subagents in parallel         │
+│     └─ Dependent tasks → Launch after previous completion       │
+│  3. Integrate results from each subagent                        │
+│  4. Proceed to /reviw-plugin:done                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 **Example of Parallel Execution:**
@@ -767,7 +770,7 @@ Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent
 | Mobile Verification | `general-purpose` + mobile-testing skill | mobile | Maestro MCP E2E flows |
 | Evidence Collection | `general-purpose` + artifact-proof skill | ALL | Completion report preparation |
 
-### 3-2. Confirm Action Guidelines Focused on Deliverables
+### 4-3. Confirm Action Guidelines Focused on Deliverables
 
 **Display important notes:**
 
@@ -791,10 +794,31 @@ Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent
 |    - webapp-testing: Browser operation and verification       |
 |    - artifact-proof: Evidence collection                      |
 |                                                               |
-|  Execute /done when work is complete to start review          |
-|                                                               |
 +---------------------------------------------------------------+
 ```
+
+## ☑ 5. Execute /reviw-plugin:done (MANDATORY)
+
+**After implementation is complete, you MUST execute `/reviw-plugin:done` to proceed to the review flow.**
+
+This is NOT optional. Implementation without review is incomplete.
+
+```
+Implementation done
+  ↓
+Execute /reviw-plugin:done
+  ↓
+done handles: build → verification → review agents → report → reviw
+  ↓
+User approval
+  ↓
+Task complete
+```
+
+**Do NOT:**
+- Report "implementation complete" without executing /done
+- Create a separate PR before /done review
+- Defer /done to "next time" or "another session"
 
 ## E2E Test Policy (CRITICAL - Read Before Implementation)
 
@@ -815,12 +839,12 @@ Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent
 ### goto Restrictions
 
 ```
-✅ Allowed:
+Allowed:
    - page.goto('/') or page.goto(baseUrl)  // First navigation only
    - page.goto('http://localhost:9099')     // Emulator switch (Firebase etc.)
-   - page.goto(process.env.MAILPIT_URL)     // Emulator switch
+   - page.goto(process.env.MAILPIT_URL)    // Emulator switch
 
-❌ Prohibited:
+Prohibited:
    - page.goto('/dashboard')  // After initial navigation - use UI clicks
    - page.goto('/settings')   // After initial navigation - use UI clicks
 ```
@@ -838,12 +862,12 @@ Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent
 ### Dependency Injection (DI)
 
 ```
-✅ Correct DI:
+Correct DI:
    - Firebase Emulator (localhost:9099)
    - Mailpit (localhost:8025)
    - Environment variable switching
 
-❌ Wrong approach:
+Wrong approach:
    - Mocking Firebase in code
    - Stubbing email sending
    - In-memory database replacement
@@ -852,14 +876,14 @@ Task(subagent_type="reviw-plugin:webapp-impl", prompt="Implement FooterComponent
 ### Example: Good vs Bad E2E Test
 
 ```typescript
-// ❌ BAD - Will be rejected at review
+// BAD - Will be rejected at review
 test('user can view dashboard', async () => {
   await page.goto('/dashboard');  // NG: Direct navigation
   localStorage.setItem('token', 'fake-token');  // NG: Auth shortcut
   await expect(page.locator('.dashboard')).toBeVisible();
 });
 
-// ✅ GOOD - Will pass review
+// GOOD - Will pass review
 test('user can view dashboard', async () => {
   await page.goto('/');  // OK: Initial navigation
   await page.fill('[data-testid="email"]', 'test@example.com');
@@ -887,6 +911,7 @@ test('user can view dashboard', async () => {
 - Executing parallelizable tasks sequentially (reduced efficiency)
 - **Writing E2E tests without reading the E2E Test Policy above**
 - **Using mocks, stubs, or shortcuts in E2E tests**
+- **Splitting work into multiple PRs before completing all checkpoints**
 
 ## PR Creation Flow (Reference)
 
@@ -924,3 +949,4 @@ This will:
 2. Write the plan to `.worktree/feature-add-login-button/.artifacts/add-login-button/REPORT.md`
 3. Register TODOs in TodoWrite
 4. Display deliverable-focused action guidelines
+5. After implementation, execute `/reviw-plugin:done` for review

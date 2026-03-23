@@ -7,6 +7,8 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQues
 
 When you think implementation is done, run this command to verify completion criteria are met.
 
+**ALL checkpoints must be passed before task completion. Do NOT split into separate PRs, report partial progress, or defer remaining checkpoints to "next time". This is a single continuous flow.**
+
 ## Report Creation Rules (MANDATORY - Read Before Proceeding)
 
 **These rules MUST be followed when creating or updating REPORT.md:**
@@ -51,7 +53,7 @@ NOT as: "UI alignment issue" ← Summarized (WRONG)
 
 ---
 
-## Phase 0: Report Level Selection (REQUIRED)
+## ☑ 1. Report Level Selection (REQUIRED)
 
 **Before starting the review process, ask user about desired report level.**
 
@@ -152,7 +154,7 @@ Conditions for checking:
 
 ## Required Actions After Implementation
 
-Do NOT say "complete" until all of the following are executed:
+Do NOT say "complete" until all of the following checkpoints are passed:
 
 ### Pre-Check: Read Project Type
 
@@ -162,9 +164,9 @@ if [ -z "$PROJECT_TYPE" ]; then PROJECT_TYPE="web"; fi
 echo "Project type: $PROJECT_TYPE"
 ```
 
-**This value determines which verification and review steps to execute below.**
+**This value determines which verification and review checkpoints to execute below.**
 
-### 0. Verify TODO Current Status (Rejection Determination)
+## ☑ 2. Verify TODO Current Status (Rejection Determination)
 
 ```
 Check current TODO status and reject if any of the following apply:
@@ -177,11 +179,11 @@ On rejection, display:
 "Implementation alone is not completion. Execute build → operation verification → evidence collection."
 ```
 
-### 1. Execute Build
+## ☑ 3. Execute Build
    - Verify no errors with `npm run build` / `pnpm build` etc.
    - Check for type errors, lint errors
 
-### 2. Start Development Server / Prepare Runtime (project-type-aware)
+## ☑ 4. Start Development Server / Prepare Runtime (project-type-aware)
 
 | Project Type | Action |
 |-------------|--------|
@@ -190,7 +192,7 @@ On rejection, display:
 | **backend** | Start API server OR run test suite directly (no browser needed) |
 | **mobile** | Ensure simulator/device is running and app is built (`npx expo start`, `flutter run`, etc.) |
 
-### 3. Operation Verification (branch by project type)
+## ☑ 5. Operation Verification (branch by project type)
 
 | Project Type | Verification Method |
 |-------------|---------------------|
@@ -199,7 +201,7 @@ On rejection, display:
 | **mobile** | Use `mobile-testing` skill - Maestro MCP for E2E flows, `take_screenshot` for evidence |
 | **fullstack** | Use BOTH `webapp-testing` (frontend) AND `backend-testing` (backend API tests) |
 
-### 3.5. E2E Test Verification BEFORE Screenshots (CRITICAL)
+### ☑ 5a. E2E Test Pre-Screenshot Checklist (CRITICAL)
 
 **スクショ・動画を撮影する前に、以下を必ず確認する：**
 
@@ -229,7 +231,7 @@ On rejection, display:
 - ユーザーは変化を確認できず、無駄なレビューサイクルが発生する
 - E2Eテスト自体が依頼内容を検証していないと、バグを見逃す
 
-### 3.6. Backend Test Pre-Evidence Checklist (for backend / fullstack)
+### ☑ 5b. Backend Test Pre-Evidence Checklist (for backend / fullstack)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -255,7 +257,7 @@ On rejection, display:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 3.7. Mobile Test Pre-Evidence Checklist (for mobile)
+### ☑ 5c. Mobile Test Pre-Evidence Checklist (for mobile)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -280,7 +282,7 @@ On rejection, display:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 4. Comprehensive Review (3 Integrated Review Agents in Parallel)
+## ☑ 6. Comprehensive Review (3 Integrated Review Agents in Parallel)
 
 **Launch all 3 review agents simultaneously with Task tool:**
 
@@ -340,7 +342,7 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
 | review-e2e-integrity | reviw-plugin:review-e2e |
 | e2e-health-reviewer | reviw-plugin:review-e2e |
 
-### 5. Review Agent Findings Check (CRITICAL - Do NOT Skip)
+## ☑ 7. Review Agent Findings Check (CRITICAL - Do NOT Skip)
 
 **After review agents complete, check their findings BEFORE creating the report:**
 
@@ -355,8 +357,8 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
 │    - UI/UX Review (if applicable)                               │
 │                                                                 │
 │  Check for Critical/High severity issues:                       │
-│    YES → STOP. Fix issues first. Return to Step 1.              │
-│    NO  → Proceed to Step 6 (Report Creation)                    │
+│    YES → STOP. Fix issues first. Return to ☑ 3.                │
+│    NO  → Proceed to ☑ 8. (Report Creation)                     │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -365,12 +367,12 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
 1. Register ALL findings in TodoWrite (detailed, no summarization)
 2. Fix each issue
 3. Re-run build/verification
-4. Re-run review agents (return to Step 4)
+4. Re-run review agents (return to ☑ 6.)
 5. Only proceed when no Critical/High issues remain
 
 **This is NOT optional. Proceeding with Critical/High issues will result in rejection.**
 
-### 6. Report Creation/Evidence Organization
+## ☑ 8. Report Creation/Evidence Organization
 
 **Only after review agents pass (no Critical/High issues), launch report-builder:**
 
@@ -385,7 +387,7 @@ subagent_type: "reviw-plugin:report-builder"
    → Ready to start reviw review
 ```
 
-### 6.5. Report Validation (artifact-proof 5 Rules Check)
+### ☑ 8a. Report Validation (artifact-proof 5 Rules Check)
 
 **After report-builder completes, validate REPORT.md against artifact-proof rules:**
 
@@ -405,7 +407,7 @@ prompt: |
 |---|------|-------|
 | 1 | 言語ポリシー | ユーザーの依頼言語と一致しているか |
 | 2 | メディアフォーマット | `![]()` 構文 + テーブル配置（縦積み禁止） |
-| 3 | 優先順位 | 📌 Attention Required → 📋 Previous Feedback の順序 |
+| 3 | 優先順位 | Attention Required → Previous Feedback の順序 |
 | 4 | フィードバック累積 | 原文記録 + `<details>` タグ + 累積形式 |
 | 5 | TodoList連携 | User Request ⇄ Response セクションの存在 |
 
@@ -413,11 +415,11 @@ prompt: |
 
 | Result | Action |
 |--------|--------|
-| 5/5 Pass | ✅ Proceed to Step 7 (reviw review) |
-| 3-4/5 Pass | ⚠️ Warning displayed, recommend fixes before proceeding |
-| 0-2/5 Pass | ❌ Return to Step 6, request report-builder to fix violations |
+| 5/5 Pass | Proceed to ☑ 9. (reviw review) |
+| 3-4/5 Pass | Warning displayed, recommend fixes before proceeding |
+| 0-2/5 Pass | Return to ☑ 8., request report-builder to fix violations |
 
-### 7. Start reviw Review
+## ☑ 9. Start reviw Review
 
 **Important: Launch reviw in foreground**
 
@@ -439,7 +441,7 @@ When reviw review starts:
 - To receive user review comments
 - Feedback won't be conveyed in background
 
-### 8. User Feedback Response (Improvement Cycle)
+## ☑ 10. User Feedback Response (Improvement Cycle)
 
 After receiving user feedback from reviw:
 
@@ -461,7 +463,7 @@ After receiving user feedback from reviw:
 │     - Re-collect evidence (webapp-testing)                      │
 │     - Update REPORT.md with new evidence                        │
 │                                                                 │
-│  5. Return to Step 6 (Start reviw Review again)                 │
+│  5. Return to ☑ 8. (Start reviw Review again)                  │
 │     - User will verify fixes                                    │
 │     - Repeat until approval                                     │
 │                                                                 │
@@ -469,10 +471,10 @@ After receiving user feedback from reviw:
 ```
 
 **NEVER do this:**
-- ❌ Write REPORT.md and declare "done" without fixing
-- ❌ Skip re-verification after fixes
-- ❌ Summarize feedback (copy exact text)
-- ❌ Batch multiple fixes without individual TODO tracking
+- Write REPORT.md and declare "done" without fixing
+- Skip re-verification after fixes
+- Summarize feedback (copy exact text)
+- Batch multiple fixes without individual TODO tracking
 
 ## reviw Usage Tips
 

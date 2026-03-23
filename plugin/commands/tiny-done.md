@@ -11,6 +11,10 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQues
 小さなタスクをサクッと完了させる軽量タスクコマンド。
 要件深掘り → worktree作成 → TDD実装 → スクショ確認まで一気通貫。
 
+**ALL checkpoints must be passed before task completion. Do NOT split into separate PRs, report partial progress, or defer remaining checkpoints to "next time". This is a single continuous flow.**
+
+**tiny-doneは/doneの軽量版です。完了基準は同じ（ユーザー承認まで終わらない）。REPORT.mdやnpx reviwを省略する代わりに、スクショ撮影→ユーザー確認で完了判定します。**
+
 ## doとの違い
 
 | | do | tiny-done |
@@ -30,7 +34,7 @@ $ARGUMENTS = やってほしいこと、仕様の説明
 
 ---
 
-## Phase 1: 要件深掘り（AskUserQuestion）
+## ☑ 1. 要件深掘り（AskUserQuestion）
 
 **ユーザーの要求を勝手に解釈しない。1-2問で核心を確認する。**
 
@@ -44,7 +48,7 @@ AskUserQuestionで以下を確認:
 
 ---
 
-## Phase 2: Worktree作成
+## ☑ 2. Worktree作成
 
 ```bash
 # git-wtが必要
@@ -67,7 +71,7 @@ cd .worktree/<branch-name>
 
 ---
 
-## Phase 3: t-wada TDD実装
+## ☑ 3. t-wada TDD実装
 
 **テスト駆動開発のサイクルを厳守する。実装してからテストを書くのは禁止。**
 
@@ -123,7 +127,7 @@ Refactor: テストが通ったままリファクタリング
 
 ---
 
-## Phase 4: スクショ確認
+## ☑ 4. スクショ確認
 
 **実装+テスト完了後、スクショを撮影してユーザーに確認する。**
 
@@ -173,11 +177,11 @@ Refactor: テストが通ったままリファクタリング
 ユーザーがOKと言わなかった場合:
 
 ```
-Phase 4 → ユーザー「NG: ○○を直して」
+☑ 4 → ユーザー「NG: ○○を直して」
   ↓
 修正実装（TDDサイクル維持）
   ↓
-再度Phase 4（スクショ撮影→ユーザー確認）
+再度 ☑ 4（スクショ撮影→ユーザー確認）
   ↓
 ユーザーがOKと言うまでループ
 ```
