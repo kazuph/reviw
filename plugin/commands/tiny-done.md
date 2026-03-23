@@ -1,6 +1,5 @@
 ---
-description: Lightweight end-to-end task command - AskUserQ deep-dive, git wt worktree, t-wada TDD, screenshots and verification
-argument-hint: <task description or spec>
+description: Lightweight task completion - screenshot/video capture, open for review, user approval
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 
@@ -8,128 +7,41 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQues
 
 <command-name>tiny-done</command-name>
 
-小さなタスクをサクッと完了させる軽量タスクコマンド。
-要件深掘り → worktree作成 → TDD実装 → スクショ確認まで一気通貫。
+軽量タスクの完了検証コマンド。
+スクショ・動画を撮影 → openで開く → ユーザー承認で完了。
 
-**ALL checkpoints must be passed before task completion. Do NOT split into separate PRs, report partial progress, or defer remaining checkpoints to "next time". This is a single continuous flow.**
+**ALL checkpoints must be passed before task completion. Do NOT report completion without user approval.**
 
-**tiny-doneは/doneの軽量版です。完了基準は同じ（ユーザー承認まで終わらない）。REPORT.mdやnpx reviwを省略する代わりに、スクショ撮影→ユーザー確認で完了判定します。**
+**tiny-doneは/doneの軽量版です。REPORT.md・レビューエージェント・npx reviwを省略する代わりに、スクショ・動画をopenで直接開いてユーザー確認します。完了基準は同じ（ユーザー承認まで終わらない）。**
 
-## doとの違い
+## doneとの違い
 
-| | do | tiny-done |
+| | done（フル） | tiny-done（軽量） |
 |---|---|---|
-| worktree | git wtで作る | git wtで作る |
-| REPORT.md | 作る | 作らない |
-| Codebase Exploration | 2-3 explorer agents | なし（必要なら自分で調べる） |
-| Architecture提案 | 3案比較 | なし |
-| 要件深掘り | 3ラウンドの詳細インタビュー | AskUserQ 1-2問でサクッと |
-| TDD | あり | あり（これは省略しない） |
-| 完了 | npx reviwフルレビュー | スクショ撮影→ユーザー確認 |
-| 向いてるタスク | 大きな機能開発 | 小さな修正・追加 |
-
-## Arguments
-
-$ARGUMENTS = やってほしいこと、仕様の説明
+| ビルド検証 | あり | あり |
+| スクショ・動画撮影 | あり | あり |
+| 保存先 | `.artifacts/<feature>/` | `/tmp/tiny-done/` |
+| レビューエージェント | 4並列（code-security, e2e, ui-ux, Codex） | なし |
+| REPORT.md | 作成+検証 | 作らない |
+| npx reviw | 必須 | なし |
+| 確認方法 | reviw上でレビュー | **openコマンドで直接開く** |
+| ユーザー承認 | 必須 | 必須 |
 
 ---
 
-## ☑ 1. 要件深掘り（AskUserQuestion）
-
-**ユーザーの要求を勝手に解釈しない。1-2問で核心を確認する。**
-
-AskUserQuestionで以下を確認:
-
-1. **ゴールと成功基準**: 何ができたら完了？どう確認する？
-2. **エッジケース**: 想定外の入力や状態はどう扱う？
-
-**1-2問で十分。3ラウンドのインタビューは不要。**
-曖昧さが残る場合のみ追加質問する。
-
----
-
-## ☑ 2. Worktree作成
+## ☑ 1. ビルド検証
 
 ```bash
-# git-wtが必要
-git wt --version || echo "ERROR: git-wt required. Install: brew install k1LoW/tap/git-wt"
-
-# worktree作成
-git wt <branch-name>
-
-# 移動
-cd .worktree/<branch-name>
+# プロジェクトに応じたビルドコマンドを実行
+npm run build  # or pnpm build, etc.
 ```
 
-### ブランチ命名規則
-
-| Type | Branch Name | Example |
-|------|-----------|---------|
-| New feature | `feature/<name>` | `feature/login-button` |
-| Bug fix | `fix/<name>` | `fix/validation-error` |
-| Refactoring | `refactor/<name>` | `refactor/api-client` |
+- ビルドエラーがないことを確認
+- 型エラー、lintエラーがないことを確認
 
 ---
 
-## ☑ 3. t-wada TDD実装
-
-**テスト駆動開発のサイクルを厳守する。実装してからテストを書くのは禁止。**
-
-### プロジェクトタイプ検出
-
-```bash
-PROJECT_TYPE="unknown"
-if [ -f package.json ] && grep -qE '"(react|vue|svelte|next|nuxt|@angular/core|solid-js|astro)"' package.json 2>/dev/null; then
-  PROJECT_TYPE="web"
-elif [ -f Podfile ] || [ -f pubspec.yaml ] || ([ -f app.json ] && grep -q '"expo"' app.json 2>/dev/null); then
-  PROJECT_TYPE="mobile"
-elif [ -f go.mod ] || [ -f Cargo.toml ] || [ -f pyproject.toml ] || [ -f requirements.txt ]; then
-  PROJECT_TYPE="backend"
-elif [ -f package.json ] && grep -qE '"(express|fastify|koa|hapi|@nestjs/core|hono)"' package.json 2>/dev/null; then
-  PROJECT_TYPE="backend"
-else
-  PROJECT_TYPE="web"
-fi
-echo "Project type: $PROJECT_TYPE"
-```
-
-### TDDサイクル
-
-```
-RED:    期待する動作をテストに書く → 実行 → FAIL（赤）を確認
-GREEN:  最小限の実装でテストをPASS（緑）にする
-Refactor: テストが通ったままリファクタリング
-```
-
-### テスト種別（プロジェクトタイプ別）
-
-| Project Type | Test Framework | Test Location |
-|-------------|---------------|---------------|
-| web | Playwright (E2E) | `e2e/features/<feature>/` |
-| backend | vitest/jest/pytest/go test/cargo test | `tests/` or framework default |
-| mobile | Maestro E2E flow | `.maestro/` |
-
-### 実装はサブエージェントで
-
-**コンテキスト保護のため、実装はTask toolでサブエージェントに委譲する。**
-
-サブエージェントには以下を明示的に指示する:
-- t-wada TDDサイクル厳守（テスト先行）
-- Mock / Stub 禁止（DI経由のエミュレータのみ許可）
-- curl / 手動APIコール禁止（テストフレームワークを使う）
-
-### 絶対禁止
-
-- Mock / Stub（DI経由のローカルエミュレータのみ許可）
-- curl / 手動APIコール（テストフレームワークを使う）
-- 実装後テスト（テストを先に書く）
-- 証拠なし完了報告
-
----
-
-## ☑ 4. スクショ確認
-
-**実装+テスト完了後、スクショを撮影してユーザーに確認する。**
+## ☑ 2. スクショ・動画撮影
 
 ### Web / Fullstack の場合
 
@@ -138,10 +50,7 @@ Refactor: テストが通ったままリファクタリング
    - スクリーンショットを撮影
    - 必要に応じてGIF動画も撮影
 
-2. **撮影したファイルを開く**
-   ```bash
-   open /path/to/screenshot.png
-   ```
+2. **撮影したファイルを `/tmp/tiny-done/` に保存**
 
 ### Backend の場合
 
@@ -149,26 +58,45 @@ Refactor: テストが通ったままリファクタリング
    - プロジェクトのテストフレームワークを実行
    - テスト結果の出力を `/tmp/tiny-done/test-output.txt` に保存
 
-2. **テスト結果を開く**
-   ```bash
-   open /tmp/tiny-done/test-output.txt
-   ```
-
 ### Mobile の場合
 
 1. **Maestro MCP でスクショ撮影**
    - シミュレータ/デバイスが起動していることを確認
    - Maestro MCP の `take_screenshot` で現在の画面を撮影
+   - `/tmp/tiny-done/` に保存
 
-2. **撮影したファイルを開く**
-   ```bash
-   open /path/to/screenshot.png
-   ```
+---
 
-### 共通
+## ☑ 3. openコマンドで開く（必須）
 
-3. **AskUserQuestionでユーザーに確認を求める**
-   - 「この内容でOKですか？」
+**撮影したスクショ・動画・テスト結果を必ずopenで開く。**
+
+```bash
+# スクショを開く
+open /tmp/tiny-done/screenshot.png
+
+# 動画を開く
+open /tmp/tiny-done/demo.mp4
+
+# テスト結果を開く（backendの場合）
+open /tmp/tiny-done/test-output.txt
+```
+
+**openせずに完了報告することは禁止。ユーザーが目で確認できる状態にする。**
+
+---
+
+## ☑ 4. ユーザー承認
+
+**AskUserQuestionでユーザーに確認を求める。**
+
+```
+Question: "この内容でOKですか？"
+Header: "確認"
+Options:
+  1. "OK" - 承認する
+  2. "修正が必要" - フィードバックを伝える
+```
 
 ---
 
@@ -181,7 +109,7 @@ Refactor: テストが通ったままリファクタリング
   ↓
 修正実装（TDDサイクル維持）
   ↓
-再度 ☑ 4（スクショ撮影→ユーザー確認）
+再度 ☑ 2 → ☑ 3 → ☑ 4（撮影→open→ユーザー確認）
   ↓
 ユーザーがOKと言うまでループ
 ```
@@ -205,26 +133,19 @@ cd .worktree/<branch-name>
 
 ---
 
-## 出力先
-
-- `/tmp/tiny-done/` に一時保存
-- REPORT.mdは作成しない
-- .artifacts/への保存もしない
-- npx reviwは起動しない
-
 ## 禁止事項
 
 - REPORT.mdを作成する
 - artifact-proof skillを使う
 - npx reviwを起動する
-- 3ラウンドのインタビューをする（1-2問で済ませる）
-- テストを書かずに実装する
-- スクショ確認をスキップする
+- レビューエージェントを使う
+- codexスキルを使う
+- openせずに完了報告する
+- ユーザー承認なしで完了にする
 
 ## 完了条件
 
-1. AskUserQで要件が明確になっている
-2. worktreeが作成されている
-3. TDDでテストが通っている
-4. スクショ/テスト結果がユーザーに表示されている
-5. ユーザーがOKと言っている
+1. ビルドが通っている
+2. スクショ/動画/テスト結果が撮影されている
+3. openコマンドで開かれている
+4. ユーザーがOKと言っている

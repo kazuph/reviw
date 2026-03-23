@@ -144,36 +144,41 @@ Agent 3: "Identify UI patterns, testing approaches, or extension points relevant
 - Discovers reusable utilities and abstractions
 - Architecture proposals are grounded in actual codebase reality
 
-### 1-3. Architecture & Implementation Approach (Multi-Proposal)
+### 1-3. Architecture & Implementation Approach (1 Recommended + Codex Review)
 
-**After understanding requirements AND codebase, design multiple implementation approaches and let the user choose.**
+**After understanding requirements AND codebase, design the best implementation approach and present it.**
 
-**Launch 2-3 code-architect agents in parallel with different focuses:**
-
-```
-Agent 1 (Minimal): "Design the simplest implementation with smallest changes and maximum reuse of existing code"
-Agent 2 (Clean): "Design a clean architecture approach prioritizing maintainability and elegant abstractions"
-Agent 3 (Pragmatic): "Design a pragmatic balance of speed and quality, considering team context"
-```
-
-**Each agent should return:**
-- Chosen approach with rationale
+**Design the recommended approach considering:**
+- Maximum reuse of existing code and patterns found in codebase exploration
+- Pragmatic balance of speed and quality
 - Specific files to create/modify
 - Trade-offs (pros/cons)
-- Implementation phases
+
+**Codex Review (if codex skill is available):**
+
+Before presenting to user, consult Codex for a second opinion on the proposed approach:
+
+```
+Use codex skill to ask:
+"Review this implementation plan for [feature]:
+- Approach: [summary]
+- Files to modify: [list]
+- Trade-offs: [list]
+
+Is this the right approach? Any risks or better alternatives?"
+```
+
+Incorporate Codex feedback into the final proposal.
 
 **Present to user with AskUserQuestion:**
 
 ```
-Use AskUserQuestion to present options:
-
-Question: "Based on codebase analysis, here are the implementation approaches:"
+Question: "Based on codebase analysis (and Codex review), here is the recommended approach:"
 Header: "Architecture"
 Options:
-  1. "[Minimal] - [Summary]" - Smallest change, maximum reuse. Trade-off: [X]
-  2. "[Clean] - [Summary]" - Best maintainability. Trade-off: [X]
-  3. "[Pragmatic] - [Summary] (Recommended)" - Best balance for this task. Trade-off: [X]
-  4. "Let me explain more" - Need more context before deciding
+  1. "[Approach] - [Summary] (Recommended)" - [Rationale]. Trade-off: [X]
+  2. "Let me explain more" - Need more context before deciding
+  3. "I have a different idea" - Want to suggest alternative
 ```
 
 **Only proceed to implementation after user confirms approach.**

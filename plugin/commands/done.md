@@ -282,9 +282,9 @@ On rejection, display:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## ☑ 6. Comprehensive Review (3 Integrated Review Agents in Parallel)
+## ☑ 6. Comprehensive Review (4 Review Agents in Parallel)
 
-**Launch all 3 review agents simultaneously with Task tool:**
+**Launch all 4 review agents simultaneously with Task tool:**
 
 ```
 Launch review agents simultaneously with Task tool (selection depends on PROJECT_TYPE):
@@ -319,6 +319,19 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
    → Text/copy consistency
    → i18n coverage (if applicable)
    → Append "UI/UX Review" section to REPORT.md
+
+4. Codex Review (via codex skill)
+   → Applies to: ALL project types
+   → Requires: codex skill installed (`which codex` or codex skill available)
+   → If codex skill is NOT available: SKIP (do not fail)
+   → Execute: `git diff main` (or develop) code review via codex skill
+   → Review focus:
+     - Unnecessary changes included?
+     - Type safety maintained?
+     - UI consistency with existing screens
+     - Edge cases (null/undefined) handling
+     - Test coverage sufficient?
+   → Append "Codex Review" section to REPORT.md
 ```
 
 **Project Type → Review Agent Matrix:**
@@ -328,6 +341,7 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
 | review-code-security | YES | YES | YES | YES |
 | review-e2e | YES | YES (test suite) | YES (Maestro) | YES (both) |
 | review-ui-ux | YES | SKIP | YES (if UI changes) | YES (frontend only) |
+| Codex review | YES (if available) | YES (if available) | YES (if available) | YES (if available) |
 
 **Important: Execute applicable agents in a single Task tool call for parallel execution.**
 
