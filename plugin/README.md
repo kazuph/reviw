@@ -38,12 +38,34 @@ claude plugin marketplace remove reviw-marketplace    # ターミナルで実行
 
 ## 機能一覧
 
-### Commands（スラッシュコマンド）
+### Task Skills（スラッシュスキル）
 
-| コマンド | 説明 |
-|---------|------|
-| `/reviw:do <タスク説明>` | タスク開始 - git wt で worktree 作成、計画策定、Todo 登録 |
-| `/reviw:done` | タスク完了チェック - エビデンス収集、reviw でレビュー開始 |
+| スキル | 説明 |
+|--------|------|
+| `/reviw:ask` | 要件を深掘りして AskUserQuestion で認識ズレを防ぐ |
+| `/reviw:check-yourself` | 推測を禁止し、実機検証を強制する |
+| `/reviw:commit-and-push` | 変更をコミットして push まで完了させる |
+| `/reviw:do <タスク説明>` | タスク開始スキル - git wt で worktree 作成、計画策定、Todo 登録 |
+| `/reviw:done` | タスク完了スキル - エビデンス収集、reviw でレビュー開始 |
+| `/reviw:open <file-or-url>` | macOS の `open` でファイルや URL を開く |
+| `/reviw:tiny-do <タスク説明>` | 小タスク向け軽量開始スキル |
+| `/reviw:tiny-done` | 小タスク向け軽量完了スキル |
+| `/reviw:bucho <指示>` | Claude Code と Codex を束ねる部長モード |
+
+#### Task Skill 一覧
+
+| 名前 | 用途 |
+|------|------|
+| `ask` | 実装前に AskUserQuestion を使って要求・制約・成功条件を明確化する |
+| `bucho` | Claude Code と Codex を tmux 経由で指揮してチーム開発フローを回す |
+| `check-yourself` | 推測を止めて、webapp-testing / backend-testing / mobile-testing による実検証へ強制する |
+| `commit-and-push` | 変更内容からコミットメッセージを作り、commit / push / 最終状態確認まで実行する |
+| `do` | worktree 作成、計画策定、Todo 登録、レビュー準備を含むフルのタスク開始フローを始める |
+| `done` | 完了条件チェック、証跡収集、レビュー起動を含むフルのタスク完了フローを実行する |
+| `open` | 直近で触れたファイルや URL、または明示したパスを macOS の `open` で開く |
+| `tiny-do` | 小さなタスク向けに、軽量な開始フローで実装へ入る |
+| `tiny-done` | 小さなタスク向けに、軽量な検証と確認フローで完了へ進む |
+| `validate-report` | `done` から呼ばれる内部 helper として、REPORT.md が artifact-proof の 5 ルールを満たしているかをチェックする |
 
 ### Agents（サブエージェント）
 
@@ -78,7 +100,7 @@ Task ツールで subagent_type: "e2e-health-reviewer" を指定
 
 - 実装完了（1/3）: ビルド成功・型エラーなし
 - 動作検証完了（2/3）: 開発サーバー起動・webapp-testing で検証
-- レビュー完了（3/3）: エビデンス収集・/done 実行・reviw でレビュー・ユーザー承認
+- レビュー完了（3/3）: エビデンス収集・`/done` スキル実行・reviw でレビュー・ユーザー承認
 
 これにより、AIが「実装しました！」だけで完了報告することを防ぎ、reviw のワークフローに従うよう促します。
 
@@ -122,12 +144,23 @@ npx reviw で報告書を開く（フォアグラウンド）
 reviw-plugin/
 ├── .claude-plugin/
 │   └── plugin.json          # プラグインマニフェスト
-├── commands/
-│   ├── do.md                # /reviw:do コマンド
-│   └── done.md              # /reviw:done コマンド
 ├── agents/
 │   └── report-builder.md    # 報告書作成エージェント
 ├── skills/
+│   ├── ask/
+│   │   └── SKILL.md         # 要件ヒアリングスキル
+│   ├── bucho/
+│   │   └── SKILL.md         # 部長オーケストレーションスキル
+│   ├── do/
+│   │   └── SKILL.md         # タスク開始スキル
+│   ├── done/
+│   │   └── SKILL.md         # タスク完了スキル
+│   ├── tiny-do/
+│   │   └── SKILL.md         # 軽量タスク開始スキル
+│   ├── tiny-done/
+│   │   └── SKILL.md         # 軽量タスク完了スキル
+│   ├── validate-report/
+│   │   └── SKILL.md         # REPORT.md検証の内部 helper
 │   └── artifact-proof/
 │       └── SKILL.md         # エビデンス収集 + reviw レビュースキル
 ├── hooks/

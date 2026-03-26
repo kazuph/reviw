@@ -1,6 +1,6 @@
 ---
 name: report-builder
-description: Specialized agent for organizing review reports and evidence. Used when executing /done or when report creation is needed.
+description: Specialized agent for organizing review reports and evidence. Used when executing the /done skill or when report creation is needed.
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
 skills: artifact-proof

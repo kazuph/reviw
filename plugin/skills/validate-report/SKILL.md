@@ -1,16 +1,18 @@
 ---
-description: Validate REPORT.md against artifact-proof skill rules (5 rules compliance check)
+name: validate-report
+description: Internal helper that validates REPORT.md against artifact-proof reporting rules
+user-invocable: false
 allowed-tools: Bash, Read, Glob, Grep, Task
 ---
 
-# /reviw:validate - REPORT.md準拠チェック
+# validate-report - internal REPORT.md validation helper
 
-REPORT.mdがartifact-proofスキルの5ルールに準拠しているかを検証する。
+`done` スキルから内部的に呼ばれる補助スキル。REPORT.md が artifact-proof スキルの 5 ルールに準拠しているかを検証する。
 
 ## 前提条件
 
 - `.artifacts/<feature=branch_name>/REPORT.md` が存在すること
-- `/reviw:do` でタスクを開始済み、または手動でREPORT.mdを作成済み
+- `do` / `done` フローで `.artifacts/<feature=branch_name>/REPORT.md` が作成済みであること
 
 ## 実行手順
 
@@ -24,7 +26,7 @@ if [ -z "$REPORT_PATH" ]; then
   echo "❌ REPORT.mdが見つかりません"
   echo ""
   echo "以下のいずれかを実行してください："
-  echo "  1. /reviw:do でタスクを開始する"
+  echo "  1. do スキルでタスクを開始する"
   echo "  2. 手動で .artifacts/<feature>/REPORT.md を作成する"
   exit 1
 fi
@@ -52,7 +54,7 @@ prompt: |
 
 | 結果 | 対応 |
 |------|------|
-| 5/5 Pass | ✅ `/reviw:done` に進む or `npx reviw` を実行 |
+| 5/5 Pass | ✅ `done` スキルの reviw 起動フェーズへ進む |
 | 3-4/5 Pass | ⚠️ 警告表示、修正推奨 |
 | 0-2/5 Pass | ❌ 修正必須、report-builderを再実行 |
 
@@ -69,9 +71,6 @@ prompt: |
 ## 使用例
 
 ```bash
-# 手動でREPORT.mdを検証
-/reviw:validate
-
 # 結果例
 ## Report Validation Results
 
@@ -86,7 +85,7 @@ prompt: |
 ### Overall: 3/5 Rules Passed
 ```
 
-## 関連コマンド
+## 関連スキル
 
-- `/reviw:do` - タスク開始（REPORT.md作成）
-- `/reviw:done` - タスク完了チェック（内部でvalidateを実行）
+- `do` - タスク開始（REPORT.md作成）
+- `done` - タスク完了チェック（内部で validate-report を実行）
