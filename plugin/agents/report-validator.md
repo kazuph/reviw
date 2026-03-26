@@ -1,6 +1,6 @@
 ---
 name: report-validator
-description: REPORT.mdがartifact-proofスキルの5ルールに準拠しているかを検証するエージェント。done.mdのPhase 6.5で実行、または/reviw:validateコマンドで手動実行。
+description: REPORT.mdがartifact-proofスキルの5ルールに準拠しているかを検証するエージェント。doneスキル内の validate-report helper から実行される。
 tools: Read, Grep, Glob, Bash
 model: haiku
 ---

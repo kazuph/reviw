@@ -1,6 +1,8 @@
 ---
+name: bucho
 description: "bucho mode: Direct Claude Code (implementer) and Codex (advisor) via tmux to execute development tasks. Manage the full task lifecycle from birth to user approval."
 argument-hint: <instructions>
+disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 

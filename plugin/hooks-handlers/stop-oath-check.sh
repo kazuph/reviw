@@ -76,7 +76,7 @@ if printf '%s' "$LATEST_ASSISTANT_TEXT" | grep -qE "$IMPL_KEYWORDS"; then
 □ レビュー完了 (3/3)
   → .artifacts/<feature>/にエビデンス（スクショ/動画）があるか？
   → artifact-proof skillでレポートを作成したか？
-  → /reviw-plugin:doneコマンドを実行したか？
+  → /reviw-plugin:doneスキルを実行したか？
   → reviwをフォアグラウンドで起動してレビューを受けたか？
   → ユーザーから承認を得たか？
 

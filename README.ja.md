@@ -174,9 +174,6 @@ summary: Overall the data looks good, minor issues noted above.
 plugin/
 ├── .claude-plugin/
 │   └── plugin.json          # プラグインメタデータ（名前、バージョン、説明）
-├── commands/
-│   ├── do.md                 # /reviw:doコマンド定義
-│   └── done.md               # /reviw:doneコマンド定義
 ├── agents/
 │   ├── report-builder.md     # レポート生成エージェント
 │   ├── e2e-health-reviewer.md    # E2Eテスト健全性チェック
@@ -187,6 +184,20 @@ plugin/
 │   ├── review-copy-consistency.md # テキスト整合性
 │   └── review-e2e-integrity.md   # E2Eテスト整合性
 ├── skills/
+│   ├── ask/
+│   │   └── SKILL.md          # 要件ヒアリングスキル
+│   ├── bucho/
+│   │   └── SKILL.md          # 部長オーケストレーションスキル
+│   ├── do/
+│   │   └── SKILL.md          # タスク開始スキル
+│   ├── done/
+│   │   └── SKILL.md          # タスク完了スキル
+│   ├── tiny-do/
+│   │   └── SKILL.md          # 軽量タスク開始スキル
+│   ├── tiny-done/
+│   │   └── SKILL.md          # 軽量タスク完了スキル
+│   ├── validate-report/
+│   │   └── SKILL.md          # REPORT.md検証の内部 helper
 │   ├── artifact-proof/
 │   │   └── SKILL.md          # エビデンス収集スキル
 │   └── webapp-testing/
@@ -204,8 +215,11 @@ plugin/
 
 | 種類 | 名前 | 説明 |
 |------|------|------|
-| **コマンド** | `/reviw:do` | タスク開始 - git wtでworktree作成、計画、todo登録 |
-| **コマンド** | `/reviw:done` | 完了チェックリスト - 7レビューエージェント実行、エビデンス収集、レビュー開始 |
+| **タスクスキル** | `/reviw:do` | タスク開始 - git wtでworktree作成、計画、todo登録 |
+| **タスクスキル** | `/reviw:done` | 完了チェックリスト - 7レビューエージェント実行、エビデンス収集、レビュー開始 |
+| **タスクスキル** | `/reviw:tiny-do` | 小タスク向けの軽量開始フロー |
+| **タスクスキル** | `/reviw:tiny-done` | 小タスク向けの軽量完了フロー |
+| **タスクスキル** | `/reviw:bucho` | Claude Code と Codex を束ねる部長モード |
 | **エージェント** | `report-builder` | ユーザーレビュー用レポート準備 |
 | **エージェント** | `review-code-quality` | コード品質: 可読性、DRY、型安全性、エラーハンドリング |
 | **エージェント** | `review-security` | セキュリティ: XSS、インジェクション、OWASP Top 10、秘密情報検出 |
@@ -221,7 +235,22 @@ plugin/
 
 ---
 
-### コマンド
+### タスクスキル
+
+#### 同梱タスクスキル一覧
+
+| スキル | 用途 |
+|------|------|
+| `ask` | 実装前に要求・スコープ・制約・成功条件を明確化する |
+| `bucho` | Claude Code と Codex を tmux 経由で束ねてチーム開発フローを回す |
+| `check-yourself` | 推測を禁止し、実際の検証を強制する |
+| `commit-and-push` | コミットメッセージ生成、commit、push、最終状態確認まで実行する |
+| `do` | worktree 作成、計画策定、レビュー準備を含むフルの開始フローを実行する |
+| `done` | エビデンス収集と reviw レビューを含むフルの完了フローを実行する |
+| `open` | ファイル、成果物、URL を macOS の `open` で開く |
+| `tiny-do` | 小さなタスク向けの軽量開始フローで実装へ入る |
+| `tiny-done` | 小さなタスク向けの軽量完了フローで検証と確認を行う |
+| `validate-report` | `done` から呼ばれる内部 helper として `REPORT.md` を検証する |
 
 #### `/reviw:do <タスク説明>`
 
@@ -243,7 +272,7 @@ plugin/
         └── videos/           # 動画録画
 ```
 
-**タスク再開:** セッション開始時またはコンテキスト圧縮後、コマンドは既存のworktreeを確認（`git wt`）し、`REPORT.md`から再開します。
+**タスク再開:** セッション開始時またはコンテキスト圧縮後、スキルは既存のworktreeを確認（`git wt`）し、`REPORT.md`から再開します。
 
 #### `/reviw:done`
 

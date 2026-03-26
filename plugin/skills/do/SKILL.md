@@ -1,6 +1,8 @@
 ---
+name: do
 description: Task Start - worktree creation, planning, and review preparation in reviw
 argument-hint: <task description>
+disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 

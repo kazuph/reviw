@@ -1,5 +1,7 @@
 ---
+name: done
 description: Task completion check - Evidence collection, reviw review initiation
+disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 
@@ -403,16 +405,12 @@ subagent_type: "reviw-plugin:report-builder"
 
 ### ☑ 8a. Report Validation (artifact-proof 5 Rules Check)
 
-**After report-builder completes, validate REPORT.md against artifact-proof rules:**
+**After report-builder completes, invoke the internal `validate-report` skill to validate REPORT.md against artifact-proof rules:**
 
 ```
-Launch ONE agent with Task tool:
+Use the Skill tool to invoke:
 
-subagent_type: "reviw-plugin:report-validator"
-prompt: |
-  .artifacts/ 配下のREPORT.mdを検証してください。
-  artifact-proofスキルの5ルールに準拠しているか確認し、
-  違反があれば具体的な修正方法を提示してください。
+validate-report
 ```
 
 **5 Rules Checklist:**

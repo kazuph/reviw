@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE \"git commit|git push\"; then echo \"[reviw-plugin] Reminder: Have you run /done and reviewed with reviw before committing?\"; fi'",
+            "command": "bash -c 'if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE \"git commit|git push\"; then echo \"[reviw-plugin] Reminder: Have you run the /done skill and reviewed with reviw before committing?\"; fi'",
             "timeout": 5
           }
         ],

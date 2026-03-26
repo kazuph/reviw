@@ -174,9 +174,6 @@ This repository also serves as a Claude Code plugin marketplace. The plugin inte
 plugin/
 ├── .claude-plugin/
 │   └── plugin.json          # Plugin metadata (name, version, description)
-├── commands/
-│   ├── do.md                 # /reviw:do command definition
-│   └── done.md               # /reviw:done command definition
 ├── agents/
 │   ├── report-builder.md     # Report generation agent
 │   ├── e2e-health-reviewer.md    # E2E test health check
@@ -187,6 +184,20 @@ plugin/
 │   ├── review-copy-consistency.md # Text consistency
 │   └── review-e2e-integrity.md   # E2E test integrity
 ├── skills/
+│   ├── ask/
+│   │   └── SKILL.md          # Requirements elicitation skill
+│   ├── bucho/
+│   │   └── SKILL.md          # Manager orchestration skill
+│   ├── do/
+│   │   └── SKILL.md          # Task start skill
+│   ├── done/
+│   │   └── SKILL.md          # Task completion skill
+│   ├── tiny-do/
+│   │   └── SKILL.md          # Lightweight task start skill
+│   ├── tiny-done/
+│   │   └── SKILL.md          # Lightweight task completion skill
+│   ├── validate-report/
+│   │   └── SKILL.md          # Internal REPORT.md validation helper
 │   ├── artifact-proof/
 │   │   └── SKILL.md          # Evidence collection skill
 │   └── webapp-testing/
@@ -204,8 +215,11 @@ plugin/
 
 | Type | Name | Description |
 |------|------|-------------|
-| **Command** | `/reviw:do` | Start a task - create worktree with git wt, plan, register todos |
-| **Command** | `/reviw:done` | Complete checklist - run 7 review agents, collect evidence, start review |
+| **Task Skill** | `/reviw:do` | Start a task - create worktree with git wt, plan, register todos |
+| **Task Skill** | `/reviw:done` | Complete checklist - run 7 review agents, collect evidence, start review |
+| **Task Skill** | `/reviw:tiny-do` | Start a smaller task with the lightweight workflow |
+| **Task Skill** | `/reviw:tiny-done` | Finish a smaller task with lightweight review |
+| **Task Skill** | `/reviw:bucho` | Orchestrate Claude Code and Codex in manager mode |
 | **Agent** | `report-builder` | Prepare reports and evidence for user review |
 | **Agent** | `review-code-quality` | Code quality: readability, DRY, type safety, error handling |
 | **Agent** | `review-security` | Security: XSS, injection, OWASP Top 10, secrets detection |
@@ -221,7 +235,22 @@ plugin/
 
 ---
 
-### Commands
+### Task Skills
+
+#### Bundled task skills
+
+| Skill | Purpose |
+|------|---------|
+| `ask` | Clarify requirements, scope, constraints, and success criteria before implementation |
+| `bucho` | Orchestrate Claude Code and Codex as a managed team through tmux |
+| `check-yourself` | Force real verification instead of assumptions or lightweight spot checks |
+| `commit-and-push` | Generate a commit message, create the commit, push it, and confirm a clean git state |
+| `do` | Start the full task workflow with worktree setup, planning, and review preparation |
+| `done` | Run the full completion workflow with evidence collection and reviw-based review |
+| `open` | Open files, artifacts, and URLs with macOS `open` |
+| `tiny-do` | Start a smaller task with the lightweight workflow |
+| `tiny-done` | Finish a smaller task with the lightweight completion flow |
+| `validate-report` | Internal helper used by `done` to validate `REPORT.md` against artifact-proof reporting rules |
 
 #### `/reviw:do <task description>`
 
@@ -243,7 +272,7 @@ Starts a new task with proper environment setup.
         └── videos/           # Video recordings
 ```
 
-**Task resumption:** When a session starts or after context compaction, the command checks for existing worktrees (via `git wt`) and resumes from `REPORT.md`.
+**Task resumption:** When a session starts or after context compaction, the skill checks for existing worktrees (via `git wt`) and resumes from `REPORT.md`.
 
 #### `/reviw:done`
 

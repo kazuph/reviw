@@ -1,5 +1,7 @@
 ---
+name: ask
 description: Deep user requirements elicitation - interview before coding
+disable-model-invocation: true
 allowed-tools: AskUserQuestion, Read, Grep, Glob
 ---
 
