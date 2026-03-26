@@ -2,7 +2,6 @@
 name: tiny-do
 description: Lightweight task start - requirements deep-dive, codebase exploration, git wt worktree, t-wada TDD implementation
 argument-hint: <task description or spec>
-disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 

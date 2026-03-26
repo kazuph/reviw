@@ -1,7 +1,6 @@
 ---
 name: tiny-done
 description: Lightweight task completion - screenshot/video capture, open for review, user approval
-disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 

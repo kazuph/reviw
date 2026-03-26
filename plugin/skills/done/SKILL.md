@@ -1,7 +1,6 @@
 ---
 name: done
 description: Task completion check - Evidence collection, reviw review initiation
-disable-model-invocation: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 
