@@ -165,7 +165,25 @@ This repository also serves as a Claude Code plugin marketplace. The plugin inte
 ```bash
 # In Claude Code
 /plugin marketplace add kazuph/reviw
-/plugin install reviw-plugin@reviw-marketplace
+/plugin install reviw-plugin@reviw-plugins
+```
+
+### Install Skills with `npx skills`
+
+Use this route when you want the task skills in Cursor, Codex, OpenCode, or other agent environments that support `npx skills`.
+
+```bash
+# Preview what will be installed
+npx skills add https://github.com/kazuph/reviw --list
+
+# Install all reviw skills globally for a specific agent
+npx skills add https://github.com/kazuph/reviw -g -a cursor -s '*' --copy -y
+
+# Install all reviw skills globally for multiple agents
+npx skills add https://github.com/kazuph/reviw -g -a cursor -a codex -a opencode -s '*' --copy -y
+```
+
+`npx skills` distributes the skill directories under `plugin/skills/`. Claude Code plugin commands and hooks are installed through the Claude Code plugin flow above, not through `npx skills`.
 ```
 
 ### Plugin Directory Structure

@@ -165,7 +165,25 @@ summary: Overall the data looks good, minor issues noted above.
 ```bash
 # Claude Codeで
 /plugin marketplace add kazuph/reviw
-/plugin install reviw-plugin@reviw-marketplace
+/plugin install reviw-plugin@reviw-plugins
+```
+
+### `npx skills` でスキルを入れる
+
+Cursor、Codex、OpenCode など、`npx skills` 対応エージェントで reviw のタスクスキルを使いたい場合はこちらを使います。
+
+```bash
+# まず検出されるスキルを確認
+npx skills add https://github.com/kazuph/reviw --list
+
+# 特定エージェント向けに全スキルをグローバルインストール
+npx skills add https://github.com/kazuph/reviw -g -a cursor -s '*' --copy -y
+
+# 複数エージェントへまとめてグローバルインストール
+npx skills add https://github.com/kazuph/reviw -g -a cursor -a codex -a opencode -s '*' --copy -y
+```
+
+`npx skills` が配るのは `plugin/skills/` 配下のスキル群です。Claude Code のプラグイン command や hooks はこの経路では入らず、上の Claude Code プラグイン導線でインストールします。
 ```
 
 ### プラグインディレクトリ構成

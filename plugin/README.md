@@ -10,6 +10,23 @@ reviw CLI ツールを Claude Code と連携させるプラグインです。タ
 /plugin install reviw-plugin@reviw-plugins
 ```
 
+## `npx skills` で使う
+
+Claude Code プラグインではなく、skills 対応エージェントへ task skill 群だけを入れたい場合は `npx skills` を使います。
+
+```bash
+# 検出される skill を確認
+npx skills add https://github.com/kazuph/reviw --list
+
+# 例: Cursor にグローバルインストール
+npx skills add https://github.com/kazuph/reviw -g -a cursor -s '*' --copy -y
+
+# 例: Cursor / Codex / OpenCode にまとめてインストール
+npx skills add https://github.com/kazuph/reviw -g -a cursor -a codex -a opencode -s '*' --copy -y
+```
+
+この経路で入るのは `plugin/skills/` の skill だけです。Claude Code の command や hooks まで含めたい場合は、上のプラグイン導線を使ってください。
+
 ## 更新
 
 プラグインを最新版に更新するには、一度アンインストールしてから再インストールしてください：
