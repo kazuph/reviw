@@ -414,8 +414,6 @@ pub fn init_app() -> Unit {
     set_theme(saved_theme)
     toggle_hljs_theme(saved_theme)
   }
-  // Restore draft from Send to AI handoff (before anything else)
-  restore_handoff_draft()
   // Setup theme toggle with localStorage persistence
   let theme_btn = query("#theme-toggle")
   if not(is_null(theme_btn)) {
@@ -938,14 +936,14 @@ fn save_comment() -> Unit {
     match comments.get(key) {
       Some(comment) => {
         // Send real-time comment to server
-        send_comment_to_server(comment.row, comment.col, text, if is_delete { "delete" } else { "comment" }, key)
+        send_comment_to_server(comment.row, comment.col, text, if is_delete { "delete" } else { "comment" }, key, current_comment_image.val.length() > 0)
         comment.text = text
         comment.image = current_comment_image.val
       }
       None => {
         // New comment that's being deleted immediately — still send delete
         if is_delete {
-          send_comment_to_server(0, 0, "", "delete", key)
+          send_comment_to_server(0, 0, "", "delete", key, false)
         }
       }
     }
@@ -960,7 +958,7 @@ fn save_comment() -> Unit {
 }
 
 ///| Send a comment event to the server for real-time IPC
-fn send_comment_to_server(row : Int, col : Int, text : String, event_type : String, key : String) -> Unit {
+fn send_comment_to_server(row : Int, col : Int, text : String, event_type : String, key : String, has_image : Bool) -> Unit {
   let port = get_reviw_port()
   if port <= 0 {
     return
@@ -977,6 +975,9 @@ fn send_comment_to_server(row : Int, col : Int, text : String, event_type : Stri
   buf.write_string(json_encode_string(text))
   buf.write_string(",\"key\":")
   buf.write_string(json_encode_string(key))
+  if has_image {
+    buf.write_string(",\"hasImage\":true")
+  }
   buf.write_string("}")
   fetch_post(
     url,
@@ -1242,41 +1243,6 @@ fn submit_review(port : Int) -> Unit {
 }
 
 ///| Restore draft saved by Send to AI handoff
-fn restore_handoff_draft() -> Unit {
-  let draft_key = "reviw_draft_" + get_reviw_filename()
-  let draft = ls_get(draft_key)
-  if draft.length() == 0 {
-    return
-  }
-  // Clear the draft immediately so it doesn't restore again
-  ls_remove(draft_key)
-  // Parse comments from draft JSON and restore them
-  let raw_comments = json_parse_draft_comments(draft)
-  for c in raw_comments {
-    if c.length() >= 4 {
-      let row = str_to_int(c[0])
-      let col = str_to_int(c[1])
-      let text = c[2]
-      let image = c[3]
-      if text.length() > 0 || image.length() > 0 {
-        let key = c[0] + ":" + c[1]
-        comments.set(key, { row, col, text, image })
-      }
-    }
-  }
-  // Restore summary into the global-comment textarea (deferred to after DOM ready)
-  let summary = json_parse_draft_summary(draft)
-  if summary.length() > 0 {
-    ignore(set_timeout_dom(fn() {
-      let textarea = query("#global-comment")
-      if not(is_null(textarea)) {
-        set_value(textarea, summary)
-      }
-    }, 100))
-  }
-  update_comment_indicators()
-  persist_comments()
-}
 
 ///| Send to AI: save draft to localStorage, POST /exit with action:handoff, show overlay, poll healthz
 fn send_to_ai(port : Int) -> Unit {

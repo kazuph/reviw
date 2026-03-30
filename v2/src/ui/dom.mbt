@@ -538,18 +538,6 @@ extern "js" fn append_html(el : Element, html : String) -> Unit =
 extern "js" fn set_timeout_dom(callback : () -> Unit, ms : Int) -> Int =
   #|(cb, ms) => setTimeout(cb, ms)
 
-///| Parse comments from draft JSON (for handoff restore)
-extern "js" fn json_parse_draft_comments(json_str : String) -> Array[Array[String]] =
-  #|(s) => {
-  #|  try {
-  #|    const obj = JSON.parse(s);
-  #|    return (obj.comments || []).map(c => [String(c.row||0), String(c.col||0), c.text||"", c.image||""]);
-  #|  } catch(e) { return []; }
-  #|}
-
-///| Parse summary from draft JSON
-extern "js" fn json_parse_draft_summary(json_str : String) -> String =
-  #|(s) => { try { return JSON.parse(s).summary || ""; } catch(e) { return ""; } }
 
 
 ///| Parse float from string (returns 0.0 on failure)

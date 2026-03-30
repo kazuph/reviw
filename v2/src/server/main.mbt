@@ -903,20 +903,25 @@ fn handle_comment(ctx : ServerContext, body : String) -> Unit {
   buf.write_string("\",\"type\":\"")
   buf.write_string(@core.escape_js_string(if event_type.length() > 0 { event_type } else { "comment" }))
   buf.write_string("\"")
+  let key = json_parse_string("key", body)
+  if key.length() > 0 {
+    buf.write_string(",\"key\":")
+    buf.write_string(json_encode_value(key))
+  }
   let row = json_parse_string("row", body)
-  if row.length() > 0 {
-    buf.write_string(",\"row\":")
-    buf.write_string(row)
-  }
+  buf.write_string(",\"row\":")
+  buf.write_string(if row.length() > 0 { row } else { "0" })
   let col = json_parse_string("col", body)
-  if col.length() > 0 {
-    buf.write_string(",\"col\":")
-    buf.write_string(col)
-  }
+  buf.write_string(",\"col\":")
+  buf.write_string(if col.length() > 0 { col } else { "0" })
   let text = json_parse_string("text", body)
   if text.length() > 0 {
     buf.write_string(",\"text\":")
     buf.write_string(json_encode_value(text))
+  }
+  let has_image = json_parse_string("hasImage", body)
+  if has_image == "true" {
+    buf.write_string(",\"hasImage\":true")
   }
   buf.write_string("}")
   append_live_log(buf.to_string())
