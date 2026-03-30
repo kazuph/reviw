@@ -109,6 +109,13 @@ extern "js" fn event_meta_key(e : Event) -> Bool =
 extern "js" fn event_ctrl_key(e : Event) -> Bool =
   #|(e) => e.ctrlKey || false
 
+extern "js" fn event_is_composing(e : Event) -> Bool =
+  #|(e) => e.isComposing || e.keyCode === 229
+
+///| Set disabled attribute on element
+extern "js" fn set_disabled(el : Element, disabled : Bool) -> Unit =
+  #|(el, disabled) => { if (el) el.disabled = disabled; }
+
 extern "js" fn prevent_default(e : Event) -> Unit =
   #|(e) => e.preventDefault()
 
@@ -408,6 +415,14 @@ extern "js" fn new_event_source_url(url : String) -> EventSource =
 extern "js" fn sse_on_message(es : EventSource, handler : (String) -> Unit) -> Unit =
   #|(es, handler) => es.addEventListener("message", (e) => handler(e.data))
 
+///| SSE open event (connection established)
+extern "js" fn sse_on_open(es : EventSource, handler : () -> Unit) -> Unit =
+  #|(es, handler) => es.addEventListener("open", () => handler())
+
+///| SSE error event (connection lost / reconnecting)
+extern "js" fn sse_on_error_status(es : EventSource, handler : () -> Unit) -> Unit =
+  #|(es, handler) => es.addEventListener("error", () => handler())
+
 ///| EventSource close
 extern "js" fn sse_close(es : EventSource) -> Unit =
   #|(es) => es.close()
@@ -514,6 +529,16 @@ extern "js" fn toggle_class(el : Element, cls : String) -> Unit =
 ///| Remove element from its parent
 extern "js" fn remove_element(el : Element) -> Unit =
   #|(el) => { if (el && el.parentNode) el.parentNode.removeChild(el); }
+
+///| Append HTML string to element
+extern "js" fn append_html(el : Element, html : String) -> Unit =
+  #|(el, html) => { if (el) el.insertAdjacentHTML("beforeend", html); }
+
+///| setTimeout for browser
+extern "js" fn set_timeout_dom(callback : () -> Unit, ms : Int) -> Int =
+  #|(cb, ms) => setTimeout(cb, ms)
+
+
 
 ///| Parse float from string (returns 0.0 on failure)
 extern "js" fn parse_float(s : String) -> Double =

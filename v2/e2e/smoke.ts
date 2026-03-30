@@ -6,7 +6,7 @@
  */
 import http, { type IncomingMessage } from "node:http";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, unlinkSync, mkdirSync } from "node:fs";
+import { existsSync, unlinkSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { writeFileSync } from "node:fs";
@@ -919,8 +919,8 @@ if (playwrightAvailable) {
         const modal = document.getElementById("submit-modal");
         return modal && modal.classList.contains("visible");
       }, { timeout: 5000 }).catch(() => {});
-      // Confirm submit
-      const confirmBtn = page.locator("#modal-submit");
+      // Confirm submit (click Approve button)
+      const confirmBtn = page.locator("#modal-approve");
       if (await confirmBtn.isVisible().catch(() => false)) {
         await confirmBtn.click();
         // Wait for server process to exit (submit triggers process.exit)
@@ -1000,6 +1000,156 @@ if (playwrightAvailable) {
     try { browserProc.kill("SIGKILL"); } catch (_: unknown) {}
     try { closeProc.kill("SIGKILL"); } catch (_: unknown) {}
   }
+}
+
+// ===== Helper: spawn server and wait for exit after POST /exit =====
+async function testDecisionSubmit(
+  label: string,
+  portOffset: number,
+  payload: object,
+  yamlCheck: string,
+): Promise<void> {
+  console.log(`\n--- ${label} ---`);
+  const proc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT + portOffset), TEST_MD], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, REVIW_LOCK_DIR: LOCK_DIR },
+  });
+  let stdout = "";
+  proc.stdout!.on("data", (d: Buffer) => (stdout += d));
+  proc.stderr!.on("data", () => {});
+  const exited = waitForProcessExit(proc, 8000);
+  try {
+    await waitForServer(BASE_PORT + portOffset, 5000);
+    const body = JSON.stringify(payload);
+    let submitOk = false;
+    try {
+      const res = await httpPost(BASE_PORT + portOffset, "/exit", body);
+      submitOk = res.status === 200;
+    } catch (e: unknown) {
+      submitOk = (e as Error).message.includes("socket hang up") || (e as Error).message.includes("ECONNRESET");
+    }
+    assert(submitOk, `${label}: server accepted submit`);
+    // Wait for process to exit (server calls process.exit after writing YAML)
+    const result = await exited;
+    assert(result.exited, `${label}: server exited after submit`);
+    assert(stdout.includes(yamlCheck), `${label}: YAML output contains ${yamlCheck}`);
+  } catch (err: unknown) {
+    failed++;
+    console.error(`  FAIL: ${label}: ${(err as Error).message}`);
+  }
+  try { proc.kill("SIGKILL"); } catch (_: unknown) {}
+}
+
+// ===== Test: Approve decision =====
+await testDecisionSubmit(
+  "Approve decision",
+  60,
+  { summary: "approve test", comments: [], decision: "approve" },
+  "decision: approve",
+);
+
+// ===== Test: Request Changes decision =====
+await testDecisionSubmit(
+  "Request Changes decision",
+  61,
+  { summary: "needs work", comments: [{ row: 0, col: 0, text: "fix this" }], decision: "request_changes" },
+  "decision: request_changes",
+);
+
+// ===== Test: Decision-only submit (no comments, no summary) =====
+await testDecisionSubmit(
+  "Decision-only submit",
+  63,
+  { summary: "", comments: [], decision: "approve" },
+  "decision: approve",
+);
+
+// ===== Test: POST /comment writes to live log =====
+{
+  console.log("\n--- Live comment IPC test ---");
+  const liveProc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT + 62), TEST_MD], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, REVIW_LOCK_DIR: LOCK_DIR },
+  });
+  let liveStderr = "";
+  liveProc.stderr!.on("data", (d: Buffer) => (liveStderr += d));
+  liveProc.stdout!.on("data", () => {});
+  try {
+    await waitForServer(BASE_PORT + 62, 5000);
+    // Wait a beat for stderr to flush the REVIW_LIVE line
+    await sleep(500);
+    // Send a comment
+    const commentRes = await httpPost(BASE_PORT + 62, "/comment", JSON.stringify({
+      type: "comment",
+      row: 5,
+      col: 0,
+      text: "realtime comment test",
+      key: "5:0",
+    }));
+    assert(commentRes.status === 200, "POST /comment returns 200");
+    // Small delay to let file write complete
+    await sleep(200);
+    // Extract live log path from stderr
+    const liveMatch = liveStderr.match(/\[REVIW_LIVE\]\s+(.+\.jsonl)/);
+    assert(!!liveMatch, "Live log path printed to stderr");
+    if (liveMatch) {
+      const logPath = liveMatch[1].trim();
+      assert(existsSync(logPath), "Live log file exists");
+      const logContent = readFileSync(logPath, "utf-8");
+      assert(logContent.includes("realtime comment test"), "Live log JSONL contains comment text");
+    }
+    // Send delete event
+    const delRes = await httpPost(BASE_PORT + 62, "/comment", JSON.stringify({
+      type: "delete",
+      row: 5,
+      col: 0,
+      text: "",
+      key: "5:0",
+    }));
+    assert(delRes.status === 200, "POST /comment delete returns 200");
+  } catch (err: unknown) {
+    failed++;
+    console.error(`  FAIL: Live comment test: ${(err as Error).message}`);
+  }
+  try { liveProc.kill("SIGKILL"); } catch (_: unknown) {}
+}
+
+// ===== Test: Send to AI (handoff action) =====
+await testDecisionSubmit(
+  "Handoff action (Send to AI)",
+  64,
+  { summary: "fix the bug", comments: [{ row: 2, col: 0, text: "here" }], action: "handoff" },
+  "action: handoff",
+);
+
+// ===== Test: final_approve action =====
+await testDecisionSubmit(
+  "Final approve action",
+  65,
+  { summary: "LGTM", comments: [], decision: "approve", action: "final_approve" },
+  "action: final_approve",
+);
+
+// ===== Test: Restart with --no-open --port returns healthz 200 =====
+{
+  console.log("\n--- Restart healthz test ---");
+  const restartProc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT + 66), TEST_MD], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, REVIW_LOCK_DIR: LOCK_DIR },
+  });
+  restartProc.stdout!.on("data", () => {});
+  restartProc.stderr!.on("data", () => {});
+  try {
+    const ready = await waitForServer(BASE_PORT + 66, 5000);
+    assert(ready, "Restarted server responds to healthz");
+    const res = await httpGet(BASE_PORT + 66, "/healthz");
+    assert(res.status === 200, "Healthz returns 200");
+    assert(res.body.includes("ok"), "Healthz body contains ok");
+  } catch (err: unknown) {
+    failed++;
+    console.error(`  FAIL: Restart test: ${(err as Error).message}`);
+  }
+  try { restartProc.kill("SIGKILL"); } catch (_: unknown) {}
 }
 
 // Cleanup temp files

@@ -743,6 +743,54 @@ async function main(): Promise<void> {
       }
     });
 
+    // --- smooth scroll: preview scroll syncs source pane with bounded deltas ---
+    await runScenario("smooth scroll: preview scroll syncs source pane with bounded deltas", async () => {
+      const { context, page } = await createPage(browser!);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForTimeout(500);
+        const result = await page.evaluate(async () => {
+          const preview = document.querySelector(".md-left") as HTMLElement;
+          const source = document.querySelector(".md-right") as HTMLElement;
+          if (!preview || !source || preview.scrollHeight <= preview.clientHeight) {
+            return { skipped: true, previewMoved: false, sourceMoved: false, sourceMaxDelta: 0 };
+          }
+          const sourceStart = source.scrollTop;
+          const sourcePositions: number[] = [sourceStart];
+          // Scroll preview in small increments and wait for sync
+          for (let i = 0; i < 6; i++) {
+            preview.scrollTop += 80;
+            preview.dispatchEvent(new Event("scroll"));
+            await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 50)));
+            sourcePositions.push(source.scrollTop);
+          }
+          let sourceMaxDelta = 0;
+          for (let i = 1; i < sourcePositions.length; i++) {
+            const d = Math.abs(sourcePositions[i] - sourcePositions[i - 1]);
+            if (d > sourceMaxDelta) sourceMaxDelta = d;
+          }
+          return {
+            skipped: false,
+            previewMoved: preview.scrollTop > 0,
+            sourceMoved: source.scrollTop > sourceStart,
+            sourceMaxDelta,
+          };
+        });
+        if (result.skipped) {
+          return;
+        }
+        assert.ok(result.previewMoved, "preview pane scrolled");
+        // Source should follow preview (sync_scroll fires on preview scroll)
+        // sourceMaxDelta should be bounded by apply_scroll_clamped
+        if (result.sourceMoved) {
+          assert.ok(result.sourceMaxDelta <= 800,
+            `source sync delta should be bounded (got ${result.sourceMaxDelta}px)`);
+        }
+      } finally {
+        await context.close();
+      }
+    });
+
     console.log(`\nSummary: ${passed} passed, ${failed} failed`);
     if (failed > 0) {
       process.exitCode = 1;

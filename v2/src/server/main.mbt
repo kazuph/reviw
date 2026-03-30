@@ -27,6 +27,32 @@ let all_results : Array[@core.ReviewResult] = []
 ///| Expected total number of files
 let expected_count : Ref[Int] = Ref::new(0)
 
+///| Live log file path for real-time comment IPC
+let live_log_path : Ref[String] = Ref::new("")
+
+///| Initialize live log file
+fn init_live_log() -> Unit {
+  let pid = process_pid()
+  let path = path_join(os_tmpdir(), "reviw-live-\{pid}.jsonl")
+  live_log_path.val = path
+  write_file_secure(path, "")
+  console_error("[REVIW_LIVE] \{path}")
+}
+
+///| Append a JSONL line to the live log
+fn append_live_log(json_line : String) -> Unit {
+  if live_log_path.val.length() > 0 {
+    try_call_void(fn() { fs_append_file_sync(live_log_path.val, json_line + "\n") })
+  }
+}
+
+///| Clean up live log file
+fn cleanup_live_log() -> Unit {
+  if live_log_path.val.length() > 0 && exists_sync(live_log_path.val) {
+    try_call_void(fn() { unlink_sync(live_log_path.val) })
+  }
+}
+
 ///| Cached ui.js content
 let ui_js_cache : Ref[String] = Ref::new("")
 
@@ -169,10 +195,13 @@ fn main {
     }
     i = i + 1
   }
-  // Cleanup locks on SIGINT
+  // Initialize live log for real-time comment IPC
+  init_live_log()
+  // Cleanup locks and live log on SIGINT
   on_process_signal(
     "SIGINT",
     fn() {
+      cleanup_live_log()
       for srv in active_servers {
         remove_lock(srv.port)
       }
@@ -597,6 +626,7 @@ fn handle_request(ctx : ServerContext, req : JsValue, res : JsValue) -> Unit {
     res_write_head(res, 200, "text/html; charset=utf-8")
     res_end(res, ctx.html_cache)
   } else if http_method == "GET" && url == "/ui.js" {
+    res_set_header(res, "Cache-Control", "no-store, no-cache, must-revalidate")
     res_write_head(res, 200, "application/javascript; charset=utf-8")
     res_end(res, load_ui_js())
   } else if http_method == "GET" && url == "/healthz" {
@@ -631,6 +661,15 @@ fn handle_request(ctx : ServerContext, req : JsValue, res : JsValue) -> Unit {
       req,
       fn(body) {
         handle_session_close(ctx, body)
+        res_write_head(res, 200, "application/json")
+        res_end(res, "{\"ok\":true}")
+      },
+    )
+  } else if http_method == "POST" && url == "/comment" {
+    read_body(
+      req,
+      fn(body) {
+        handle_comment(ctx, body)
         res_write_head(res, 200, "application/json")
         res_end(res, "{\"ok\":true}")
       },
@@ -848,6 +887,50 @@ fn cancel_pending_close(ctx : ServerContext) -> Unit {
   }
 }
 
+///| Handle real-time comment from browser
+fn handle_comment(ctx : ServerContext, body : String) -> Unit {
+  if ctx.finished {
+    return
+  }
+  // Build JSONL entry: {timestamp, file, type, ...comment_data}
+  let timestamp = iso_now()
+  let event_type = json_parse_string("type", body)
+  let buf = StringBuilder::new()
+  buf.write_string("{\"timestamp\":\"")
+  buf.write_string(@core.escape_js_string(timestamp))
+  buf.write_string("\",\"file\":\"")
+  buf.write_string(@core.escape_js_string(ctx.filename))
+  buf.write_string("\",\"type\":\"")
+  buf.write_string(@core.escape_js_string(if event_type.length() > 0 { event_type } else { "comment" }))
+  buf.write_string("\"")
+  let key = json_parse_string("key", body)
+  if key.length() > 0 {
+    buf.write_string(",\"key\":")
+    buf.write_string(json_encode_value(key))
+  }
+  let row = json_parse_string("row", body)
+  buf.write_string(",\"row\":")
+  buf.write_string(if row.length() > 0 { row } else { "0" })
+  let col = json_parse_string("col", body)
+  buf.write_string(",\"col\":")
+  buf.write_string(if col.length() > 0 { col } else { "0" })
+  let text = json_parse_string("text", body)
+  if text.length() > 0 {
+    buf.write_string(",\"text\":")
+    buf.write_string(json_encode_value(text))
+  }
+  let has_image = json_parse_string("hasImage", body)
+  if has_image == "true" {
+    buf.write_string(",\"hasImage\":true")
+  }
+  buf.write_string("}")
+  append_live_log(buf.to_string())
+  // Notify SSE clients about the comment event
+  for client in ctx.sse_clients {
+    sse_send(client, "comment", buf.to_string())
+  }
+}
+
 ///|
 fn handle_submit(ctx : ServerContext, body : String) -> Unit {
   if ctx.finished {
@@ -877,6 +960,10 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
       mermaid_errors.push({ line: @core.parse_int_safe(me[0]), message: me[1] })
     }
   }
+  let decision_str = json_parse_string("decision", body)
+  let decision = @core.ReviewDecision::from_string(decision_str)
+  let action_str = json_parse_string("action", body)
+  let action = @core.ReviewAction::from_string(action_str)
   let result : @core.ReviewResult = {
     file: ctx.filename,
     mode: ctx.mode,
@@ -884,10 +971,12 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
     summary,
     answers,
     mermaid_errors,
+    decision,
+    action,
   }
   all_results.push(result)
-  // Save to history
-  if comments.length() > 0 || summary.length() > 0 {
+  // Save to history (including decision-only submits)
+  if comments.length() > 0 || summary.length() > 0 || not(decision.is_empty()) {
     let entry_buf = StringBuilder::new()
     entry_buf.write_string("{\"timestamp\":\"")
     entry_buf.write_string(iso_now())
@@ -920,6 +1009,7 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
   if all_results.length() >= expected_count.val {
     let yaml = @core.reviews_to_yaml(all_results)
     process_stdout_write(yaml)
+    cleanup_live_log()
     for srv in active_servers {
       if srv.file_path != "<stdin>" {
         unwatch_file(srv.file_path)

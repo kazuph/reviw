@@ -41,6 +41,19 @@ let current_comment_image : Ref[String] = Ref::new("")
 let submit_images : Array[String] = []
 let close_report_sent : Ref[Bool] = Ref::new(false)
 let submit_in_flight : Ref[Bool] = Ref::new(false)
+let pending_decision : Ref[String] = Ref::new("")
+
+///| Decision constants (must match @core.ReviewDecision::to_string)
+let decision_approve : String = "approve"
+let decision_request_changes : String = "request_changes"
+
+///| Action constants (must match @core.ReviewAction::to_string)
+let action_handoff : String = "handoff"
+let action_final_approve : String = "final_approve"
+let action_final_request_changes : String = "final_request_changes"
+
+///| Pending action for submit
+let pending_action : Ref[String] = Ref::new("")
 let review_tab_id : Ref[String] = Ref::new("")
 let page_instance_id : Ref[String] = Ref::new("")
 
@@ -482,13 +495,43 @@ pub fn init_app() -> Unit {
   if not(is_null(modal_cancel)) {
     on(modal_cancel, "click", fn(_e) { hide_submit_modal() })
   }
-  let modal_submit = query("#modal-submit")
-  if not(is_null(modal_submit)) {
+  let modal_approve = query("#modal-approve")
+  if not(is_null(modal_approve)) {
     on(
-      modal_submit,
+      modal_approve,
       "click",
-      fn(_e) { submit_review(port) },
+      fn(_e) {
+        pending_decision.val = decision_approve
+        pending_action.val = action_final_approve
+        submit_review(port)
+      },
     )
+  }
+  let modal_request_changes = query("#modal-request-changes")
+  if not(is_null(modal_request_changes)) {
+    on(
+      modal_request_changes,
+      "click",
+      fn(_e) {
+        pending_decision.val = decision_request_changes
+        pending_action.val = action_final_request_changes
+        submit_review(port)
+      },
+    )
+  }
+  // Setup Send to AI button + summary input
+  let send_to_ai_btn = query("#send-to-ai-btn")
+  if not(is_null(send_to_ai_btn)) {
+    on(send_to_ai_btn, "click", fn(_e) { send_to_ai(port) })
+  }
+  let send_to_ai_input = query("#send-to-ai-summary")
+  if not(is_null(send_to_ai_input)) {
+    on(send_to_ai_input, "keydown", fn(e) {
+      if event_key(e) == "Enter" && not(event_is_composing(e)) {
+        prevent_default(e)
+        send_to_ai(port)
+      }
+    })
   }
   // Setup recovery modal buttons
   let recovery_restore = query("#recovery-restore")
@@ -511,14 +554,16 @@ pub fn init_app() -> Unit {
           save_comment()
           return
         }
-        // If submit modal is open, do submit
+        // If submit modal is open, default to request changes
         let modal = query("#submit-modal")
         if not(is_null(modal)) && has_class(modal, "visible") {
+          pending_decision.val = decision_request_changes
+          pending_action.val = action_final_request_changes
           submit_review(port)
           return
         }
-        // Otherwise, open submit modal
-        show_submit_modal()
+        // Otherwise, Send to AI (Cmd+Enter = quick send)
+        send_to_ai(port)
       }
       if event_key(e) == "Escape" {
         hide_comment_card()
@@ -532,6 +577,8 @@ pub fn init_app() -> Unit {
     on(global_comment_input, "keydown", fn(e) {
       if event_key(e) == "Enter" && (event_meta_key(e) || event_ctrl_key(e)) {
         prevent_default(e)
+        pending_decision.val = decision_request_changes
+        pending_action.val = action_final_request_changes
         submit_review(port)
       }
     })
@@ -814,7 +861,9 @@ fn render_comment_list() -> Unit {
   comments.each(fn(key, comment) {
     if comment_has_content(comment) {
       count = count + 1
-      buf.write_string("<li>")
+      buf.write_string("<li data-key=\"")
+      buf.write_string(@core.escape_html(key))
+      buf.write_string("\">")
       buf.write_string("<button class=\"comment-list-entry\" data-comment-key=\"")
       buf.write_string(@core.escape_html(key))
       buf.write_string("\" style=\"all:unset;display:block;width:100%;cursor:pointer\">")
@@ -882,15 +931,23 @@ fn save_comment() -> Unit {
   }
   let text = get_value(textarea)
   let key = active_key.val
+  let is_delete = text.length() == 0 && current_comment_image.val.length() == 0
   if key.length() > 0 {
     match comments.get(key) {
       Some(comment) => {
+        // Send real-time comment to server
+        send_comment_to_server(comment.row, comment.col, text, if is_delete { "delete" } else { "comment" }, key, current_comment_image.val.length() > 0)
         comment.text = text
         comment.image = current_comment_image.val
       }
-      None => ()
+      None => {
+        // New comment that's being deleted immediately — still send delete
+        if is_delete {
+          send_comment_to_server(0, 0, "", "delete", key, false)
+        }
+      }
     }
-    if text.length() == 0 && current_comment_image.val.length() == 0 {
+    if is_delete {
       ignore(comments.remove(key))
     }
   }
@@ -898,6 +955,65 @@ fn save_comment() -> Unit {
   hide_comment_card()
   update_comment_indicators()
   persist_comments()
+}
+
+///| Send a comment event to the server for real-time IPC
+fn send_comment_to_server(row : Int, col : Int, text : String, event_type : String, key : String, has_image : Bool) -> Unit {
+  let port = get_reviw_port()
+  if port <= 0 {
+    return
+  }
+  let url = location_origin() + "/comment"
+  let buf = StringBuilder::new()
+  buf.write_string("{\"type\":")
+  buf.write_string(json_encode_string(event_type))
+  buf.write_string(",\"row\":")
+  buf.write_string(row.to_string())
+  buf.write_string(",\"col\":")
+  buf.write_string(col.to_string())
+  buf.write_string(",\"text\":")
+  buf.write_string(json_encode_string(text))
+  buf.write_string(",\"key\":")
+  buf.write_string(json_encode_string(key))
+  if has_image {
+    buf.write_string(",\"hasImage\":true")
+  }
+  buf.write_string("}")
+  fetch_post(
+    url,
+    buf.to_string(),
+    fn(response) {
+      // Show sent/failed badge on the comment indicator
+      update_sent_badge(key, response != "error")
+    },
+  )
+}
+
+///| Update sent/failed badge on comment list item
+fn update_sent_badge(key : String, success : Bool) -> Unit {
+  let list_items = query_all("#comment-list li")
+  for item in list_items {
+    let item_key = get_attr(item, "data-key")
+    if item_key == key {
+      let existing_badge = query_in(item, ".comment-sent-badge")
+      if not(is_null(existing_badge)) {
+        remove_element(existing_badge)
+      }
+      let badge_html = if success {
+        "<span class=\"comment-sent-badge sent\">sent</span>"
+      } else {
+        "<span class=\"comment-sent-badge failed\">failed</span>"
+      }
+      append_html(item, badge_html)
+      // Auto-remove badge after 3 seconds
+      ignore(set_timeout_dom(fn() {
+        let badge = query_in(item, ".comment-sent-badge")
+        if not(is_null(badge)) {
+          remove_element(badge)
+        }
+      }, 3000))
+    }
+  }
 }
 
 ///|
@@ -1072,6 +1188,16 @@ fn build_review_payload() -> String {
     }
     buf.write_string("]")
   }
+  // Include decision if set
+  if pending_decision.val.length() > 0 {
+    buf.write_string(",\"decision\":")
+    buf.write_string(json_encode_string(pending_decision.val))
+  }
+  // Include action
+  if pending_action.val.length() > 0 {
+    buf.write_string(",\"action\":")
+    buf.write_string(json_encode_string(pending_action.val))
+  }
   buf.write_string("}")
   buf.to_string()
 }
@@ -1112,6 +1238,84 @@ fn submit_review(port : Int) -> Unit {
     fn(_response) {
       ls_remove(get_storage_key())
       window_close()
+    },
+  )
+}
+
+///| Restore draft saved by Send to AI handoff
+
+///| Send to AI: save draft to localStorage, POST /exit with action:handoff, show overlay, poll healthz
+fn send_to_ai(port : Int) -> Unit {
+  if submit_in_flight.val {
+    return
+  }
+  submit_in_flight.val = true
+  close_report_sent.val = true
+  // Set action to handoff
+  pending_action.val = action_handoff
+  // Copy Send to AI summary input into global-comment for payload
+  let ai_summary_input = query("#send-to-ai-summary")
+  if not(is_null(ai_summary_input)) {
+    let ai_summary = get_value(ai_summary_input)
+    if ai_summary.length() > 0 {
+      let global_comment = query("#global-comment")
+      if not(is_null(global_comment)) {
+        set_value(global_comment, ai_summary)
+      }
+    }
+  }
+  let payload = build_review_payload()
+  // Immediately nuke localStorage BEFORE any async ops (prevent recovery on reload)
+  let storage_key = get_storage_key()
+  ls_remove(storage_key)
+  // Clear all comments from memory and UI
+  hide_comment_card()
+  comments.clear()
+  active_key.val = ""
+  current_comment_image.val = ""
+  // Force-clear localStorage again (sync_active_comment_draft inside build_review_payload may have re-persisted)
+  ls_remove(storage_key)
+  // Update UI: remove all .has-comment classes, reset count badge, clear comment list
+  update_comment_indicators()
+  // Clear input fields
+  if not(is_null(ai_summary_input)) {
+    set_value(ai_summary_input, "")
+  }
+  let gc = query("#global-comment")
+  if not(is_null(gc)) {
+    set_value(gc, "")
+  }
+  // Show "Sent!" feedback on button
+  let btn = query("#send-to-ai-btn")
+  if not(is_null(btn)) {
+    set_inner_html(btn, "\u{2705} Sent!")
+    add_class(btn, "sent")
+    ignore(set_timeout_dom(fn() {
+      set_inner_html(btn, "\u{1F4E4} Send to AI")
+      remove_class(btn, "sent")
+    }, 3000))
+  }
+  // Set SSE status to disconnected immediately (server is about to exit)
+  let status_el = query("#sse-status")
+  if not(is_null(status_el)) {
+    set_inner_html(status_el, "\u{1F534} Sending... <span style=\"font-size:11px;color:var(--muted)\">(server restarting)</span>")
+  }
+  set_send_buttons_enabled(false)
+  // Final localStorage cleanup before POST
+  ls_remove(storage_key)
+  // POST /exit with handoff action — server will exit
+  // Browser stays open. SSE will reconnect when server restarts.
+  let url = location_origin() + "/exit"
+  fetch_post(
+    url,
+    payload,
+    fn(_response) {
+      // Server exited. Reset flags so user can interact in new round.
+      submit_in_flight.val = false
+      close_report_sent.val = false
+      pending_action.val = ""
+      // One more cleanup in case anything re-persisted
+      ls_remove(storage_key)
     },
   )
 }
@@ -1174,10 +1378,45 @@ fn init_view_toggle_narrow(view_toggle : Element) -> Unit {
 }
 
 ///|
+///| Enable/disable Send to AI and Submit & Exit buttons based on SSE connection
+fn set_send_buttons_enabled(enabled : Bool) -> Unit {
+  let send_btn = query("#send-to-ai-btn")
+  if not(is_null(send_btn)) {
+    set_disabled(send_btn, not(enabled))
+  }
+  let submit_btn = query("#send-and-exit")
+  if not(is_null(submit_btn)) {
+    set_disabled(submit_btn, not(enabled))
+  }
+}
+
+///| Track whether SSE was previously connected (to show "Reconnected")
+let sse_was_connected : Ref[Bool] = Ref::new(false)
+
 fn setup_sse(port : Int) -> Unit {
   let url = location_origin() + "/sse"
   let es = new_event_source(url)
   sse_on(es, "reload", fn(_e) { location_reload() })
+  // SSE connection status tracking
+  sse_on_open(es, fn() {
+    let status_el = query("#sse-status")
+    if not(is_null(status_el)) {
+      if sse_was_connected.val {
+        set_inner_html(status_el, "\u{1F7E2} Reconnected")
+      } else {
+        set_inner_html(status_el, "\u{1F7E2} Connected")
+      }
+    }
+    sse_was_connected.val = true
+    set_send_buttons_enabled(true)
+  })
+  sse_on_error_status(es, fn() {
+    let status_el = query("#sse-status")
+    if not(is_null(status_el)) {
+      set_inner_html(status_el, "\u{1F534} Disconnected <span style=\"font-size:11px;color:var(--muted)\">(reconnecting...)</span>")
+    }
+    set_send_buttons_enabled(false)
+  })
 }
 
 ///| Save comments to localStorage in cli.cjs-compatible { comments, timestamp } format
@@ -1483,8 +1722,23 @@ fn setup_scroll_sync() -> Unit {
   if is_null(md_left) || is_null(md_right) {
     return
   }
+  // Preview (md-left) is the primary scroll axis.
+  // Only Preview→Source sync is active. Source→Preview is disabled
+  // to prevent the sync from fighting the user's scroll in Preview.
   on(md_left, "scroll", fn(_e) { sync_scroll(md_left, md_right, "left") })
-  on(md_right, "scroll", fn(_e) { sync_scroll(md_right, md_left, "right") })
+  // Invalidate heading anchor cache when images load (layout shift)
+  let preview_imgs = query_all_in(md_left, "img")
+  for img in preview_imgs {
+    on(img, "load", fn(_e) { invalidate_heading_anchors() })
+  }
+}
+
+///| Invalidate heading anchors cache so it rebuilds on next scroll
+fn invalidate_heading_anchors() -> Unit {
+  heading_anchors_built.val = false
+  while heading_anchors_cache.length() > 0 {
+    ignore(heading_anchors_cache.pop())
+  }
 }
 
 ///| Heading anchor for scroll sync
@@ -1535,6 +1789,24 @@ fn get_heading_anchors() -> Array[HeadingAnchor] {
     heading_anchors_built.val = true
   }
   heading_anchors_cache
+}
+
+///| Apply scroll position with delta limiting to prevent jumps
+///| When images load and shift layout, raw set_scroll_top causes large jumps.
+///| This limits per-frame delta to viewport height, producing smoother sync.
+fn apply_scroll_clamped(target : Element, desired : Double, target_max : Double) -> Unit {
+  let current = get_scroll_top(target)
+  let clamped = if desired < 0.0 { 0.0 } else if desired > target_max { target_max } else { desired }
+  let delta = clamped - current
+  let viewport_h = get_client_height(target)
+  // Limit jump to 1x viewport height per frame to avoid jarring snaps
+  let max_delta = if viewport_h > 100.0 { viewport_h } else { 400.0 }
+  if delta.abs() > max_delta {
+    let limited = current + (if delta > 0.0 { max_delta } else { -max_delta })
+    set_scroll_top(target, limited)
+  } else {
+    set_scroll_top(target, clamped)
+  }
 }
 
 ///|
@@ -1612,14 +1884,13 @@ fn sync_scroll(source : Element, target : Element, source_name : String) -> Unit
       let offset_in_source = source_scroll - src_anchor_pos
       let ratio_in_section = if source_max > 0.0 { offset_in_source / source_height } else { 0.0 }
       let target_scroll = tgt_anchor_pos + ratio_in_section * get_client_height(target)
-      let clamped = if target_scroll < 0.0 { 0.0 } else if target_scroll > target_max { target_max } else { target_scroll }
-      set_scroll_top(target, clamped)
+      apply_scroll_clamped(target, target_scroll, target_max)
       ignore(set_timeout(fn() { scroll_active_pane.val = "" }, 100))
       return
     }
     // Fallback: Ratio-based sync
     let ratio = get_scroll_top(source) / source_max
-    set_scroll_top(target, ratio * target_max)
+    apply_scroll_clamped(target, ratio * target_max, target_max)
     ignore(set_timeout(fn() { scroll_active_pane.val = "" }, 100))
   })
 }

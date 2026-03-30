@@ -43,6 +43,55 @@ pub(all) struct MermaidError {
   message : String
 } derive(Show, Eq)
 
+///| Review action: handoff (send to AI) or final submit
+pub(all) enum ReviewAction {
+  Handoff
+  FinalApprove
+  FinalRequestChanges
+} derive(Show, Eq)
+
+///|
+pub fn ReviewAction::to_string(self : ReviewAction) -> String {
+  match self {
+    Handoff => "handoff"
+    FinalApprove => "final_approve"
+    FinalRequestChanges => "final_request_changes"
+  }
+}
+
+///|
+pub fn ReviewAction::from_string(s : String) -> ReviewAction {
+  match s {
+    "handoff" => Handoff
+    "final_approve" => FinalApprove
+    "final_request_changes" => FinalRequestChanges
+    _ => FinalApprove
+  }
+}
+
+///| Review decision: approve or request changes
+pub(all) enum ReviewDecision {
+  Approve
+  RequestChanges
+} derive(Show, Eq)
+
+///|
+pub fn ReviewDecision::to_string(self : ReviewDecision) -> String {
+  match self {
+    Approve => "approve"
+    RequestChanges => "request_changes"
+  }
+}
+
+///|
+pub fn ReviewDecision::from_string(s : String) -> ReviewDecision? {
+  match s {
+    "approve" => Some(Approve)
+    "request_changes" => Some(RequestChanges)
+    _ => None
+  }
+}
+
 ///| Review result for one file
 pub(all) struct ReviewResult {
   file : String
@@ -51,6 +100,8 @@ pub(all) struct ReviewResult {
   summary : String
   answers : String
   mermaid_errors : Array[MermaidError]
+  decision : ReviewDecision?
+  action : ReviewAction
 } derive(Show)
 
 ///| Parsed CSV data

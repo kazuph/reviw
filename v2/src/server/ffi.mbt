@@ -16,6 +16,9 @@ extern "js" fn exists_sync(path : String) -> Bool = "existsSync"
 extern "js" fn mkdir_sync(path : String, options : JsValue) -> Unit = "mkdirSync"
 
 #module("node:fs")
+extern "js" fn fs_append_file_sync(path : String, data : String) -> Unit = "appendFileSync"
+
+#module("node:fs")
 extern "js" fn unwatch_file(path : String) -> Unit = "unwatchFile"
 
 #module("node:fs")
@@ -224,7 +227,7 @@ extern "js" fn console_error(msg : String) -> Unit =
 
 ///| JSON
 extern "js" fn json_parse_string(key : String, json_str : String) -> String =
-  #|(key, s) => { try { return JSON.parse(s)[key] || ""; } catch(e) { return ""; } }
+  #|(key, s) => { try { const v = JSON.parse(s)[key]; return v == null ? "" : String(v); } catch(e) { return ""; } }
 
 ///| Create options object for mkdirSync recursive
 extern "js" fn mkdir_recursive_opts() -> JsValue =

@@ -8,8 +8,11 @@ test "review to yaml single file" {
     summary: "looks good",
     answers: "",
     mermaid_errors: [],
+    decision: None,
+    action: FinalApprove,
   }
   inspect(review_to_yaml(result), content=(
+    #|action: final_approve
     #|file: data.csv
     #|mode: csv
     #|comments:
@@ -32,8 +35,11 @@ test "review to yaml escapes special chars" {
     summary: "it's fine",
     answers: "",
     mermaid_errors: [],
+    decision: None,
+    action: FinalApprove,
   }
   inspect(review_to_yaml(result), content=(
+    #|action: final_approve
     #|file: test.csv
     #|mode: csv
     #|comments:
@@ -54,6 +60,8 @@ test "reviews to yaml multiple files" {
       summary: "ok",
       answers: "",
       mermaid_errors: [],
+      decision: None,
+      action: FinalApprove,
     },
     {
       file: "b.md",
@@ -62,9 +70,12 @@ test "reviews to yaml multiple files" {
       summary: "ok",
       answers: "",
       mermaid_errors: [],
+      decision: None,
+      action: FinalApprove,
     },
   ]
   inspect(reviews_to_yaml(results), content=(
+    #|action: final_approve
     #|files:
     #|  - file: a.csv
     #|    mode: csv
@@ -88,6 +99,8 @@ test "yaml escape empty value omitted" {
     summary: "done",
     answers: "",
     mermaid_errors: [],
+    decision: None,
+    action: FinalApprove,
   }
   let yaml = review_to_yaml(result)
   // value should not appear when empty
@@ -107,8 +120,11 @@ test "review to yaml with mermaid errors" {
       { line: 12, message: "Parse error on line 2" },
       { line: 25, message: "Expecting 'TXT', got 'NEWLINE'" },
     ],
+    decision: None,
+    action: FinalApprove,
   }
   inspect(review_to_yaml(result), content=(
+    #|action: final_approve
     #|file: test.md
     #|mode: markdown
     #|comments:
