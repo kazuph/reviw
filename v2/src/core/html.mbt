@@ -171,10 +171,21 @@ fn build_submit_modal(buf : StringBuilder) -> Unit {
   buf.write_string("<label>Attach images (Paste, max 5)</label>")
   buf.write_string("<div class=\"image-preview-list\" id=\"submit-image-preview\"></div>")
   buf.write_string("</div>")
-  buf.write_string("<div class=\"modal-actions\">")
+  buf.write_string("<div class=\"modal-actions modal-actions-decision\">")
+  buf.write_string("<button class=\"decision-btn decision-approve\" id=\"modal-approve\" title=\"Approve\">\u{2705} Approve</button>")
   buf.write_string("<button id=\"modal-cancel\">Cancel</button>")
-  buf.write_string("<button class=\"primary\" id=\"modal-submit\">Submit</button>")
+  buf.write_string("<button class=\"decision-btn decision-request-changes\" id=\"modal-request-changes\" title=\"Request Changes\">\u{1F504} Request Changes <kbd class=\"kbd-hint\">\u{2318}Enter</kbd></button>")
   buf.write_string("</div></div></div>")
+}
+
+///| Build the "Send to AI" fixed bottom bar
+fn build_send_to_ai_bar(buf : StringBuilder) -> Unit {
+  buf.write_string("<div class=\"send-to-ai-bar\" id=\"send-to-ai-bar\">")
+  buf.write_string("<div class=\"send-to-ai-inner\">")
+  buf.write_string("<span class=\"sse-status\" id=\"sse-status\">\u{1F7E2} Connected</span>")
+  buf.write_string("<input type=\"text\" class=\"send-to-ai-input\" id=\"send-to-ai-summary\" placeholder=\"Comment to AI (optional)\" />")
+  buf.write_string("<button class=\"send-to-ai-btn\" id=\"send-to-ai-btn\">\u{1F4E4} Send to AI</button>")
+  buf.write_string("</div></div>")
 }
 
 fn build_comment_list_aside(buf : StringBuilder) -> Unit {
@@ -466,6 +477,7 @@ pub fn build_csv_html(data : CsvData, filename : String, port : Int) -> String {
   buf.write_string("</tbody></table></div>")
   build_comment_card(buf)
   build_submit_modal(buf)
+  build_send_to_ai_bar(buf)
   build_history_panel(buf)
   build_recovery_modal(buf)
   buf.write_string("<script>const DATA = ")
@@ -558,6 +570,7 @@ pub fn build_diff_html(data : DiffData, filename : String, port : Int) -> String
   buf.write_string("</div>")
   build_comment_card(buf)
   build_submit_modal(buf)
+  build_send_to_ai_bar(buf)
   build_history_panel(buf)
   build_recovery_modal(buf)
   build_script_footer(buf, port, "diff", filename)
@@ -586,6 +599,7 @@ pub fn build_text_html(
   buf.write_string("</div>")
   build_comment_card(buf)
   build_submit_modal(buf)
+  build_send_to_ai_bar(buf)
   build_history_panel(buf)
   build_recovery_modal(buf)
   build_script_footer(buf, port, "text", filename)

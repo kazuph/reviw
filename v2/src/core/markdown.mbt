@@ -514,7 +514,7 @@ fn render_inline(text : String) -> String {
             buf.write_string(escaped_src)
             buf.write_string("\" alt=\"")
             buf.write_string(escape_html(alt))
-            buf.write_string("\" />")
+            buf.write_string("\" loading=\"lazy\" style=\"max-width:100%;height:auto;\" />")
           }
           i = url_end + 1
           continue
@@ -1179,6 +1179,7 @@ pub fn build_markdown_html(
   build_comment_card(buf)
   build_comment_list_aside(buf)
   build_submit_modal(buf)
+  build_send_to_ai_bar(buf)
   build_recovery_modal(buf)
   build_mermaid_fullscreen(buf)
   build_image_fullscreen(buf)

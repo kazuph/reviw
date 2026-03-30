@@ -16,6 +16,9 @@ extern "js" fn exists_sync(path : String) -> Bool = "existsSync"
 extern "js" fn mkdir_sync(path : String, options : JsValue) -> Unit = "mkdirSync"
 
 #module("node:fs")
+extern "js" fn fs_append_file_sync(path : String, data : String) -> Unit = "appendFileSync"
+
+#module("node:fs")
 extern "js" fn unwatch_file(path : String) -> Unit = "unwatchFile"
 
 #module("node:fs")

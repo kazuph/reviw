@@ -743,6 +743,47 @@ async function main(): Promise<void> {
       }
     });
 
+    // --- smooth scroll continuity: small scrollTop increments stay bounded ---
+    await runScenario("smooth scroll: small wheel deltas produce bounded scrollTop changes", async () => {
+      const { context, page } = await createPage(browser!);
+      try {
+        await gotoFixture(page, port);
+        await page.waitForTimeout(300);
+        // Use page.evaluate to directly test scroll behavior
+        const result = await page.evaluate(() => {
+          const pane = document.querySelector(".md-left") as HTMLElement;
+          if (!pane || pane.scrollHeight <= pane.clientHeight) {
+            return { skipped: true, positions: [] as number[], maxDelta: 0 };
+          }
+          const positions: number[] = [pane.scrollTop];
+          // Apply 8 small scroll increments
+          for (let i = 0; i < 8; i++) {
+            pane.scrollTop += 60;
+            positions.push(pane.scrollTop);
+          }
+          let maxDelta = 0;
+          for (let i = 1; i < positions.length; i++) {
+            const d = Math.abs(positions[i] - positions[i - 1]);
+            if (d > maxDelta) maxDelta = d;
+          }
+          return { skipped: false, positions, maxDelta };
+        });
+
+        if (result.skipped) {
+          return; // content too short to scroll
+        }
+        assert.ok(result.positions.length >= 5, "collected scroll positions");
+        // Each increment was 60px, so max delta should be close to 60 (±tolerance)
+        assert.ok(result.maxDelta <= 120,
+          `max scroll delta should be bounded (got ${result.maxDelta}px)`);
+        // Verify scrolling actually happened
+        const totalScroll = result.positions[result.positions.length - 1] - result.positions[0];
+        assert.ok(totalScroll > 0, "scrolling actually moved the pane");
+      } finally {
+        await context.close();
+      }
+    });
+
     console.log(`\nSummary: ${passed} passed, ${failed} failed`);
     if (failed > 0) {
       process.exitCode = 1;

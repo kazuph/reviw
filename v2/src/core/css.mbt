@@ -1974,6 +1974,42 @@ fn build_css() -> String {
     #|.image-preview-item .remove-image { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--error, #ef4444); color: #fff; border: none; cursor: pointer; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; }
     #|.image-preview-item .remove-image:hover { background: #dc2626; }
     #|.modal-actions button.primary:hover { background: #7dd3fc; }
+    #|.modal-actions-decision { justify-content: space-between; align-items: center; }
+    #|.kbd-hint { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; background: rgba(255,255,255,0.15); margin-left: 6px; font-family: system-ui; opacity: 0.8; }
+    #|[data-theme="light"] .kbd-hint { background: rgba(0,0,0,0.08); }
+    #|.decision-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.15s ease; }
+    #|.decision-approve { background: #166534; color: #bbf7d0; border-color: #22c55e; }
+    #|.decision-approve:hover { background: #15803d; }
+    #|.decision-request-changes { background: #92400e; color: #fef3c7; border-color: #f59e0b; }
+    #|.decision-request-changes:hover { background: #a16207; }
+    #|[data-theme="light"] .decision-approve { background: #dcfce7; color: #166534; border-color: #22c55e; }
+    #|[data-theme="light"] .decision-approve:hover { background: #bbf7d0; }
+    #|[data-theme="light"] .decision-request-changes { background: #fef9c3; color: #92400e; border-color: #f59e0b; }
+    #|[data-theme="light"] .decision-request-changes:hover { background: #fef3c7; }
+    #|.comment-sent-badge { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; }
+    #|.comment-sent-badge.sent { background: #166534; color: #bbf7d0; }
+    #|.comment-sent-badge.failed { background: #7f1d1d; color: #fecaca; }
+    #|[data-theme="light"] .comment-sent-badge.sent { background: #dcfce7; color: #166534; }
+    #|[data-theme="light"] .comment-sent-badge.failed { background: #fee2e2; color: #991b1b; }
+    #|
+    #|/* Send to AI fixed bottom bar */
+    #|.send-to-ai-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; background: var(--panel-solid); border-top: 1px solid var(--border); padding: 8px 16px; }
+    #|.send-to-ai-inner { display: flex; align-items: center; gap: 10px; max-width: 1200px; margin: 0 auto; }
+    #|.sse-status { font-size: 12px; flex-shrink: 0; }
+    #|.send-to-ai-input { flex: 1; min-width: 120px; height: 34px; padding: 0 10px; border-radius: 0; border: none; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font-size: 13px; outline: none; box-sizing: border-box; }
+    #|.send-to-ai-input:focus { border-bottom-color: var(--accent); }
+    #|.send-to-ai-btn.sent { background: #16a34a; pointer-events: none; }
+    #|.send-to-ai-btn.sent:hover { background: #16a34a; }
+    #|.send-to-ai-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #|#send-and-exit:disabled { opacity: 0.4; cursor: not-allowed; }
+    #|.send-to-ai-btn { height: 34px; padding: 0 20px; border-radius: 6px; border: none; background: #2563eb; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s ease; flex-shrink: 0; box-sizing: border-box; }
+    #|.send-to-ai-btn:hover { background: #1d4ed8; }
+    #|.send-to-ai-btn:active { background: #1e40af; }
+    #|[data-theme="light"] .send-to-ai-btn { background: #3b82f6; }
+    #|[data-theme="light"] .send-to-ai-btn:hover { background: #2563eb; }
+    #|/* Ensure content is not hidden behind the fixed Send to AI bar */
+    #|body { padding-bottom: 72px; }
+    #|.md-left, .md-right, .text-view, .diff-view, .table-box { padding-bottom: 72px !important; }
     #|
     #|.modal-checkboxes { margin: 12px 0; }
     #|.modal-checkboxes label {
