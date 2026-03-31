@@ -229,6 +229,10 @@ extern "js" fn console_error(msg : String) -> Unit =
 extern "js" fn json_parse_string(key : String, json_str : String) -> String =
   #|(key, s) => { try { const v = JSON.parse(s)[key]; return v == null ? "" : String(v); } catch(e) { return ""; } }
 
+///| Strip decision and action fields from JSON string (safety net for close-triggered submits)
+extern "js" fn json_strip_decision(json_str : String) -> String =
+  #|(s) => { try { const o = JSON.parse(s); delete o.decision; delete o.action; return JSON.stringify(o); } catch(e) { return s; } }
+
 ///| Create options object for mkdirSync recursive
 extern "js" fn mkdir_recursive_opts() -> JsValue =
   #|() => ({ recursive: true })

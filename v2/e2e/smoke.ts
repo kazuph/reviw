@@ -617,7 +617,7 @@ console.log("\n--- Session Close Ordering ---");
     const staleHealth = await httpGet(sessionPort, "/healthz");
     assert(staleHealth.status === 200, "Session Close: stale close from previous instance does not terminate the server");
 
-    const exitResult = waitForProcessExit(sessionProc, 5000);
+    const exitResult = waitForProcessExit(sessionProc, 12000);
     await httpPost(sessionPort, "/close", JSON.stringify({
       tabId,
       instanceId: newInstance,
@@ -989,11 +989,11 @@ if (playwrightAvailable) {
     }, { timeout: 5000 });
     await closePage.locator("#comment-input").fill("Close draft comment");
 
-    const closedResult = waitForProcessExit(closeProc, 5000);
+    const closedResult = waitForProcessExit(closeProc, 12000);
     await closePage.goto("about:blank", { waitUntil: "load", timeout: 30000 });
     await closePage.close();
     const closed = await closedResult;
-    assert(closed.exited === true, "Browser Close: closing the page exits the server quickly");
+    assert(closed.exited === true, "Browser Close: closing the page exits the server");
     assert(closeStdout.includes("Close draft comment"), "Browser Close: closing flushes the in-progress draft");
 
     await browser.close();

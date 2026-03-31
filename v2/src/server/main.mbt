@@ -1039,8 +1039,9 @@ fn schedule_close_submit(ctx : ServerContext, draft : String) -> Unit {
     return
   }
   cancel_pending_close(ctx)
+  // Strip decision/action from close drafts — these should only come from explicit submit
   let draft_body = if draft.length() > 0 {
-    draft
+    json_strip_decision(draft)
   } else {
     "{\"summary\":\"\",\"comments\":[]}"
   }
@@ -1052,7 +1053,7 @@ fn schedule_close_submit(ctx : ServerContext, draft : String) -> Unit {
       }
       handle_submit(ctx, draft_body)
     },
-    700,
+    5000,
   )
 }
 

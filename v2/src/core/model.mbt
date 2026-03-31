@@ -60,12 +60,12 @@ pub fn ReviewAction::to_string(self : ReviewAction) -> String {
 }
 
 ///|
-pub fn ReviewAction::from_string(s : String) -> ReviewAction {
+pub fn ReviewAction::from_string(s : String) -> ReviewAction? {
   match s {
-    "handoff" => Handoff
-    "final_approve" => FinalApprove
-    "final_request_changes" => FinalRequestChanges
-    _ => FinalApprove
+    "handoff" => Some(Handoff)
+    "final_approve" => Some(FinalApprove)
+    "final_request_changes" => Some(FinalRequestChanges)
+    _ => None
   }
 }
 
@@ -101,7 +101,7 @@ pub(all) struct ReviewResult {
   answers : String
   mermaid_errors : Array[MermaidError]
   decision : ReviewDecision?
-  action : ReviewAction
+  action : ReviewAction?
 } derive(Show)
 
 ///| Parsed CSV data

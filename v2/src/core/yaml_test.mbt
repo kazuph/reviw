@@ -9,7 +9,7 @@ test "review to yaml single file" {
     answers: "",
     mermaid_errors: [],
     decision: None,
-    action: FinalApprove,
+    action: Some(FinalApprove),
   }
   inspect(review_to_yaml(result), content=(
     #|action: final_approve
@@ -36,7 +36,7 @@ test "review to yaml escapes special chars" {
     answers: "",
     mermaid_errors: [],
     decision: None,
-    action: FinalApprove,
+    action: Some(FinalApprove),
   }
   inspect(review_to_yaml(result), content=(
     #|action: final_approve
@@ -61,7 +61,7 @@ test "reviews to yaml multiple files" {
       answers: "",
       mermaid_errors: [],
       decision: None,
-      action: FinalApprove,
+      action: Some(FinalApprove),
     },
     {
       file: "b.md",
@@ -71,7 +71,7 @@ test "reviews to yaml multiple files" {
       answers: "",
       mermaid_errors: [],
       decision: None,
-      action: FinalApprove,
+      action: Some(FinalApprove),
     },
   ]
   inspect(reviews_to_yaml(results), content=(
@@ -100,7 +100,7 @@ test "yaml escape empty value omitted" {
     answers: "",
     mermaid_errors: [],
     decision: None,
-    action: FinalApprove,
+    action: Some(FinalApprove),
   }
   let yaml = review_to_yaml(result)
   // value should not appear when empty
@@ -121,7 +121,7 @@ test "review to yaml with mermaid errors" {
       { line: 25, message: "Expecting 'TXT', got 'NEWLINE'" },
     ],
     decision: None,
-    action: FinalApprove,
+    action: Some(FinalApprove),
   }
   inspect(review_to_yaml(result), content=(
     #|action: final_approve

@@ -1,7 +1,6 @@
 ---
 name: commit-and-push
 description: Auto-generate commit message, commit all changes, and push
-disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: check-yourself
 description: Force actual verification with webapp-testing - no assumptions allowed
-disable-model-invocation: true
 allowed-tools: Bash, Read, Glob, Grep, Task
 ---
 

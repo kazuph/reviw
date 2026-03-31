@@ -2,7 +2,6 @@
 name: open
 description: Open files or URLs with macOS open command
 argument-hint: <file-or-url>
-disable-model-invocation: true
 allowed-tools: Bash, Read
 ---
 

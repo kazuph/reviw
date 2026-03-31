@@ -1,9 +1,14 @@
 ///| Serialize a ReviewResult to YAML string
 pub fn review_to_yaml(result : ReviewResult) -> String {
   let buf = StringBuilder::new()
-  buf.write_string("action: ")
-  buf.write_string(result.action.to_string())
-  buf.write_char('\n')
+  match result.action {
+    Some(a) => {
+      buf.write_string("action: ")
+      buf.write_string(a.to_string())
+      buf.write_char('\n')
+    }
+    None => ()
+  }
   buf.write_string("file: ")
   buf.write_string(yaml_escape_string(result.file))
   buf.write_char('\n')
@@ -64,9 +69,14 @@ pub fn reviews_to_yaml(results : Array[ReviewResult]) -> String {
   } else {
     let buf = StringBuilder::new()
     // Use action from first result (all results share the same action)
-    buf.write_string("action: ")
-    buf.write_string(results[0].action.to_string())
-    buf.write_char('\n')
+    match results[0].action {
+      Some(a) => {
+        buf.write_string("action: ")
+        buf.write_string(a.to_string())
+        buf.write_char('\n')
+      }
+      None => ()
+    }
     buf.write_string("files:\n")
     for result in results {
       buf.write_string("  - file: ")
