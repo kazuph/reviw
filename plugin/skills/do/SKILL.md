@@ -171,6 +171,25 @@ Is this the right approach? Any risks or better alternatives?"
 
 Incorporate Codex feedback into the final proposal.
 
+**Review Agent Advisory (設計助言):**
+
+After drafting the approach, consult Review Agents in advisory mode for proactive feedback.
+Launch applicable agents in parallel with the Agent tool:
+
+```
+# Code & Security の観点で助言をもらう
+Agent(subagent_type="reviw-plugin:review-code-security", prompt="以下の設計案に助言してください：\n[設計案の要約]\n[変更ファイル一覧]\n[トレードオフ]")
+
+# E2E の観点で助言をもらう（テストに影響する変更の場合）
+Agent(subagent_type="reviw-plugin:review-e2e", prompt="以下の設計案にE2E観点で助言してください：\n[設計案の要約]")
+
+# UI/UX の観点で助言をもらう（UI変更がある場合のみ）
+Agent(subagent_type="reviw-plugin:review-ui-ux", prompt="以下のUI設計案に助言してください：\n[設計案の要約]")
+```
+
+Incorporate Review Agent advisory feedback into the proposal.
+If Critical/High issues are raised, revise the approach before presenting to user.
+
 **Present to user with AskUserQuestion:**
 
 ```

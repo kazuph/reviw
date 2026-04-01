@@ -20,13 +20,13 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQues
 |---|---|---|
 | 要件深掘り | 3ラウンドインタビュー | 3ラウンドインタビュー（同じ） |
 | コードベース探索 | 2-3 explorer agents | 2-3 explorer agents（同じ） |
-| Architecture提案 | 1案おすすめ + Codex相談 | 1案おすすめ（Codexなし） |
+| Architecture提案 | 1案おすすめ + Codex相談 + Review Agent助言 | 1案おすすめ + Review Agent助言 |
 | worktree | git wtで作る | git wtで作る |
 | REPORT.md | 作る | **作らない** |
 | TDD | サブエージェント並列 | サブエージェント並列（同じ） |
 | 完了 | → `/reviw-plugin:done`（フルレビュー） | → `/reviw-plugin:tiny-done`（スクショ確認） |
 
-**本質的な違い: Codex・REPORT.md・レビューエージェント・npx reviwを使わない。レビューの厚みが軽い。**
+**本質的な違い: Codex・REPORT.md・npx reviwを使わない。レビューエージェントは助言モードでプランニング時のみ使用。レビューの厚みが軽い。**
 
 ## Arguments
 
@@ -131,6 +131,24 @@ Options:
   2. "Let me explain more" - Need more context before deciding
   3. "I have a different idea" - Want to suggest alternative
 ```
+
+**Review Agent Advisory (設計助言):**
+
+Architecture提案をユーザーに見せる前に、Review Agentから助言をもらう。
+該当するものだけ並列で起動:
+
+```
+# Code & Security 助言（常に）
+Agent(subagent_type="reviw-plugin:review-code-security", prompt="以下の設計案に助言してください：\n[設計案の要約]\n[変更ファイル一覧]")
+
+# E2E 助言（テストに影響する変更の場合）
+Agent(subagent_type="reviw-plugin:review-e2e", prompt="以下の設計案にE2E観点で助言してください：\n[設計案の要約]")
+
+# UI/UX 助言（UI変更がある場合のみ）
+Agent(subagent_type="reviw-plugin:review-ui-ux", prompt="以下のUI設計案に助言してください：\n[設計案の要約]")
+```
+
+Critical/High指摘があれば設計案を修正してからユーザーに提示する。
 
 **ユーザー確認後に実装に進む。**
 

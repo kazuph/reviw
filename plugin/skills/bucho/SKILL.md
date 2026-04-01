@@ -415,12 +415,32 @@ TaskOutput(task_id: "<通知のtask-id>", block: true, timeout: 300000)
 レビュー結果を部長に報告してください。」
 ```
 
+### 2-2e. Review Agentによる設計助言（推奨）
+
+**Codexレビューに加えて、Review Agentに助言モードで設計相談する。**
+
+部長がAgent toolで直接呼ぶ（部下を経由しない）:
+
+```
+# Code & Security 助言（常に）
+Agent(subagent_type="reviw-plugin:review-code-security", prompt="以下のワークフロー/設計案に助言してください：\n[ワークフローの要約]\n[変更ファイル一覧]")
+
+# E2E 助言（テストに影響する変更の場合）
+Agent(subagent_type="reviw-plugin:review-e2e", prompt="以下の設計案にE2E観点で助言してください：\n[設計案の要約]")
+
+# UI/UX 助言（UI変更がある場合のみ）
+Agent(subagent_type="reviw-plugin:review-ui-ux", prompt="以下のUI設計案に助言してください：\n[設計案の要約]")
+```
+
+Critical/High指摘があればワークフローを修正してからユーザーに提示する。
+
 フロー:
 1. ワークフロー作成
 2. **Codexレビュー**
-3. レビュー結果を反映してワークフロー修正
-4. `npx reviw` でユーザーに提示
-5. ユーザー承認後に部下（CC）に投入
+3. **Review Agent助言**（並列実行可）
+4. レビュー結果・助言を反映してワークフロー修正
+5. `npx reviw` でユーザーに提示
+6. ユーザー承認後に部下（CC）に投入
 
 ### 2-3. TodoListにも登録
 
