@@ -36,15 +36,21 @@ Dogfoodingは「自分で作ったものを自分で使ってみる」こと。
 
 3つのブラウザCLIが使えることを確認。使えなければインストール:
 
+**正確なパッケージ名:**
+- `browser-use` (PyPI) → `uvx browser-use`
+- `agent-browser` (npm) → `npx agent-browser@latest`
+- `@playwright/cli` (npm) → `npx @playwright/cli@latest`
+- **`@anthropic-ai/claude-code-playwright` は存在しない。使わないこと。**
+
 ```bash
-# browser-use CLI v2
+# browser-use CLI v2（Python / uvx経由）
 uvx browser-use --help > /dev/null 2>&1 || uv tool install browser-use
 
-# agent-browser
+# agent-browser（Rust / npx経由）
 npx agent-browser@latest --version 2>/dev/null || echo "Will install on first use"
 
-# Playwright CLI
-npx playwright --version 2>/dev/null || npx playwright install chromium
+# Playwright CLI（Node.js / npx経由）
+npx @playwright/cli@latest --version 2>/dev/null || npx playwright install chromium
 ```
 
 ### 2. ツール選択

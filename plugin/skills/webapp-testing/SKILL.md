@@ -202,6 +202,97 @@ console.log('saved: /tmp/webapp.png');
 "
 ```
 
+## Browser CLI Tools（対話的ブラウザ操作）
+
+E2Eテストとは別に、**対話的にブラウザを操作する**ためのCLIツールが3つある。
+Dogfooding、手動検証、デバッグに使う。
+
+### パッケージ名（正確に）
+
+| ツール | パッケージ名 | 実行方法 |
+|--------|-------------|---------|
+| **browser-use CLI v2** | `browser-use` (PyPI) | `uvx browser-use <command>` |
+| **agent-browser** | `agent-browser` (npm) | `npx agent-browser@latest <command>` |
+| **Playwright CLI** | `@playwright/mcp` (npm) | `npx @playwright/mcp@latest` (MCP server) |
+
+**注意**: `@anthropic-ai/claude-code-playwright` は存在しない。Playwright公式は `@playwright/mcp` と `@playwright/cli`。
+
+### インストール
+
+```bash
+# 1. browser-use CLI v2（Python / uvx経由）
+uv tool install browser-use
+# 確認
+uvx browser-use --help
+
+# 2. agent-browser（Rust / npx経由）
+npx agent-browser@latest --version
+# 初回はnpxが自動インストール
+
+# 3. Playwright CLI（Node.js / npx経由）
+npx playwright --version
+# ブラウザ未インストールなら:
+npx playwright install chromium
+
+# 3a. Playwright MCP（Claude Code等のAIツールから使う場合）
+npx @playwright/mcp@latest
+```
+
+### 使い分け
+
+| ツール | 特徴 | 向いている場面 |
+|--------|------|---------------|
+| **browser-use v2** | Daemon型で高速（50ms/コマンド）。DOMを4段階圧縮して2-5KBに | **サクッと確認したい時**。速度重視 |
+| **agent-browser** | Rust製。CDPのAccessibility API直接利用。cursor:pointer要素も検出 | **深く探りたい時**。a11y問題の発見に強い |
+| **Playwright CLI** | MCP対応。差分snapshot（2回目以降は変更分だけ） | **トークン節約したい時**。AI連携に最適 |
+
+### ベンチマーク（reviw画面での対話的操作）
+
+| | トークン | 速度 | 発見の深さ |
+|---|---|---|---|
+| **Playwright CLI** | 36K (1位) | 1,129秒 (2位) | 基本確認 |
+| **browser-use v2** | 45K (2位) | 264秒 (1位) | 中程度 |
+| **agent-browser** | 53K (3位) | 3,494秒 (3位) | 最も深い（4件発見） |
+
+### 基本操作（共通パターン）
+
+#### browser-use v2
+```bash
+uvx browser-use open http://localhost:3000    # ページを開く
+uvx browser-use state                          # DOM状態をテキストで取得（トークン節約）
+uvx browser-use click "button#submit"          # クリック
+uvx browser-use input "input#name" "テスト"    # テキスト入力（typeではなくinput）
+uvx browser-use screenshot /tmp/shot.png       # スクリーンショット
+uvx browser-use close                          # ブラウザを閉じる
+```
+
+#### agent-browser
+```bash
+npx agent-browser@latest open http://localhost:3000
+npx agent-browser@latest snapshot              # アクセシビリティツリー（トークン節約）
+npx agent-browser@latest click @e5             # ref指定でクリック
+npx agent-browser@latest fill @e3 "テスト"     # ref指定で入力
+npx agent-browser@latest screenshot /tmp/shot.png
+npx agent-browser@latest close
+```
+
+#### Playwright CLI
+```bash
+npx @playwright/cli@latest open http://localhost:3000
+npx @playwright/cli@latest snapshot            # YAML形式アクセシビリティツリー（差分対応）
+npx @playwright/cli@latest click --ref=e5      # ref指定でクリック
+npx @playwright/cli@latest fill --ref=e3 "テスト"
+npx @playwright/cli@latest screenshot          # スクリーンショット
+npx @playwright/cli@latest close
+```
+
+### トークン節約Tips
+
+- **スクリーンショット画像は最低限に**。`state` / `snapshot` のテキスト出力で状態把握する
+- Playwright CLIは**差分snapshot**を使うので、2回目以降は変更部分だけ返る
+- browser-useの`state`は**viewport内の要素だけ**返すのでコンパクト
+- agent-browserの`snapshot`は**インタラクティブ要素にref**を付与するので、意味的に密度が高い
+
 ## Common Pitfalls
 
 ❌ **Don't** inspect the DOM before waiting for `networkidle` on dynamic apps
