@@ -30,6 +30,7 @@ tmux経由で2人の部下を指揮し、ユーザーの指示を遂行してく
 - **`cc --worktree` は使わない**: `.claude/worktrees/` にランダム名で作成され、既存の `git wt`（`.worktree/`）と管理場所が異なるため
 - **`cc --tmux` は使わない**: 新しいtmuxセッションを作成してデタッチされるバグがあるため
 - worktreeは `git wt <branch名>` で作成・管理し、tmux paneは手動で作成する
+- **`git wt list` は禁止**: "list" というworktreeが作成されてしまう。一覧は `git wt`（引数なし）または `git worktree list` を使う
 
 **ユーザーの指示内容:** $ARGUMENTS
 

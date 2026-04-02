@@ -432,10 +432,10 @@ This triggers:
 **At session startup / after compact, check existing worktrees before creating new ones.**
 
 ```bash
-# Check worktrees in progress
+# Check worktrees in progress (引数なしで一覧表示)
 git wt
-# Or use git worktree list
-git worktree list
+# ⚠️ `git wt list` は禁止！（"list" というworktreeが作成されてしまう）
+# ✅ `git wt`（引数なし）または `git worktree list` を使う
 
 # Move to worktree
 cd .worktree/<branch-name>

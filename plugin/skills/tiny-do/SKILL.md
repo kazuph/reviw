@@ -261,8 +261,11 @@ Task complete
 中断後にセッションを再開した場合:
 
 ```bash
-# worktreeの確認
+# worktreeの確認（引数なしで一覧表示）
 git wt
+# ⚠️ `git wt list` は禁止！（"list" というworktreeが作成されてしまう）
+# ✅ `git wt`（引数なし）または `git worktree list` を使う
+
 # worktreeに移動
 cd .worktree/<branch-name>
 # TodoListで進捗確認 → 未完了タスクから再開

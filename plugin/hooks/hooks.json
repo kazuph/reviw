@@ -1,5 +1,5 @@
 {
-  "description": "reviw plugin hooks - time tracking, mock/stub detection, E2E enforcement, commit review reminders, and workflow enforcement",
+  "description": "reviw plugin hooks - time tracking, git wt guard, mock/stub detection, E2E enforcement, commit review reminders, and workflow enforcement",
   "hooks": {
     "PreToolUse": [
       {
@@ -11,6 +11,16 @@
           }
         ],
         "matcher": "*"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/git-wt-guard.sh",
+            "timeout": 5
+          }
+        ],
+        "matcher": "Bash"
       },
       {
         "hooks": [
