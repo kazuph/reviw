@@ -1,7 +1,17 @@
 {
-  "description": "reviw plugin hooks - mock/stub detection, E2E enforcement, commit review reminders, and workflow enforcement",
+  "description": "reviw plugin hooks - time tracking, mock/stub detection, E2E enforcement, commit review reminders, and workflow enforcement",
   "hooks": {
     "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/time-tracker.sh",
+            "timeout": 5
+          }
+        ],
+        "matcher": "*"
+      },
       {
         "hooks": [
           {
