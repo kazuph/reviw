@@ -1,7 +1,7 @@
 ---
 name: dogfooding
 description: 実装した機能をユーザーと同じように触って検証する。ブラウザCLIで対話的に操作し、画面を見ながら問題を発見する。
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, WebFetch, WebSearch, mcp__claude-in-chrome__*, mcp__plugin_mcp-chrome-devtools_*
 model: opus
 context: fork
 ---
