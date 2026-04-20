@@ -53,3 +53,15 @@ pub fn split_to_lines(input : String) -> Array[String] {
   }
   result
 }
+
+///| Safe path containment check that avoids prefix bypass.
+///  Ensures `child` is either exactly `base` or lives strictly under `base`
+///  by comparing with a trailing path separator — so `/a/b` does NOT match `/a/bad`.
+///  Both arguments are expected to be already normalized via `path.resolve`.
+///  Supports both Unix (`/`) and Windows (`\`) separators for cross-platform safety.
+pub fn is_path_under(base : String, child : String) -> Bool {
+  if child == base {
+    return true
+  }
+  child.has_prefix(base + "/") || child.has_prefix(base + "\\")
+}

@@ -33,8 +33,9 @@ struct MediaSidebarState {
   mut pending_fit : (() -> Unit)?
   // VideoTimeline handle
   mut current_vtl : VTLState?
-  // Event handles
+  // Event handles (one-time: sidebar lifetime; per_viewer: cleared on close_viewer)
   handles : Array[ListenerHandle]
+  viewer_handles : Array[ListenerHandle]
 }
 
 ///| Global sidebar instance
@@ -79,6 +80,7 @@ pub fn init_media_sidebar() -> Unit {
     pending_fit: None,
     current_vtl: None,
     handles: [],
+    viewer_handles: [],
   }
 
   // Show toggle button and sidebar
@@ -302,9 +304,11 @@ fn clone_svg_for_thumbnail(svg : Element, idx : Int) -> Element {
 fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
   if idx < 0 || idx >= state.items.length() { return }
 
-  // Cleanup previous viewer
+  // Cleanup previous viewer (including per-viewer listeners)
   (state.current_cleanup)()
   state.current_cleanup = fn() {}
+  state.viewer_handles.each(fn(h) { unlisten(h) })
+  state.viewer_handles.clear()
 
   let item = state.items[idx]
   state.active_idx = idx
@@ -357,7 +361,7 @@ fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
         }
       }
     })
-    state.handles.push(on_transition)
+    state.viewer_handles.push(on_transition)
 
     ignore(set_timeout(fn() {
       match state.pending_fit {
@@ -510,7 +514,7 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
   let h = on_with_handle(img, "load", fn(_e) {
     schedule_init()
   })
-  state.handles.push(h)
+  state.viewer_handles.push(h)
 
   // If already loaded (cached image)
   if get_natural_width(img) > 0.0 {
@@ -587,7 +591,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
   }
 
   let h = on_with_handle(query_body(), "keydown", video_key_handler, capture=true)
-  state.handles.push(h)
+  state.viewer_handles.push(h)
 
   // Settings button — added to viewer panel (not container) so it sits next to close btn
   let settings_btn = create_element("button")
@@ -646,7 +650,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
         }
         add_class(btn, "selected")
       })
-      state.handles.push(h)
+      state.viewer_handles.push(h)
 
       append_child(row, btn)
     })
@@ -690,7 +694,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
       add_class(settings_panel, "visible")
     }
   })
-  state.handles.push(h2)
+  state.viewer_handles.push(h2)
 
   // Add to viewer panel (next to close button)
   append_child(state.viewer_panel, settings_btn)
@@ -817,9 +821,9 @@ fn render_mermaid_viewer(state : MediaSidebarState, content : Element, item : Me
   let h_zoom_in = on_with_handle(zoom_in_btn, "click", fn(_e) { zoom_in(zpv) })
   let h_zoom_out = on_with_handle(zoom_out_btn, "click", fn(_e) { zoom_out(zpv) })
   let h_reset = on_with_handle(reset_btn, "click", fn(_e) { reset_view(zpv) })
-  state.handles.push(h_zoom_in)
-  state.handles.push(h_zoom_out)
-  state.handles.push(h_reset)
+  state.viewer_handles.push(h_zoom_in)
+  state.viewer_handles.push(h_zoom_out)
+  state.viewer_handles.push(h_reset)
 
   // Setup pending fit
   state.pending_fit = Some(fn() {
@@ -873,6 +877,9 @@ fn update_thumbnail_active_state(state : MediaSidebarState, idx : Int) -> Unit {
 fn close_viewer(state : MediaSidebarState) -> Unit {
   (state.current_cleanup)()
   state.current_cleanup = fn() {}
+  // Detach per-viewer event listeners to avoid leaking handles / detached DOM.
+  state.viewer_handles.each(fn(h) { unlisten(h) })
+  state.viewer_handles.clear()
   state.current_vtl = None
   state.active_idx = -1
 

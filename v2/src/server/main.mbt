@@ -765,7 +765,7 @@ fn serve_static_file(
   // Ensure resolved path is under base_dir
   let resolved_static = path_resolve(static_path)
   let resolved_base = path_resolve(base_dir)
-  if !(resolved_static.has_prefix(resolved_base)) {
+  if !@core.is_path_under(resolved_base, resolved_static) {
     res_write_head(res, 403, "text/plain")
     res_end(res, "Forbidden")
     return
@@ -811,7 +811,7 @@ fn serve_static_file_head(
   let static_path = path_join(base_dir, relative_path)
   let resolved_static = path_resolve(static_path)
   let resolved_base = path_resolve(base_dir)
-  if !(resolved_static.has_prefix(resolved_base)) {
+  if !@core.is_path_under(resolved_base, resolved_static) {
     res_write_head(res, 403, "text/plain")
     res_end(res, "")
     return
@@ -1099,7 +1099,7 @@ fn handle_video_timeline(
   let base_dir = path_dirname(ctx.file_path)
   let resolved_video = path_resolve(path_join(base_dir, video_path))
   let resolved_base = path_resolve(base_dir)
-  if !(resolved_video.has_prefix(resolved_base)) {
+  if !@core.is_path_under(resolved_base, resolved_video) {
     res_write_head(res, 403, "text/plain")
     res_end(res, "Forbidden")
     return
