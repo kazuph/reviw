@@ -115,7 +115,7 @@ fn build_page_start(
       last_slash
     }
     if dir_end >= 0 {
-      let dir_path = file_path.substring(start=0, end=dir_end + 1)
+      let dir_path = file_path[0:dir_end + 1].to_string()
       buf.write_string("<span class=\"title-path\">")
       buf.write_string(escape_html(dir_path))
       buf.write_string("</span>")
@@ -222,7 +222,7 @@ fn build_questions_modal(buf : StringBuilder, questions : Array[ReviwQuestion]) 
   // Unresolved questions
   let mut unresolved_count = 0
   for q in questions {
-    if not(q.resolved) {
+    if !(q.resolved) {
       unresolved_count = unresolved_count + 1
     }
   }
@@ -271,7 +271,7 @@ fn build_questions_modal(buf : StringBuilder, questions : Array[ReviwQuestion]) 
     buf.write_string(resolved_count.to_string())
     buf.write_string(")</button><div class=\"reviw-resolved-list\">")
     for i, q in questions {
-      if not(q.resolved) {
+      if !(q.resolved) {
         continue
       }
       buf.write_string("<div class=\"question-card resolved\"><div class=\"q-header\">\u{2705} <strong>")
@@ -309,7 +309,7 @@ fn build_questions_notice(buf : StringBuilder, questions : Array[ReviwQuestion])
   // Notice is now handled by the questions bar, but keep for backward compatibility
   let mut pending = 0
   for q in questions {
-    if not(q.resolved) {
+    if !(q.resolved) {
       pending = pending + 1
     }
   }
@@ -498,7 +498,7 @@ pub fn build_diff_html(data : DiffData, filename : String, port : Int) -> String
       buf.write_string(" <span class=\"diff-label binary\">binary</span>")
     }
     buf.write_string("</div>")
-    if not(file.is_binary) {
+    if !(file.is_binary) {
       for hunk in file.hunks {
         buf.write_string("<div class=\"diff-hunk-header\">@@ -")
         buf.write_string(hunk.old_start.to_string())

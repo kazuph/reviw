@@ -8,7 +8,6 @@ struct HeadingToggle {
   details_el : Element
   summary_el : Element
   content_el : Element
-  heading_level : Int
   mut is_open : Bool
   handles : Array[ListenerHandle]
   content_nodes : Array[Element]
@@ -19,7 +18,6 @@ struct ToggleConfig {
   start_level : Int  // H2, H3, etc. (default: 2)
   end_level : Int    // Up to H6 (default: 6)
   initially_open : Bool
-  animate : Bool
 }
 
 ///| Default configuration
@@ -28,7 +26,6 @@ fn default_toggle_config() -> ToggleConfig {
     start_level: 1,
     end_level: 6,
     initially_open: true,
-    animate: true,
   }
 }
 
@@ -75,7 +72,7 @@ fn process_heading(heading : Element, config : ToggleConfig) -> Unit {
 
   // Get heading level
   let tag = get_tag_name(heading)
-  let level_str = tag.substring(start=1)  // "H2" -> "2"
+  let level_str = tag[1:].to_string()  // "H2" -> "2"
   let level = @core.parse_int_safe(level_str)
 
   // Find content to wrap (siblings until next heading of same or higher level)
@@ -117,7 +114,6 @@ fn process_heading(heading : Element, config : ToggleConfig) -> Unit {
     details_el: details,
     summary_el: summary,
     content_el: content,
-    heading_level: level,
     is_open: config.initially_open,
     handles: [],
     content_nodes: content_els,
@@ -142,12 +138,12 @@ fn collect_toggle_content(heading : Element, level : Int) -> Array[Element] {
   let content = []
   let mut current = next_element_sibling(heading)
 
-  while not(is_null(current)) {
+  while !(is_null(current)) {
     let tag = get_tag_name(current)
 
     // Check if this is a heading of same or higher (lower number) level
-    if tag.starts_with("H") && tag.length() == 2 {
-      let h_level = @core.parse_int_safe(tag.substring(start=1))
+    if tag.has_prefix("H") && tag.length() == 2 {
+      let h_level = @core.parse_int_safe(tag[1:].to_string())
       if h_level <= level {
         break
       }
@@ -176,7 +172,7 @@ fn create_toggle_icon(is_open : Bool) -> Element {
 ///| Reuse the heading icon when available, otherwise inject a fallback icon
 fn ensure_toggle_icon(heading : Element, is_open : Bool) -> Element {
   let icon = query_in(heading, ".heading-toggle-icon")
-  if not(is_null(icon)) {
+  if !(is_null(icon)) {
     set_text_content(icon, if is_open { "▼" } else { "▶" })
     remove_class(icon, "collapsed")
     icon
@@ -191,9 +187,9 @@ fn setup_toggle_handlers(toggle : HeadingToggle, config : ToggleConfig) -> Unit 
     let target = event_target(e)
     let icon = closest(target, ".heading-toggle-icon")
     prevent_default(e)
-    if not(is_null(icon)) {
+    if !(is_null(icon)) {
       stop_propagation(e)
-      set_toggle_open(toggle, not(toggle.is_open), config)
+      set_toggle_open(toggle, !(toggle.is_open), config)
     }
   }, passive=false)
   toggle.handles.push(summary_click)
@@ -202,7 +198,7 @@ fn setup_toggle_handlers(toggle : HeadingToggle, config : ToggleConfig) -> Unit 
     if key == "Enter" || key == " " || key == "Spacebar" {
       prevent_default(e)
       stop_propagation(e)
-      set_toggle_open(toggle, not(toggle.is_open), config)
+      set_toggle_open(toggle, !(toggle.is_open), config)
     }
   }, passive=false)
   toggle.handles.push(summary_keydown)
@@ -245,7 +241,7 @@ fn update_toggle_state(toggle : HeadingToggle, config : ToggleConfig) -> Unit {
 
   // Update ARIA
   set_attribute(toggle.summary_el, "aria-expanded", toggle.is_open.to_string())
-  set_attribute(toggle.content_el, "aria-hidden", (not(toggle.is_open)).to_string())
+  set_attribute(toggle.content_el, "aria-hidden", (!(toggle.is_open)).to_string())
 
   if toggle.is_open {
     show_content(toggle.content_el)
@@ -259,7 +255,7 @@ fn update_toggle_state(toggle : HeadingToggle, config : ToggleConfig) -> Unit {
 ///| Update toggle icon
 fn update_toggle_icon(toggle : HeadingToggle) -> Unit {
   let icon = query_in(toggle.summary_el, ".heading-toggle-icon")
-  if not(is_null(icon)) {
+  if !(is_null(icon)) {
     set_text_content(icon, if toggle.is_open { "▼" } else { "▶" })
     if toggle.is_open {
       remove_class(icon, "collapsed")
@@ -318,7 +314,7 @@ pub fn toggle_all_sections(open : Bool) -> Unit {
 pub fn expand_section_by_id(id : String) -> Unit {
   active_toggles.val.each(fn(toggle) {
     let toggle_id = get_attribute(toggle.original_heading, "id")
-    if toggle_id == id && not(toggle.is_open) {
+    if toggle_id == id && !(toggle.is_open) {
       set_toggle_open(toggle, true, default_toggle_config())
       scroll_into_view(toggle.details_el)
     }
@@ -366,7 +362,7 @@ pub fn destroy_all_toggles() -> Unit {
     toggle.handles.each(fn(h) { unlisten(h) })
 
     let parent = parent_element(toggle.details_el)
-    if not(is_null(parent)) {
+    if !(is_null(parent)) {
       insert_before(toggle.details_el, toggle.original_heading)
       toggle.content_nodes.each(fn(node) {
         insert_before(toggle.details_el, node)

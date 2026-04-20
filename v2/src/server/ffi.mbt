@@ -135,7 +135,7 @@ extern "js" fn clear_timeout(timer : JsValue) -> Unit =
 
 ///| Open browser - import exec via #module
 #module("node:child_process")
-extern "js" fn child_exec(cmd : String) -> Unit = "exec"
+extern "js" fn _child_exec(cmd : String) -> Unit = "exec"
 
 ///| Safe exec using spawn (no shell expansion, no inline require)
 ///| Uses dynamic import() which works in ESM context
@@ -426,7 +426,7 @@ extern "js" fn parse_query_param(url : String, key : String) -> String =
   #|}
 
 ///| Process event listeners (operate on passed object)
-extern "js" fn on_spawn_close(proc : JsValue, handler : (Int) -> Unit) -> Unit =
+extern "js" fn _on_spawn_close(proc : JsValue, handler : (Int) -> Unit) -> Unit =
   #|(proc, handler) => proc.on("close", (code) => handler(code || 0))
 
 ///| Close handler that also collects stderr output
@@ -514,7 +514,7 @@ fn base64_to_file(data : String, dir : String, index : Int) -> String {
   }
   try_call_string(
     fn() {
-      if not(exists_sync(dir)) {
+      if !(exists_sync(dir)) {
         mkdir_sync(dir, mkdir_recursive_opts())
       }
       let filepath = path_join(dir, "image_\{index}.\{ext}")
@@ -601,7 +601,7 @@ extern "js" fn js_stat_size(stat : JsValue) -> Int =
   #|(s) => s.size
 
 ///| fs.statSync(path).size - safe wrapper
-fn stat_file_size(path : String) -> Int {
+fn _stat_file_size(path : String) -> Int {
   js_stat_size(fs_stat_sync(path))
 }
 

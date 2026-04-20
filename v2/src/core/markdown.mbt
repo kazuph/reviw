@@ -117,7 +117,7 @@ fn make_heading_key(text : String, counter : Int) -> String {
       buf.write_char(ch)
     } else if ch >= 'A' && ch <= 'Z' {
       // Convert uppercase to lowercase: add 32 to ASCII code
-      let lower = Char::from_int(ch.to_int() + 32)
+      let lower = (ch.to_int() + 32).unsafe_to_char()
       buf.write_char(lower)
     } else if ch == ' ' || ch == '-' {
       buf.write_char('-')
@@ -244,8 +244,8 @@ fn render_markdown_lines(lines : Array[String]) -> String {
       i = i + 1
       let code_buf = StringBuilder::new()
       let mut code_first = true
-      while i < len && not(lines[i].has_prefix("```")) {
-        if not(code_first) {
+      while i < len && !(lines[i].has_prefix("```")) {
+        if !(code_first) {
           code_buf.write_string("\n")
         }
         code_first = false
@@ -368,8 +368,8 @@ fn render_markdown_lines(lines : Array[String]) -> String {
     // Paragraph (collect contiguous non-empty, non-block lines)
     let para_buf = StringBuilder::new()
     let mut para_first = true
-    while i < len && trim(lines[i]).length() > 0 && not(is_block_start(lines[i])) {
-      if not(para_first) {
+    while i < len && trim(lines[i]).length() > 0 && !(is_block_start(lines[i])) {
+      if !(para_first) {
         para_buf.write_string(" ")
       }
       para_first = false
@@ -439,7 +439,7 @@ fn extract_ordered_list_content(line : String) -> String {
 ///| Check if line is a table separator (|---|---|)
 fn is_table_separator(line : String) -> Bool {
   let t = trim(line)
-  if not(t.contains("|")) || not(t.contains("-")) {
+  if !(t.contains("|")) || !(t.contains("-")) {
     return false
   }
   let chars = t.to_array()
@@ -767,7 +767,7 @@ pub fn sanitize_html(input : String) -> String {
       if tag_end < len { tag_end = tag_end + 1 }
       if is_dangerous_tag(tag_name) {
         // Skip dangerous tags entirely (including content for non-closing)
-        if not(is_closing) {
+        if !(is_closing) {
           // Skip until closing tag
           let close_tag = "</" + tag_name + ">"
           let mut j = tag_end
@@ -781,7 +781,7 @@ pub fn sanitize_html(input : String) -> String {
                 break
               }
               let ch_lower = if chars[j + k] >= 'A' && chars[j + k] <= 'Z' {
-                Char::from_int(chars[j + k].to_int() + 32)
+                (chars[j + k].to_int() + 32).unsafe_to_char()
               } else {
                 chars[j + k]
               }
@@ -804,7 +804,7 @@ pub fn sanitize_html(input : String) -> String {
         }
         continue
       }
-      if not(is_allowed_tag(tag_name)) && tag_name.length() > 0 {
+      if !(is_allowed_tag(tag_name)) && tag_name.length() > 0 {
         // Unknown tag: pass through escaped
         buf.write_string("&lt;")
         let tag_content = safe_slice_range(input, tag_start + 1, tag_end)
@@ -889,11 +889,11 @@ fn filter_attributes(attr_str : String, _tag_name : String) -> String {
       continue
     }
     // Filter: skip disallowed attributes
-    if not(is_allowed_attr(attr_name)) {
+    if !(is_allowed_attr(attr_name)) {
       continue
     }
     // Filter: check URLs in href/src
-    if (attr_name == "href" || attr_name == "src") && not(is_safe_url(attr_value)) {
+    if (attr_name == "href" || attr_name == "src") && !(is_safe_url(attr_value)) {
       continue
     }
     // Filter: sanitize dangerous CSS values in style attribute
@@ -948,7 +948,7 @@ fn parse_reviw_questions(lines : Array[String], start : Int, end : Int) -> Array
               let q = parse_single_question(lines, i, end)
               questions.push(q.0)
               i = q.1
-            } else if trimmed.length() == 0 || not(item_line.has_prefix("  ")) {
+            } else if trimmed.length() == 0 || !(item_line.has_prefix("  ")) {
               break
             } else {
               i = i + 1
@@ -993,7 +993,7 @@ fn parse_single_question(lines : Array[String], start : Int, end : Int) -> (Revi
     if trimmed.has_prefix("- ") && line.has_prefix("    -") {
       break
     }
-    if trimmed.length() == 0 || (not(line.has_prefix("      ")) && not(line.has_prefix("    "))) {
+    if trimmed.length() == 0 || (!(line.has_prefix("      ")) && !(line.has_prefix("    "))) {
       break
     }
     let content_colon = index_of_char(trimmed, ':')
@@ -1128,7 +1128,7 @@ pub fn build_markdown_html(
   buf.write_string("<div class=\"md-left\">")
   buf.write_string("<div class=\"md-preview\" id=\"md-preview\">")
   // Document Metadata table (frontmatter)
-  if md.frontmatter.size() > 0 {
+  if md.frontmatter.length() > 0 {
     buf.write_string("<div class=\"frontmatter-header\">Document Metadata</div>")
     buf.write_string("<table class=\"frontmatter-table\"><tbody>")
     md.frontmatter.each(fn(key, value) {

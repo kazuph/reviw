@@ -26,7 +26,7 @@ extern "js" fn get_attr(el : Element, name : String) -> String =
 extern "js" fn set_inner_html(el : Element, html : String) -> Unit =
   #|(el, html) => { if (el) el.innerHTML = html; }
 
-extern "js" fn get_inner_html(el : Element) -> String =
+extern "js" fn _get_inner_html(el : Element) -> String =
   #|(el) => el?.innerHTML || ""
 
 extern "js" fn get_text_content(el : Element) -> String =
@@ -81,13 +81,13 @@ extern "js" fn on(el : Element, event : String, handler : (Event) -> Unit) -> Un
   #|(el, event, handler) => el?.addEventListener(event, handler)
 
 ///| Remove event listener (legacy)
-extern "js" fn off(el : Element, event : String, handler : (Event) -> Unit) -> Unit =
+extern "js" fn _off(el : Element, event : String, handler : (Event) -> Unit) -> Unit =
   #|(el, event, handler) => el?.removeEventListener(event, handler)
 
 extern "js" fn on_doc(event : String, handler : (Event) -> Unit) -> Unit =
   #|(event, handler) => document.addEventListener(event, handler)
 
-extern "js" fn off_doc(event : String, handler : (Event) -> Unit) -> Unit =
+extern "js" fn _off_doc(event : String, handler : (Event) -> Unit) -> Unit =
   #|(event, handler) => document.removeEventListener(event, handler)
 
 extern "js" fn event_target(e : Event) -> Element =
@@ -109,7 +109,7 @@ extern "js" fn event_meta_key(e : Event) -> Bool =
 extern "js" fn event_ctrl_key(e : Event) -> Bool =
   #|(e) => e.ctrlKey || false
 
-extern "js" fn event_is_composing(e : Event) -> Bool =
+extern "js" fn _event_is_composing(e : Event) -> Bool =
   #|(e) => e.isComposing || e.keyCode === 229
 
 ///| Set disabled attribute on element
@@ -123,13 +123,13 @@ extern "js" fn closest(el : Element, selector : String) -> Element =
   #|(el, sel) => el?.closest(sel)
 
 ///| Position and size
-extern "js" fn get_bounding_rect_top(el : Element) -> Double =
+extern "js" fn _get_bounding_rect_top(el : Element) -> Double =
   #|(el) => el?.getBoundingClientRect().top || 0
 
-extern "js" fn get_bounding_rect_left(el : Element) -> Double =
+extern "js" fn _get_bounding_rect_left(el : Element) -> Double =
   #|(el) => el?.getBoundingClientRect().left || 0
 
-extern "js" fn get_bounding_rect_bottom(el : Element) -> Double =
+extern "js" fn _get_bounding_rect_bottom(el : Element) -> Double =
   #|(el) => el?.getBoundingClientRect().bottom || 0
 
 extern "js" fn window_inner_height() -> Int =
@@ -315,14 +315,14 @@ extern "js" fn date_now() -> Double =
 extern "js" fn set_timeout(callback : () -> Unit, ms : Int) -> Int =
   #|(cb, ms) => setTimeout(cb, ms)
 
-extern "js" fn clear_timeout(id : Int) -> Unit =
+extern "js" fn _clear_timeout(id : Int) -> Unit =
   #|(id) => clearTimeout(id)
 
 ///| Window events
 extern "js" fn on_window(event : String, handler : (Event) -> Unit) -> Unit =
   #|(event, handler) => window.addEventListener(event, handler)
 
-extern "js" fn off_window(event : String, handler : (Event) -> Unit) -> Unit =
+extern "js" fn _off_window(event : String, handler : (Event) -> Unit) -> Unit =
   #|(event, handler) => window.removeEventListener(event, handler)
 
 ///| Body class manipulation
@@ -339,10 +339,10 @@ extern "js" fn get_event_client_x(e : Event) -> Int =
 extern "js" fn get_event_client_y(e : Event) -> Int =
   #|(e) => e.clientY || 0
 
-extern "js" fn get_event_offset_x(e : Event) -> Double =
+extern "js" fn _get_event_offset_x(e : Event) -> Double =
   #|(e) => e.offsetX || 0
 
-extern "js" fn get_event_offset_y(e : Event) -> Double =
+extern "js" fn _get_event_offset_y(e : Event) -> Double =
   #|(e) => e.offsetY || 0
 
 extern "js" fn get_event_delta_x(e : Event) -> Double =
@@ -355,20 +355,20 @@ extern "js" fn get_event_button(e : Event) -> Int =
   #|(e) => e.button || 0
 
 ///| Pointer Events (unified mouse/touch)
-extern "js" fn get_pointer_id(e : Event) -> Int =
+extern "js" fn _get_pointer_id(e : Event) -> Int =
   #|(e) => e.pointerId || 0
 
-extern "js" fn get_pointer_type(e : Event) -> String =
+extern "js" fn _get_pointer_type(e : Event) -> String =
   #|(e) => e.pointerType || ""
 
-extern "js" fn get_pressure(e : Event) -> Double =
+extern "js" fn _get_pressure(e : Event) -> Double =
   #|(e) => e.pressure || 0
 
 ///| Touch Events (for pinch gestures)
 extern "js" fn get_touches(e : Event) -> Array[Event] =
   #|(e) => Array.from(e.touches || [])
 
-extern "js" fn get_changed_touches(e : Event) -> Array[Event] =
+extern "js" fn _get_changed_touches(e : Event) -> Array[Event] =
   #|(e) => Array.from(e.changedTouches || [])
 
 extern "js" fn touch_get_client_x(touch : Event) -> Double =
@@ -451,7 +451,7 @@ extern "js" fn next_element_sibling(el : Element) -> Element =
 extern "js" fn stop_propagation(e : Event) -> Unit =
   #|(e) => e.stopPropagation()
 
-extern "js" fn get_event_property_name(e : Event) -> String =
+extern "js" fn _get_event_property_name(e : Event) -> String =
   #|(e) => e?.propertyName || ""
 
 ///| Scroll to position instantly
@@ -462,7 +462,7 @@ extern "js" fn scroll_to_instant(el : Element, top : Double) -> Unit =
 extern "js" fn get_offset_top(el : Element) -> Double =
   #|(el) => el?.offsetTop || 0
 
-extern "js" fn get_offset_height(el : Element) -> Double =
+extern "js" fn _get_offset_height(el : Element) -> Double =
   #|(el) => el?.offsetHeight || 0
 
 ///| Window inner width
@@ -470,7 +470,7 @@ extern "js" fn window_inner_width() -> Int =
   #|() => window.innerWidth
 
 ///| Get bounding rect right
-extern "js" fn get_bounding_rect_right(el : Element) -> Double =
+extern "js" fn _get_bounding_rect_right(el : Element) -> Double =
   #|(el) => el?.getBoundingClientRect().right || 0
 
 ///| Get bounding rect width
@@ -511,7 +511,7 @@ extern "js" fn query_in(parent : Element, selector : String) -> Element =
   #|(parent, s) => parent?.querySelector(s)
 
 ///| Scroll element by delta
-extern "js" fn scroll_by_instant(el : Element, delta : Double) -> Unit =
+extern "js" fn _scroll_by_instant(el : Element, delta : Double) -> Unit =
   #|(el, delta) => { if (el) el.scrollBy({ top: delta, behavior: 'instant' }); }
 
 ///| Check computed display
@@ -544,7 +544,7 @@ extern "js" fn set_timeout_dom(callback : () -> Unit, ms : Int) -> Int =
 extern "js" fn parse_float(s : String) -> Double =
   #|(s) => { var v = parseFloat(s); return isNaN(v) ? 0.0 : v; }
 
-extern "js" fn parse_int_or(s : String, fallback : Int) -> Int =
+extern "js" fn _parse_int_or(s : String, fallback : Int) -> Int =
   #|(s, fallback) => {
   #|  const v = parseInt(s, 10);
   #|  return Number.isNaN(v) ? fallback : v;
@@ -562,10 +562,10 @@ extern "js" fn math_abs(value : Double) -> Double =
 extern "js" fn math_sqrt(value : Double) -> Double =
   #|(value) => Math.sqrt(value)
 
-extern "js" fn math_min(a : Double, b : Double) -> Double =
+extern "js" fn _math_min(a : Double, b : Double) -> Double =
   #|(a, b) => Math.min(a, b)
 
-extern "js" fn math_max(a : Double, b : Double) -> Double =
+extern "js" fn _math_max(a : Double, b : Double) -> Double =
   #|(a, b) => Math.max(a, b)
 
 extern "js" fn math_round(value : Double) -> Double =
@@ -594,13 +594,13 @@ extern "js" fn create_element(tag : String) -> Element =
 extern "js" fn set_class_name(el : Element, cls : String) -> Unit =
   #|(el, cls) => { if (el) el.className = cls; }
 
-extern "js" fn set_id(el : Element, id : String) -> Unit =
+extern "js" fn _set_id(el : Element, id : String) -> Unit =
   #|(el, id) => { if (el) el.id = id; }
 
 extern "js" fn append_child(parent : Element, child : Element) -> Unit =
   #|(p, c) => { if (p && c) p.appendChild(c); }
 
-extern "js" fn remove_child(parent : Element, child : Element) -> Unit =
+extern "js" fn _remove_child(parent : Element, child : Element) -> Unit =
   #|(p, c) => { if (p && c) p.removeChild(c); }
 
 extern "js" fn set_text_content(el : Element, text : String) -> Unit =
@@ -676,7 +676,7 @@ extern "js" fn get_svg_natural_size(svg : Element) -> Array[Double] =
 
 ///| Expand SVG viewBox by padding (e.g. 40px each side for +80 total)
 ///| This makes the minimap SVG match the padded naturalWidth/Height used by ZoomPanViewer
-extern "js" fn expand_svg_viewbox(svg : Element, pad : Double) -> Unit =
+extern "js" fn _expand_svg_viewbox(svg : Element, pad : Double) -> Unit =
   #|(svg, pad) => {
   #|  if (!svg) return;
   #|  var vb = svg.getAttribute('viewBox');
@@ -699,11 +699,11 @@ extern "js" fn clear_children(el : Element) -> Unit =
   #|(el) => { if (el) el.innerHTML = ''; }
 
 ///| Get all children of an element
-extern "js" fn get_children(el : Element) -> Array[Element] =
+extern "js" fn _get_children(el : Element) -> Array[Element] =
   #|(el) => el ? Array.from(el.children) : []
 
 ///| Shallow clone (no children)
-extern "js" fn clone_node_shallow(el : Element) -> Element =
+extern "js" fn _clone_node_shallow(el : Element) -> Element =
   #|(el) => el ? el.cloneNode(false) : null
 
 ///| Insert element before target
@@ -747,7 +747,7 @@ extern "js" fn get_computed_style(el : Element, prop : String) -> String =
   #|(el, prop) => { if (!el) return ''; return el.style[prop] || getComputedStyle(el)[prop] || ''; }
 
 ///| Get children count
-extern "js" fn children_count(el : Element) -> Int =
+extern "js" fn _children_count(el : Element) -> Int =
   #|(el) => el?.children?.length || 0
 
 ///| Collect reviw answers from question panel
@@ -792,7 +792,7 @@ extern "js" fn get_cell_index(el : Element) -> Int =
   #|(el) => (el && el.cellIndex != null) ? el.cellIndex : -1
 
 ///| Programmatic click
-extern "js" fn click_element(el : Element) -> Unit =
+extern "js" fn _click_element(el : Element) -> Unit =
   #|(el) => { if (el) el.click(); }
 
 ///| localStorage get (returns "" if not found)
