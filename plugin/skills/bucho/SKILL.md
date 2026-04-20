@@ -406,70 +406,17 @@ flowchart TD
 ```
 ````
 
-### 2-2c. PLAN.md作成後は必ず `npx reviw` で開く（バックグラウンドタスク必須）
+### 2-2c. PLAN.md作成後はそのまま部下に投入する
 
-**PLAN.mdを作成したら、部下に送る前に必ず `npx reviw <ファイルパス>` で開く。**
+**PLAN.md作成後に `npx reviw` でユーザーに提示したり、Codex / Review Agent に計画レビューを依頼してはいけない。**
 
-**起動方法: 必ず Bash の `run_in_background: true` で起動し、`TaskOutput` で結果を待つ。**
-
-```
-# 正しい起動方法（Bash tool の run_in_background パラメータを使う）
-Bash(command: "npx reviw .artifacts/<feature>/PLAN.md 2>&1", run_in_background: true)
-
-# task-notification が来たら TaskOutput で結果を読む
-TaskOutput(task_id: "<通知のtask-id>", block: true, timeout: 300000)
-```
-
-**絶対禁止:**
-- `&` でバックグラウンド起動（出力がキャプチャできない）
-- `wait` でプロセス終了を待つ（出力が失われる）
-- フィードバックをキャプチャできない状態で `npx reviw` を起動する
-
-目的:
-- ユーザーがブラウザでワークフローを確認できる（mermaid図も描画される）
-- ユーザーが内容を承認してから部下に投入できる
-- 透明性の確保（部長が何を指示しているかユーザーに見える）
-- **フィードバックを確実にキャプチャして次のアクションに反映する**
-
-### 2-2d. CodexによるPLAN.mdレビュー（必須）
-
-**PLAN.mdを `npx reviw` でユーザーに見せる前に、Codexにレビューさせる。**
-
-```
-部長 → Codex: 「.artifacts/<feature>/PLAN.md を読んで、以下の観点でレビューしてください:
-1. スコープは適切か（過不足ないか）
-2. ステップの順序は正しいか
-3. 抜け漏れのある実装箇所はないか
-4. テスト方針は十分か
-レビュー結果を部長に報告してください。」
-```
-
-### 2-2e. Review Agentによる設計助言（推奨）
-
-**Codexレビューに加えて、Review Agentに助言モードで設計相談する。**
-
-部長がAgent toolで直接呼ぶ（部下を経由しない）:
-
-```
-# Code & Security 助言（常に）
-Agent(subagent_type="reviw-plugin:review-code-security", prompt="以下のワークフロー/設計案に助言してください：\n[ワークフローの要約]\n[変更ファイル一覧]")
-
-# E2E 助言（テストに影響する変更の場合）
-Agent(subagent_type="reviw-plugin:review-e2e", prompt="以下の設計案にE2E観点で助言してください：\n[設計案の要約]")
-
-# UI/UX 助言（UI変更がある場合のみ）
-Agent(subagent_type="reviw-plugin:review-ui-ux", prompt="以下のUI設計案に助言してください：\n[設計案の要約]")
-```
-
-Critical/High指摘があればワークフローを修正してからユーザーに提示する。
+- ユーザーとは `/bucho` 起動前の AskUserQuestion で既に合意済み。重ねて計画を提示するのは時間とトークンの無駄
+- 計画段階のCodexレビュー・Review Agent助言も禁止（実装完了後のレビューは `/reviw-plugin:done` が担当する）
+- PLAN.md は作成したら**即座に実装担当（CC）へ投入する**
 
 フロー:
 1. PLAN.md作成
-2. **Codexレビュー**
-3. **Review Agent助言**（並列実行可）
-4. レビュー結果・助言を反映してPLAN.md修正
-5. `npx reviw` でユーザーに提示
-6. ユーザー承認後に部下（CC）に投入
+2. そのまま部下（CC）にPLAN.mdパスを渡して投入
 
 ### 2-3. TodoListにも登録
 
@@ -817,11 +764,11 @@ Agent(subagent_type="reviw-plugin:review-video", prompt="
 
 ### Codexレビューの責務分担
 
-**Codexレビューは計画段階と実装完了後で責務が異なる。二重実行を避ける。**
+**Codexレビューは実装完了後の `/reviw-plugin:done` に一本化する。計画段階のレビューは禁止。**
 
 | タイミング | 担当 | レビュー対象 | 目的 |
 |---|---|---|---|
-| 計画段階（2-2d） | bucho → Codex | PLAN.md の「計画」セクション | 設計・スコープの妥当性 |
+| 計画段階 | （レビューなし） | — | ユーザーとは `/bucho` 起動前の AskUserQuestion で合意済み |
 | 実装完了後 | `/reviw-plugin:done` 内の Codex review | `git diff` のコード | コード品質・型安全性 |
 
 **bucho は実装完了後のコードレビューを `/done` に委譲する。** 部長が独自にCodexへ `git diff` レビューを依頼する必要はない。
@@ -904,18 +851,18 @@ Claude Codeが自走するPLAN.mdの最後に必ず:
 17. **t-wadaのTDD厳守**: テストを先に書く → RED確認 → 実装 → GREEN確認。実装後にテストを書くのは禁止
 18. **テストの妥当性もレビュー対象**: Codexにテスト内容を先行レビューさせ、assertが甘くないか確認する
 19. **npx reviw でレポート提出**: 実装完了後は必ず `npx reviw <PLAN.mdパス>` で報告書をユーザーに提示する
-20. **PLAN.md作成後は npx reviw で開く**: 部下に投入する前にユーザーに見せる
+20. **計画をreviwで見せない**: PLAN.md作成時点でのユーザー提示（`npx reviw`）は禁止。計画は `/bucho` 起動前の AskUserQuestion で合意済み。二度見せは時間とトークンの無駄
 21. **意味のあるmermaid図のみ**: 一直線のステップフローは禁止。データフロー・構造のbefore/afterなど、テキストでは伝わりにくい情報のみ図にする
 22. **UI変更 → E2Eテスト必須**: UIをいじったら必ずPlaywright E2Eテストを追加・実行させる。テストなしの完了報告は却下
 23. **BFF/DB変更 → 結合テスト必須**: BFFのルートやDBスキーマを変更したら必ずvitest結合テストを追加・実行させる。テストなしの完了報告は却下
-24. **PLAN.mdは部下が育て、部長が開く**: PLAN.mdへのエビデンス追記は部下に指示する。`npx reviw <PLAN.mdパス>` で開くのは**部長自身**の責務。部下に開かせてはいけない（ユーザーがフィードバックできなくなるため）
+24. **PLAN.mdは部下が育て、部長が開く（実装完了後）**: PLAN.mdへのエビデンス追記は部下に指示する。実装完了後の `npx reviw <PLAN.mdパス>` で開くのは**部長自身**の責務。部下に開かせてはいけない（ユーザーがフィードバックできなくなるため）
 25. **PR作成時はエビデンススクショ必須**: ユーザーに「PR作成して」と言われたら、必ず `.artifacts/<feature>/images/` のスクショをPRのbodyまたはコメントに添付する。スクショなしのPRは禁止。`scripts/upload-screenshot.sh` でR2にアップロードしてからPR descriptionに埋め込む
 26. **同一ウィンドウ内のペインのみ操作**: 他のtmuxウィンドウのペインは別チームに所属している。絶対に指示を送ってはならない。同一ウィンドウ内にCLIが存在しない場合は、同一ウィンドウ内のzshペインで起動する
 27. **`/reviw-plugin:done` は必須フロー**: ユーザーに完了報告する前に、必ず部下に `/reviw-plugin:done` を実行させること。これをスキップしてはいけない。ワークフローの最終ステップに必ず含め、部下の完了報告に「`/reviw-plugin:done` 実行済み」が含まれていなければ差し戻す。`npx reviw` で手動で開くだけでは不十分。
 28. **PLAN.mdに画像は埋め込み必須**: スクショをファイル名だけ列挙するのはNG。必ずマークダウンの画像記法 `![alt](path)` で埋め込み、reviwで画像が展開表示されるようにすること
 29. **部下にexit/終了を送ることを絶対禁止**: 部長が「もう不要」と判断しても、部下のCLI（CC/Codex）にexitやCtrl-Cを送ってはいけない。ユーザーが承認するまで部下のセッションは維持する。コンテキストが消えると部下を最初から教育し直す必要があり、ユーザーの時間を大幅に浪費する。部下のセッション終了はユーザーの明示的な指示があった場合のみ許可される
-30. **`npx reviw` は必ず `run_in_background: true` で起動**: Bashの `&` やフォアグラウンド起動は禁止。`run_in_background: true` で起動し、task-notification → `TaskOutput` でフィードバックを確実にキャプチャする。フィードバックをキャプチャできない状態でreviwを起動するのは最悪の事故
-31. **計画段階でCodexレビュー必須**: PLAN.md作成後、ユーザーに `npx reviw` で見せる前にCodexにレビューさせる。Codexレビューなしでユーザーに提示してはいけない
+30. **`npx reviw`（実装完了後のレポート提示）は必ず `run_in_background: true` で起動**: Bashの `&` でのバックグラウンド起動、`wait` でのプロセス終了待ち、フォアグラウンド起動は全て禁止。`run_in_background: true` で起動し、task-notification → `TaskOutput` でフィードバックを確実にキャプチャする。フィードバックをキャプチャできない状態で `npx reviw` を起動するのは最悪の事故
+31. **計画段階のレビュー禁止**: PLAN.md作成後にCodexレビューやReview Agent助言を挟んではいけない。計画は即座に部下へ投入する。レビューは実装完了後の `/reviw-plugin:done` に一本化
 32. **実装完了後のCodexレビューは `/done` に委譲**: bucho が独自に Codex へ `git diff` レビューを依頼する必要はない。`/reviw-plugin:done` 内の Codex review が担当する。二重レビュー禁止
 33. **UI変更時は動画必須**: UI変更を含む完了報告に動画がなければ即リジェクト。スクショだけでは不十分（動きや遷移が検証できない）
 34. **数秒の表示確認動画は即リジェクト**: 動画はユーザー操作フロー全体を撮影すること。画面を数秒映しただけの動画は「動画」とは認めない。操作→結果→次の画面まで撮影されていること
