@@ -25,21 +25,17 @@ struct MediaSidebarState {
   sidebar : Element
   thumbs_container : Element
   viewer_panel : Element
-  mut toggle_btn : Element
-  mut toggle_count : Element
   // Items and state
   items : Array[MediaItem]
   mut active_idx : Int
   mut is_visible : Bool
   mut current_cleanup : () -> Unit
   mut pending_fit : (() -> Unit)?
-  // ZoomPanViewer and VideoTimeline handles
-  mut current_zpv : ZPVState?
+  // VideoTimeline handle
   mut current_vtl : VTLState?
-  // Event handles
+  // Event handles (one-time: sidebar lifetime; per_viewer: cleared on close_viewer)
   handles : Array[ListenerHandle]
-  // Mutation observer for mermaid updates
-  mut observer_handle : ListenerHandle?
+  viewer_handles : Array[ListenerHandle]
 }
 
 ///| Global sidebar instance
@@ -48,7 +44,7 @@ let global_sidebar : Ref[MediaSidebarState?] = Ref::new(None)
 ///| Initialize media sidebar for the current page
 pub fn init_media_sidebar() -> Unit {
   // Check if already initialized
-  if global_sidebar.val.is_some() { return }
+  if global_sidebar.val is Some(_) { return }
 
   // Find required elements
   let md_layout = query(".md-layout")
@@ -77,23 +73,20 @@ pub fn init_media_sidebar() -> Unit {
     sidebar,
     thumbs_container: thumbs_c,
     viewer_panel: viewer_p,
-    toggle_btn,
-    toggle_count,
     items,
     active_idx: -1,
     is_visible: true,
     current_cleanup: fn() {},
     pending_fit: None,
-    current_zpv: None,
     current_vtl: None,
     handles: [],
-    observer_handle: None,
+    viewer_handles: [],
   }
 
   // Show toggle button and sidebar
   set_style(toggle_btn, "display", "")
   add_class(toggle_btn, "has-media")
-  if not(is_null(toggle_count)) {
+  if !(is_null(toggle_count)) {
     set_text_content(toggle_count, items.length().to_string())
   }
   remove_class(sidebar, "hidden")
@@ -102,7 +95,7 @@ pub fn init_media_sidebar() -> Unit {
   create_thumbnails(state)
 
   // Setup toggle button
-  let h1 = on_with_handle(toggle_btn, "click", fn(e) {
+  let h1 = on_with_handle(toggle_btn, "click", fn(_e) {
     toggle_sidebar(state)
   })
   state.handles.push(h1)
@@ -145,13 +138,13 @@ fn collect_media_items(preview : Element) -> Array[MediaItem] {
       })
     } else if tag == "VIDEO" && has_video_class {
       let src = get_attribute(el, "src")
-      let has_video_ext = src.to_lower().ends_with(".mp4") ||
-                          src.to_lower().ends_with(".mov") ||
-                          src.to_lower().ends_with(".webm") ||
-                          src.to_lower().ends_with(".avi") ||
-                          src.to_lower().ends_with(".mkv") ||
-                          src.to_lower().ends_with(".m4v") ||
-                          src.to_lower().ends_with(".ogv")
+      let has_video_ext = src.to_lower().has_suffix(".mp4") ||
+                          src.to_lower().has_suffix(".mov") ||
+                          src.to_lower().has_suffix(".webm") ||
+                          src.to_lower().has_suffix(".avi") ||
+                          src.to_lower().has_suffix(".mkv") ||
+                          src.to_lower().has_suffix(".m4v") ||
+                          src.to_lower().has_suffix(".ogv")
 
       if has_video_ext {
         video_count = video_count + 1
@@ -215,7 +208,7 @@ fn create_thumbnails(state : MediaSidebarState) -> Unit {
         set_attribute(vid, "muted", "true")
 
         // Seek to 0.1s on load
-        let h = on_with_handle(vid, "loadeddata", fn(e) {
+        let h = on_with_handle(vid, "loadeddata", fn(_e) {
           if video_get_current_time(vid) < 0.01 {
             video_set_current_time(vid, 0.1)
           }
@@ -229,7 +222,7 @@ fn create_thumbnails(state : MediaSidebarState) -> Unit {
         let wrapper = create_element("div")
         set_class_name(wrapper, "media-sidebar-thumb-mermaid")
 
-        if not(is_null(item.svg)) {
+        if !(is_null(item.svg)) {
           let cloned = clone_svg_for_thumbnail(item.svg, idx)
           append_child(wrapper, cloned)
         } else {
@@ -282,7 +275,7 @@ fn clone_svg_for_thumbnail(svg : Element, idx : Int) -> Element {
 
     // Update style references
     let style_el = query_in(cloned, "style")
-    if not(is_null(style_el)) {
+    if !(is_null(style_el)) {
       let style_text = get_text_content(style_el)
       let updated = replace_all_text(style_text, orig_id, new_id)
       set_text_content(style_el, updated)
@@ -311,9 +304,11 @@ fn clone_svg_for_thumbnail(svg : Element, idx : Int) -> Element {
 fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
   if idx < 0 || idx >= state.items.length() { return }
 
-  // Cleanup previous viewer
+  // Cleanup previous viewer (including per-viewer listeners)
   (state.current_cleanup)()
   state.current_cleanup = fn() {}
+  state.viewer_handles.each(fn(h) { unlisten(h) })
+  state.viewer_handles.clear()
 
   let item = state.items[idx]
   state.active_idx = idx
@@ -323,7 +318,7 @@ fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
 
   // Hide md-right panel
   let md_right = query_in(state.md_layout, ".md-right")
-  if not(is_null(md_right)) {
+  if !(is_null(md_right)) {
     set_style(md_right, "display", "none")
   }
 
@@ -342,7 +337,7 @@ fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
   }
 
   // Add label (skip for video — it's obvious from the player)
-  if not(is_video_type(item.type_)) {
+  if !(is_video_type(item.type_)) {
     let label = create_element("div")
     set_class_name(label, "media-sidebar-viewer-label")
     set_text_content(label, item.alt)
@@ -366,7 +361,7 @@ fn open_viewer(state : MediaSidebarState, idx : Int) -> Unit {
         }
       }
     })
-    state.handles.push(on_transition)
+    state.viewer_handles.push(on_transition)
 
     ignore(set_timeout(fn() {
       match state.pending_fit {
@@ -449,7 +444,7 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
       let fs_wrapper = query("#image-fs-wrapper")
       let fs_zoom_info = query("#img-fs-zoom-info")
       let fs_counter = query("#img-fs-counter")
-      if not(is_null(overlay)) && not(is_null(fs_content)) && not(is_null(fs_wrapper)) {
+      if !(is_null(overlay)) && !(is_null(fs_content)) && !(is_null(fs_wrapper)) {
         show_image_fullscreen_moonbit(images, idx, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter)
       }
     }
@@ -469,7 +464,7 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
     let nh = get_natural_height(img)
     if nw <= 0.0 || nh <= 0.0 { return }
 
-    if zpv_ref.is_some() {
+    if zpv_ref is Some(_) {
       destroy_zoom_pan_viewer(zpv_ref.unwrap())
     }
 
@@ -504,7 +499,6 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
     )
 
     zpv_ref = Some(zpv)
-    state.current_zpv = zpv_ref
 
     request_fit_to_viewport_when_ready(zpv, fn() {
       set_style(wrapper, "visibility", "visible")
@@ -517,10 +511,10 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
     ignore(set_timeout(fn() { init_zpv() }, 400))
   }
 
-  let h = on_with_handle(img, "load", fn(e) {
+  let h = on_with_handle(img, "load", fn(_e) {
     schedule_init()
   })
-  state.handles.push(h)
+  state.viewer_handles.push(h)
 
   // If already loaded (cached image)
   if get_natural_width(img) > 0.0 {
@@ -529,7 +523,7 @@ fn render_image_viewer(state : MediaSidebarState, content : Element, item : Medi
 
   // Cleanup function
   state.current_cleanup = fn() {
-    if zpv_ref.is_some() {
+    if zpv_ref is Some(_) {
       destroy_zoom_pan_viewer(zpv_ref.unwrap())
     }
   }
@@ -568,13 +562,13 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
     // Check if fullscreen overlays are visible
     let img_fs = query("#image-fullscreen")
     let vid_fs = query("#video-fullscreen")
-    if (not(is_null(img_fs)) && has_class(img_fs, "visible")) ||
-       (not(is_null(vid_fs)) && has_class(vid_fs, "visible")) {
+    if (!(is_null(img_fs)) && has_class(img_fs, "visible")) ||
+       (!(is_null(vid_fs)) && has_class(vid_fs, "visible")) {
       return
     }
 
     // Only handle if current item is video
-    if not(is_video_type(state.items[state.active_idx].type_)) { return }
+    if !(is_video_type(state.items[state.active_idx].type_)) { return }
 
     let key = event_key(e)
     if key == "ArrowLeft" || key == "j" {
@@ -597,7 +591,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
   }
 
   let h = on_with_handle(query_body(), "keydown", video_key_handler, capture=true)
-  state.handles.push(h)
+  state.viewer_handles.push(h)
 
   // Settings button — added to viewer panel (not container) so it sits next to close btn
   let settings_btn = create_element("button")
@@ -656,7 +650,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
         }
         add_class(btn, "selected")
       })
-      state.handles.push(h)
+      state.viewer_handles.push(h)
 
       append_child(row, btn)
     })
@@ -666,7 +660,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
 
   let on_scene_change = fn(new_val : Double) {
     cur_scene = new_val
-    if state.current_vtl.is_some() {
+    if state.current_vtl is Some(_) {
       let new_vtl = recreate_timeline(state.current_vtl.unwrap(), cur_scene, cur_stab)
       state.current_vtl = Some(new_vtl)
     }
@@ -682,7 +676,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
 
   let on_stab_change = fn(new_val : Double) {
     cur_stab = new_val
-    if state.current_vtl.is_some() {
+    if state.current_vtl is Some(_) {
       let new_vtl = recreate_timeline(state.current_vtl.unwrap(), cur_scene, cur_stab)
       state.current_vtl = Some(new_vtl)
     }
@@ -700,7 +694,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
       add_class(settings_panel, "visible")
     }
   })
-  state.handles.push(h2)
+  state.viewer_handles.push(h2)
 
   // Add to viewer panel (next to close button)
   append_child(state.viewer_panel, settings_btn)
@@ -708,7 +702,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
 
   // Cleanup function
   state.current_cleanup = fn() {
-    if state.current_vtl.is_some() {
+    if state.current_vtl is Some(_) {
       destroy_video_timeline(state.current_vtl.unwrap())
     }
     video_pause(vid)
@@ -718,7 +712,7 @@ fn render_video_viewer(state : MediaSidebarState, content : Element, item : Medi
 ///| Render mermaid viewer with ZoomPanViewer
 fn render_mermaid_viewer(state : MediaSidebarState, content : Element, item : MediaItem) -> Unit {
   // Get source SVG
-  let svg_src = if not(is_null(item.svg)) {
+  let svg_src = if !(is_null(item.svg)) {
     item.svg
   } else {
     query_in(item.element, "svg")
@@ -824,14 +818,12 @@ fn render_mermaid_viewer(state : MediaSidebarState, content : Element, item : Me
     true,
   )
 
-  state.current_zpv = Some(zpv)
-
   let h_zoom_in = on_with_handle(zoom_in_btn, "click", fn(_e) { zoom_in(zpv) })
   let h_zoom_out = on_with_handle(zoom_out_btn, "click", fn(_e) { zoom_out(zpv) })
   let h_reset = on_with_handle(reset_btn, "click", fn(_e) { reset_view(zpv) })
-  state.handles.push(h_zoom_in)
-  state.handles.push(h_zoom_out)
-  state.handles.push(h_reset)
+  state.viewer_handles.push(h_zoom_in)
+  state.viewer_handles.push(h_zoom_out)
+  state.viewer_handles.push(h_reset)
 
   // Setup pending fit
   state.pending_fit = Some(fn() {
@@ -857,7 +849,7 @@ fn clone_svg_for_viewer(svg : Element, idx : Int) -> Element {
     set_attribute(cloned, "id", new_id)
 
     let style_el = query_in(cloned, "style")
-    if not(is_null(style_el)) {
+    if !(is_null(style_el)) {
       let style_text = get_text_content(style_el)
       let updated = replace_all_text(style_text, orig_id, new_id)
       set_text_content(style_el, updated)
@@ -885,7 +877,9 @@ fn update_thumbnail_active_state(state : MediaSidebarState, idx : Int) -> Unit {
 fn close_viewer(state : MediaSidebarState) -> Unit {
   (state.current_cleanup)()
   state.current_cleanup = fn() {}
-  state.current_zpv = None
+  // Detach per-viewer event listeners to avoid leaking handles / detached DOM.
+  state.viewer_handles.each(fn(h) { unlisten(h) })
+  state.viewer_handles.clear()
   state.current_vtl = None
   state.active_idx = -1
 
@@ -899,7 +893,7 @@ fn close_viewer(state : MediaSidebarState) -> Unit {
 
   // Restore md-right panel
   let md_right = query_in(state.md_layout, ".md-right")
-  if not(is_null(md_right)) {
+  if !(is_null(md_right)) {
     set_style(md_right, "display", "")
   }
 
@@ -913,7 +907,7 @@ fn close_viewer(state : MediaSidebarState) -> Unit {
 
 ///| Toggle sidebar visibility
 fn toggle_sidebar(state : MediaSidebarState) -> Unit {
-  state.is_visible = not(state.is_visible)
+  state.is_visible = !(state.is_visible)
 
   if state.is_visible {
     remove_class(state.sidebar, "hidden")
@@ -950,16 +944,16 @@ fn navigate_thumbs(state : MediaSidebarState, direction : Int) -> Unit {
 ///| Setup keyboard navigation
 fn setup_keyboard_navigation(state : MediaSidebarState) -> Unit {
   let h = on_with_handle(query_body(), "keydown", fn(e) {
-    if not(state.is_visible) { return }
+    if !(state.is_visible) { return }
 
     // Check if fullscreen overlays are visible
     let img_fs = query("#image-fullscreen")
     let vid_fs = query("#video-fullscreen")
     let mermaid_fs = query("#mermaid-fullscreen")
 
-    if (not(is_null(img_fs)) && has_class(img_fs, "visible")) ||
-       (not(is_null(vid_fs)) && has_class(vid_fs, "visible")) ||
-       (not(is_null(mermaid_fs)) && has_class(mermaid_fs, "visible")) {
+    if (!(is_null(img_fs)) && has_class(img_fs, "visible")) ||
+       (!(is_null(vid_fs)) && has_class(vid_fs, "visible")) ||
+       (!(is_null(mermaid_fs)) && has_class(mermaid_fs, "visible")) {
       return
     }
 
@@ -998,7 +992,7 @@ fn setup_keyboard_navigation(state : MediaSidebarState) -> Unit {
 fn setup_mermaid_observer(state : MediaSidebarState) -> Unit {
   let check_mermaid = fn() {
     state.items.eachi(fn(idx, item) {
-      if not(is_mermaid_type(item.type_)) { return }
+      if !(is_mermaid_type(item.type_)) { return }
 
       let svg = query_in(item.element, "svg")
       if is_null(svg) { return }
@@ -1030,8 +1024,7 @@ fn setup_mermaid_observer(state : MediaSidebarState) -> Unit {
   check_mermaid()
 
   // Setup mutation observer via FFI
-  let h = setup_mutation_observer(state.preview, check_mermaid)
-  state.observer_handle = Some(h)
+  let _h = setup_mutation_observer(state.preview, check_mermaid)
 
   // Periodic checks
   let _ = set_timeout(check_mermaid, 1000)

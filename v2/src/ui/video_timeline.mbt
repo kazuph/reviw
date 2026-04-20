@@ -120,7 +120,7 @@ fn handle_sse_message(state : VTLState, data : String) -> Unit {
       // Remove loading indicator on first thumbnail
       if state.is_loading {
         let loading = query_in(state.timeline_el, ".timeline-loading")
-        if not(is_null(loading)) {
+        if !(is_null(loading)) {
           remove_element(loading)
         }
         state.is_loading = false
@@ -167,7 +167,7 @@ fn handle_sse_message(state : VTLState, data : String) -> Unit {
       // Show "no scenes" message if no thumbnails
       if state.thumbs.is_empty() {
         let loading = query_in(state.timeline_el, ".timeline-loading")
-        if not(is_null(loading)) {
+        if !(is_null(loading)) {
           set_text_content(loading, "No scene changes detected")
         }
       }
@@ -185,7 +185,7 @@ fn handle_sse_message(state : VTLState, data : String) -> Unit {
 ///| Handle SSE error
 fn handle_sse_error(state : VTLState) -> Unit {
   // Close connection
-  if not(is_event_source_null(state.event_source)) {
+  if !(is_event_source_null(state.event_source)) {
     sse_close(state.event_source)
     state.event_source = create_null_event_source()
   }
@@ -267,7 +267,7 @@ pub fn navigate(state : VTLState, direction : Int) -> Unit {
 ///| Destroy a VideoTimeline instance
 pub fn destroy_video_timeline(state : VTLState) -> Unit {
   // Close SSE if open
-  if not(is_event_source_null(state.event_source)) {
+  if !(is_event_source_null(state.event_source)) {
     sse_close(state.event_source)
   }
 

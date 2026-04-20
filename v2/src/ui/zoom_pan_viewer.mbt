@@ -11,9 +11,6 @@ struct ZPVState {
   zoom_info_el : Element
   has_minimap : Bool
   minimap_viewport_el : Element
-  mm_max_w : Double
-  mm_max_h : Double
-  mm_pad : Double
   zoom_min : Double
   zoom_max : Double
   use_ctrl_for_zoom : Bool
@@ -27,7 +24,6 @@ struct ZPVState {
   mut pinch_start_dist : Double
   mut pinch_center_x : Double
   mut pinch_center_y : Double
-  mm_scale : Double
   // Event handles for cleanup
   handles : Array[ListenerHandle]
 }
@@ -42,19 +38,13 @@ pub fn create_zoom_pan_viewer_moonbit(
   zoom_info_el : Element,
   has_minimap : Bool,
   minimap_viewport_el : Element,
-  mm_max_w : Double,
-  mm_max_h : Double,
-  mm_pad : Double,
+  _mm_max_w : Double,
+  _mm_max_h : Double,
+  _mm_pad : Double,
   zoom_min : Double,
   zoom_max : Double,
   use_ctrl_for_zoom : Bool
 ) -> ZPVState {
-  let mm_scale = if has_minimap && natural_width > 0.0 && natural_height > 0.0 {
-    min_double(mm_max_w / natural_width, mm_max_h / natural_height)
-  } else {
-    1.0
-  }
-
   let state = ZPVState::{
     viewport,
     wrapper,
@@ -63,9 +53,6 @@ pub fn create_zoom_pan_viewer_moonbit(
     zoom_info_el,
     has_minimap,
     minimap_viewport_el,
-    mm_max_w,
-    mm_max_h,
-    mm_pad,
     zoom_min,
     zoom_max,
     use_ctrl_for_zoom,
@@ -78,7 +65,6 @@ pub fn create_zoom_pan_viewer_moonbit(
     pinch_start_dist: 0.0,
     pinch_center_x: 0.0,
     pinch_center_y: 0.0,
-    mm_scale,
     handles: [],
   }
 
@@ -119,7 +105,7 @@ fn setup_mouse_events(state : ZPVState) -> Unit {
 
   // Pointer move on document
   let h2 = on_with_handle(query_body(), "pointermove", fn(e) {
-    if not(state.is_dragging) { return }
+    if !state.is_dragging { return }
     prevent_default(e)
     let client_x = get_event_client_x(e).to_double()
     let client_y = get_event_client_y(e).to_double()
@@ -131,7 +117,7 @@ fn setup_mouse_events(state : ZPVState) -> Unit {
 
   // Pointer up on document
   let h3 = on_with_handle(query_body(), "pointerup", fn(_) {
-    if not(state.is_dragging) { return }
+    if !state.is_dragging { return }
     state.is_dragging = false
     set_style(state.viewport, "cursor", "grab")
   })
@@ -139,7 +125,7 @@ fn setup_mouse_events(state : ZPVState) -> Unit {
 
   // Pointer leave/cancel
   let h4 = on_with_handle(query_body(), "pointercancel", fn(_) {
-    if not(state.is_dragging) { return }
+    if !state.is_dragging { return }
     state.is_dragging = false
     set_style(state.viewport, "cursor", "grab")
   })
@@ -261,13 +247,13 @@ fn update_transform(state : ZPVState) -> Unit {
   set_style(state.wrapper, "transform-origin", "0 0")
 
   // Update zoom info display
-  if not(is_null(state.zoom_info_el)) {
+  if !is_null(state.zoom_info_el) {
     let pct = math_round(state.current_zoom * 100.0).to_int()
     set_text_content(state.zoom_info_el, "\{pct}%")
   }
 
   // Update minimap
-  if state.has_minimap && not(is_null(state.minimap_viewport_el)) {
+  if state.has_minimap && !is_null(state.minimap_viewport_el) {
     update_minimap_viewport(state)
   }
 }

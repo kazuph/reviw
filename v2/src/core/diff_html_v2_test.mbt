@@ -86,8 +86,8 @@ test "diff html: binary file skips hunk rendering" {
     ],
   }
   let html = build_diff_html(data, "test.diff", 4989)
-  // No hunk header div when binary
-  inspect(html.contains("diff-hunk-header"), content=(
+  // No hunk header div when binary (check for opening tag, not CSS selector)
+  inspect(html.contains("<div class=\"diff-hunk-header\">"), content=(
     #|false
   ))
   // No line content when binary
@@ -111,7 +111,8 @@ test "diff html: normal file has no label span" {
     ],
   }
   let html = build_diff_html(data, "test.diff", 4989)
-  inspect(html.contains("diff-label"), content=(
+  // No label span in DOM (check for opening tag, not CSS selector)
+  inspect(html.contains("<span class=\"diff-label"), content=(
     #|false
   ))
 }

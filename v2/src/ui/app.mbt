@@ -151,7 +151,7 @@ fn bounds_overflow_penalty(rect : Rect, bounds : Rect, margin : Double) -> Doubl
 }
 
 fn make_card_candidate(
-  anchor : Rect,
+  _anchor : Rect,
   keepout : Rect,
   bounds : Rect,
   card_width : Double,
@@ -279,7 +279,7 @@ fn position_comment_card(card : Element, target : Element, prefer_below : Bool) 
 fn rect_union_of_elements(elements : Array[Element]) -> Rect? {
   let mut union_rect : Rect? = None
   for el in elements {
-    if not(is_null(el)) {
+    if !(is_null(el)) {
       let rect = rect_from_element(el)
       union_rect = match union_rect {
         Some(existing) => Some(rect_union(existing, rect))
@@ -294,7 +294,7 @@ fn populate_comment_card(target : Element, key : String, row : Int, col : Int, t
   active_key.val = key
   let card_title = query("#card-title")
   let cell_preview = query("#cell-preview")
-  if not(is_null(card_title)) {
+  if !(is_null(card_title)) {
     if col > 0 {
       set_text_content(card_title, "Comment on R\{row} C\{col}")
     } else if row > 0 {
@@ -303,7 +303,7 @@ fn populate_comment_card(target : Element, key : String, row : Int, col : Int, t
       set_text_content(card_title, "Cell Comment")
     }
   }
-  if not(is_null(cell_preview)) {
+  if !(is_null(cell_preview)) {
     let content = resolve_comment_target_preview(target)
     if content.length() > 0 {
       let preview = if col > 0 {
@@ -363,15 +363,15 @@ fn resolve_comment_target_preview(target : Element) -> String {
     return "Mermaid diagram"
   }
   let image = query_in(target, "img")
-  if not(is_null(image)) {
+  if !(is_null(image)) {
     return resolve_comment_target_preview(image)
   }
   let video = query_in(target, "video.video-preview")
-  if not(is_null(video)) {
+  if !(is_null(video)) {
     return resolve_comment_target_preview(video)
   }
   let mermaid = query_in(target, ".mermaid-container")
-  if not(is_null(mermaid)) {
+  if !(is_null(mermaid)) {
     return "Mermaid diagram"
   }
   ""
@@ -415,7 +415,7 @@ pub fn init_app() -> Unit {
   }
   // Setup theme toggle with localStorage persistence
   let theme_btn = query("#theme-toggle")
-  if not(is_null(theme_btn)) {
+  if !(is_null(theme_btn)) {
     on(
       theme_btn,
       "click",
@@ -435,30 +435,30 @@ pub fn init_app() -> Unit {
   }
   // Setup submit button
   let submit_btn = query("#send-and-exit")
-  if not(is_null(submit_btn)) {
+  if !(is_null(submit_btn)) {
     on(submit_btn, "click", fn(_e) { show_submit_modal() })
   }
   // Setup comment card buttons
   let close_btn = query("#close-card")
-  if not(is_null(close_btn)) {
+  if !(is_null(close_btn)) {
     on(close_btn, "click", fn(_e) { hide_comment_card() })
   }
   let clear_btn = query("#clear-comment")
-  if not(is_null(clear_btn)) {
+  if !(is_null(clear_btn)) {
     on(clear_btn, "click", fn(_e) {
       let textarea = query("#comment-input")
-      if not(is_null(textarea)) {
+      if !(is_null(textarea)) {
         set_value(textarea, "")
       }
       save_comment()
     })
   }
   let save_btn = query("#save-comment")
-  if not(is_null(save_btn)) {
+  if !(is_null(save_btn)) {
     on(save_btn, "click", fn(_e) { save_comment() })
   }
   let comment_input = query("#comment-input")
-  if not(is_null(comment_input)) {
+  if !(is_null(comment_input)) {
     on(comment_input, "keydown", fn(e) {
       if event_key(e) == "Enter" && (event_meta_key(e) || event_ctrl_key(e)) {
         prevent_default(e)
@@ -469,13 +469,13 @@ pub fn init_app() -> Unit {
   }
   // Copy selection button (cli.cjs compatible)
   let copy_btn = query("#copy-selection")
-  if not(is_null(copy_btn)) {
+  if !(is_null(copy_btn)) {
     on(
       copy_btn,
       "click",
       fn(_e) {
         let cell_preview = query("#cell-preview")
-        let text = if not(is_null(cell_preview)) {
+        let text = if !(is_null(cell_preview)) {
           get_text_content(cell_preview)
         } else {
           ""
@@ -491,11 +491,11 @@ pub fn init_app() -> Unit {
   }
   // Setup modal buttons
   let modal_cancel = query("#modal-cancel")
-  if not(is_null(modal_cancel)) {
+  if !(is_null(modal_cancel)) {
     on(modal_cancel, "click", fn(_e) { hide_submit_modal() })
   }
   let modal_approve = query("#modal-approve")
-  if not(is_null(modal_approve)) {
+  if !(is_null(modal_approve)) {
     on(
       modal_approve,
       "click",
@@ -507,7 +507,7 @@ pub fn init_app() -> Unit {
     )
   }
   let modal_request_changes = query("#modal-request-changes")
-  if not(is_null(modal_request_changes)) {
+  if !(is_null(modal_request_changes)) {
     on(
       modal_request_changes,
       "click",
@@ -520,11 +520,11 @@ pub fn init_app() -> Unit {
   }
   // Setup recovery modal buttons
   let recovery_restore = query("#recovery-restore")
-  if not(is_null(recovery_restore)) {
+  if !(is_null(recovery_restore)) {
     on(recovery_restore, "click", fn(_e) { restore_comments() })
   }
   let recovery_discard = query("#recovery-discard")
-  if not(is_null(recovery_discard)) {
+  if !(is_null(recovery_discard)) {
     on(recovery_discard, "click", fn(_e) { discard_comments() })
   }
   // Keyboard shortcut: Cmd/Ctrl+Enter context-dependent
@@ -535,13 +535,13 @@ pub fn init_app() -> Unit {
         prevent_default(e)
         // If comment card is open, save comment
         let card = query("#comment-card")
-        if not(is_null(card)) && not(is_element_hidden(card)) {
+        if !(is_null(card)) && !(is_element_hidden(card)) {
           save_comment()
           return
         }
         // If submit modal is open, default to request changes
         let modal = query("#submit-modal")
-        if not(is_null(modal)) && has_class(modal, "visible") {
+        if !(is_null(modal)) && has_class(modal, "visible") {
           pending_decision.val = decision_request_changes
           pending_action.val = action_final_request_changes
           submit_review(port)
@@ -556,7 +556,7 @@ pub fn init_app() -> Unit {
   )
   // Also support Cmd/Ctrl+Enter from within submit modal textarea
   let global_comment_input = query("#global-comment")
-  if not(is_null(global_comment_input)) {
+  if !(is_null(global_comment_input)) {
     on(global_comment_input, "keydown", fn(e) {
       if event_key(e) == "Enter" && (event_meta_key(e) || event_ctrl_key(e)) {
         prevent_default(e)
@@ -570,7 +570,7 @@ pub fn init_app() -> Unit {
   init_view_toggle()
   // Setup pill-comments (comment list toggle)
   let pill_comments = query("#pill-comments")
-  if not(is_null(pill_comments)) {
+  if !(is_null(pill_comments)) {
     on(
       pill_comments,
       "click",
@@ -612,11 +612,11 @@ pub fn init_app() -> Unit {
   setup_questions_ui()
   // Setup history toggle
   let history_btn = query("#history-toggle")
-  if not(is_null(history_btn)) {
+  if !(is_null(history_btn)) {
     on(history_btn, "click", fn(_e) { toggle_history_panel() })
   }
   let history_close = query("#history-panel-close")
-  if not(is_null(history_close)) {
+  if !(is_null(history_close)) {
     on(history_close, "click", fn(_e) { toggle_history_panel() })
   }
   // Setup paste handler for image attachment
@@ -671,7 +671,7 @@ fn setup_diff_clicks() -> Unit {
       "click",
       fn(e) {
         let target = closest(event_target(e), ".diff-line")
-        if not(is_null(target)) {
+        if !(is_null(target)) {
           let file = get_attr(target, "data-file")
           let content = get_text_content(target)
           let key = "\{file}:\{truncate(content, 20)}"
@@ -694,7 +694,7 @@ fn setup_text_clicks() -> Unit {
           return
         }
         let target = closest(event_target(e), ".text-line")
-        if not(is_null(target)) {
+        if !(is_null(target)) {
           let row_str = get_attr(target, "data-row")
           let key = "\{row_str}:0"
           show_comment_card(target, key, str_to_int(row_str), 0)
@@ -706,7 +706,7 @@ fn setup_text_clicks() -> Unit {
       "mousedown",
       fn(e) {
         let target = closest(event_target(e), ".text-line")
-        if not(is_null(target)) {
+        if !(is_null(target)) {
           let row_str = get_attr(target, "data-row")
           if row_str.length() > 0 {
             begin_drag(str_to_int(row_str))
@@ -729,7 +729,7 @@ fn check_recovery() -> Unit {
     return
   }
   let modal = query("#recovery-modal")
-  if not(is_null(modal)) {
+  if !(is_null(modal)) {
     add_class(modal, "visible")
     remove_class(modal, "hidden")
   }
@@ -766,7 +766,7 @@ fn discard_comments() -> Unit {
 ///|
 fn hide_recovery_modal() -> Unit {
   let modal = query("#recovery-modal")
-  if not(is_null(modal)) {
+  if !(is_null(modal)) {
     remove_class(modal, "visible")
     add_class(modal, "hidden")
   }
@@ -787,7 +787,7 @@ fn show_comment_card(target : Element, key : String, row : Int, col : Int) -> Un
 ///|
 fn hide_comment_card() -> Unit {
   let card = query("#comment-card")
-  if not(is_null(card)) {
+  if !(is_null(card)) {
     set_style(card, "display", "none")
   }
   active_key.val = ""
@@ -819,16 +819,16 @@ fn comment_location_label(comment : AppComment) -> String {
 fn resolve_comment_indicator_target(comment : AppComment) -> Element {
   if comment.col > 0 {
     let exact = query("[data-row=\"\{comment.row}\"][data-col=\"\{comment.col}\"]")
-    if not(is_null(exact)) {
+    if !(is_null(exact)) {
       return exact
     }
   }
   let line_cell = query("td[data-row=\"\{comment.row}\"][data-col=\"1\"]")
-  if not(is_null(line_cell)) {
+  if !(is_null(line_cell)) {
     return line_cell
   }
   let text_line = query(".text-line[data-row=\"\{comment.row}\"]")
-  if not(is_null(text_line)) {
+  if !(is_null(text_line)) {
     return text_line
   }
   null_element()
@@ -882,7 +882,7 @@ fn render_comment_list() -> Unit {
       match comments.get(key) {
         Some(comment) => {
           let comment_target = resolve_comment_indicator_target(comment)
-          if not(is_null(comment_target)) {
+          if !(is_null(comment_target)) {
             scroll_into_view(comment_target)
             show_comment_card(comment_target, key, comment.row, comment.col)
           }
@@ -979,7 +979,7 @@ fn update_sent_badge(key : String, success : Bool) -> Unit {
     let item_key = get_attr(item, "data-key")
     if item_key == key {
       let existing_badge = query_in(item, ".comment-sent-badge")
-      if not(is_null(existing_badge)) {
+      if !(is_null(existing_badge)) {
         remove_element(existing_badge)
       }
       let badge_html = if success {
@@ -991,7 +991,7 @@ fn update_sent_badge(key : String, success : Bool) -> Unit {
       // Auto-remove badge after 3 seconds
       ignore(set_timeout_dom(fn() {
         let badge = query_in(item, ".comment-sent-badge")
-        if not(is_null(badge)) {
+        if !(is_null(badge)) {
           remove_element(badge)
         }
       }, 3000))
@@ -1011,7 +1011,7 @@ fn update_comment_indicators() -> Unit {
       if comment_has_content(comment) {
         count = count + 1
         let el = resolve_comment_indicator_target(comment)
-        if not(is_null(el)) {
+        if !(is_null(el)) {
           add_class(el, "has-comment")
         }
       }
@@ -1019,7 +1019,7 @@ fn update_comment_indicators() -> Unit {
   )
   // Update comment count badge
   let count_el = query("#comment-count")
-  if not(is_null(count_el)) {
+  if !(is_null(count_el)) {
     set_text_content(count_el, count.to_string())
   }
   render_comment_list()
@@ -1055,7 +1055,7 @@ fn show_submit_modal() -> Unit {
   let mermaid_error_area = query("#mermaid-error-area")
   let mermaid_error_list = query("#mermaid-error-list")
   let err_count = get_mermaid_error_count()
-  if err_count > 0 && not(is_null(mermaid_error_area)) && not(is_null(mermaid_error_list)) {
+  if err_count > 0 && !(is_null(mermaid_error_area)) && !(is_null(mermaid_error_list)) {
     let err_buf = StringBuilder::new()
     for i = 0; i < err_count; i = i + 1 {
       let line = get_mermaid_error_line(i)
@@ -1069,12 +1069,12 @@ fn show_submit_modal() -> Unit {
     set_inner_html(mermaid_error_list, err_buf.to_string())
     set_style(mermaid_error_area, "display", "block")
     log_mermaid_errors_to_console()
-  } else if not(is_null(mermaid_error_area)) {
+  } else if !(is_null(mermaid_error_area)) {
     set_style(mermaid_error_area, "display", "none")
   }
   add_class(modal, "visible")
   let summary = query("#global-comment")
-  if not(is_null(summary)) {
+  if !(is_null(summary)) {
     focus_element(summary)
   }
 }
@@ -1082,7 +1082,7 @@ fn show_submit_modal() -> Unit {
 ///|
 fn hide_submit_modal() -> Unit {
   let modal = query("#submit-modal")
-  if not(is_null(modal)) {
+  if !(is_null(modal)) {
     remove_class(modal, "visible")
   }
 }
@@ -1123,7 +1123,7 @@ fn build_review_payload() -> String {
   comments.each(
     fn(_key, comment) {
       if comment.text.length() > 0 {
-        if not(first.val) {
+        if !(first.val) {
           buf.write_char(',')
         }
         buf.write_string("{\"row\":")
@@ -1185,7 +1185,7 @@ fn build_review_payload() -> String {
   buf.to_string()
 }
 
-fn report_tab_closed(port : Int) -> Unit {
+fn report_tab_closed(_port : Int) -> Unit {
   if submit_in_flight.val || close_report_sent.val {
     return
   }
@@ -1211,7 +1211,7 @@ fn setup_close_detection(port : Int) -> Unit {
 }
 
 ///|
-fn submit_review(port : Int) -> Unit {
+fn submit_review(_port : Int) -> Unit {
   submit_in_flight.val = true
   close_report_sent.val = true
   let url = location_origin() + "/exit"
@@ -1253,7 +1253,7 @@ fn init_view_toggle() -> Unit {
     view_toggle,
     "click",
     fn(_e) {
-      let is_now_preview_only = not(has_class(md_layout, "preview-only"))
+      let is_now_preview_only = !(has_class(md_layout, "preview-only"))
       if is_now_preview_only {
         add_class(md_layout, "preview-only")
         set_text_content(view_toggle, "\u{1F441}")
@@ -1286,8 +1286,8 @@ fn init_view_toggle_narrow(view_toggle : Element) -> Unit {
 ///| Enable/disable Submit & Exit button based on SSE connection
 fn set_send_buttons_enabled(enabled : Bool) -> Unit {
   let submit_btn = query("#send-and-exit")
-  if not(is_null(submit_btn)) {
-    set_disabled(submit_btn, not(enabled))
+  if !(is_null(submit_btn)) {
+    set_disabled(submit_btn, !(enabled))
   }
 }
 
@@ -1339,7 +1339,7 @@ fn persist_comments() -> Unit {
   let first = Ref::new(true)
   comments.each(
     fn(k, comment) {
-      if not(first.val) {
+      if !(first.val) {
         buf.write_char(',')
       }
       buf.write_string(json_encode_string(k))
@@ -1369,12 +1369,12 @@ fn toggle_history_panel() -> Unit {
   let is_open = get_attr(panel, "class").contains("open")
   if is_open {
     remove_class(panel, "open")
-    if not(is_null(body)) {
+    if !(is_null(body)) {
       remove_class(body, "history-open")
     }
   } else {
     add_class(panel, "open")
-    if not(is_null(body)) {
+    if !(is_null(body)) {
       add_class(body, "history-open")
     }
     load_history_data()
@@ -1383,13 +1383,13 @@ fn toggle_history_panel() -> Unit {
 
 ///| Load history data from server
 fn load_history_data() -> Unit {
-  let port = get_reviw_port()
+  let _port = get_reviw_port()
   let url = location_origin() + "/history"
   fetch_get(
     url,
     fn(data) {
       let panel_body = query("#history-panel-body")
-      if not(is_null(panel_body)) {
+      if !(is_null(panel_body)) {
         if data.length() <= 2 {
           set_inner_html(
             panel_body,
@@ -1535,10 +1535,10 @@ fn setup_paste_handler() -> Unit {
     fn(base64) {
       let submit_modal = query("#submit-modal")
       let comment_card = query("#comment-card")
-      let submit_visible = not(is_null(submit_modal)) &&
+      let submit_visible = !(is_null(submit_modal)) &&
         (get_attr(submit_modal, "class").contains("visible") ||
          get_computed_style(submit_modal, "display") != "none")
-      let comment_visible = not(is_null(comment_card)) &&
+      let comment_visible = !(is_null(comment_card)) &&
         (get_attr(comment_card, "class").contains("visible") ||
          get_computed_style(comment_card, "display") != "none")
       if submit_visible {
@@ -1615,7 +1615,7 @@ fn render_comment_image_preview() -> Unit {
   )
   set_inner_html(container, buf.to_string())
   let remove_btn = query("#remove-comment-image")
-  if not(is_null(remove_btn)) {
+  if !(is_null(remove_btn)) {
     on(
       remove_btn,
       "click",
@@ -1693,7 +1693,7 @@ let heading_anchors_built : Ref[Bool] = Ref::new(false)
 
 ///| Get or build heading anchors
 fn get_heading_anchors() -> Array[HeadingAnchor] {
-  if not(heading_anchors_built.val) {
+  if !(heading_anchors_built.val) {
     let anchors = build_heading_anchors()
     for a in anchors {
       heading_anchors_cache.push(a)
@@ -1771,7 +1771,7 @@ fn sync_scroll(source : Element, target : Element, source_name : String) -> Unit
         } else {
           // Source is source table (md-right), find source row position
           let cell = query("td[data-row=\"\{anchor.line}\"][data-col=\"1\"]")
-          if not(is_null(cell)) { get_offset_top(cell) } else { 0.0 }
+          if !(is_null(cell)) { get_offset_top(cell) } else { 0.0 }
         }
         let dist = (src_pos - source_mid).abs()
         if dist < best_dist {
@@ -1785,11 +1785,11 @@ fn sync_scroll(source : Element, target : Element, source_name : String) -> Unit
         get_offset_top(anchor.preview_el)
       } else {
         let cell = query("td[data-row=\"\{anchor.line}\"][data-col=\"1\"]")
-        if not(is_null(cell)) { get_offset_top(cell) } else { 0.0 }
+        if !(is_null(cell)) { get_offset_top(cell) } else { 0.0 }
       }
       let tgt_anchor_pos = if source_name == "left" {
         let cell = query("td[data-row=\"\{anchor.line}\"][data-col=\"1\"]")
-        if not(is_null(cell)) { get_offset_top(cell) } else { 0.0 }
+        if !(is_null(cell)) { get_offset_top(cell) } else { 0.0 }
       } else {
         get_offset_top(anchor.preview_el)
       }
@@ -1818,7 +1818,7 @@ fn begin_drag(row : Int) -> Unit {
 
 ///| Drag selection: update during mouse move
 fn update_drag(row : Int) -> Unit {
-  if not(is_dragging.val) {
+  if !(is_dragging.val) {
     return
   }
   if row == drag_end_row.val {
@@ -1830,7 +1830,7 @@ fn update_drag(row : Int) -> Unit {
 
 ///| Drag selection: finish and open comment card
 fn finish_drag() -> Unit {
-  if not(is_dragging.val) {
+  if !(is_dragging.val) {
     return
   }
   is_dragging.val = false
@@ -1851,7 +1851,7 @@ fn finish_drag() -> Unit {
     start.to_string() + "-" + end.to_string()
   }
   let target_el = query("[data-row=\"" + start.to_string() + "\"]")
-  if not(is_null(target_el)) {
+  if !(is_null(target_el)) {
     show_comment_card(target_el, key, start, 0)
   }
 }
@@ -1862,7 +1862,7 @@ fn update_selection_highlight() -> Unit {
   for el in old_selected {
     remove_class(el, "selected")
   }
-  if not(is_dragging.val) {
+  if !(is_dragging.val) {
     return
   }
   let start = if drag_start_row.val < drag_end_row.val {
@@ -1877,7 +1877,7 @@ fn update_selection_highlight() -> Unit {
   }
   for r = start; r <= end; r = r + 1 {
     let el = query("[data-row=\"" + r.to_string() + "\"]")
-    if not(is_null(el)) {
+    if !(is_null(el)) {
       add_class(el, "selected")
     }
   }
@@ -1888,15 +1888,15 @@ fn setup_drag_handlers() -> Unit {
   on_window(
     "mousemove",
     fn(e) {
-      if not(is_dragging.val) {
+      if !(is_dragging.val) {
         return
       }
       let x = get_event_client_x(e)
       let y = get_event_client_y(e)
       let el = element_from_point(x, y)
-      if not(is_null(el)) {
+      if !(is_null(el)) {
         let row_el = closest(el, "[data-row]")
-        if not(is_null(row_el)) {
+        if !(is_null(row_el)) {
           let row_str = get_attr(row_el, "data-row")
           update_drag(str_to_int(row_str))
         }
@@ -1914,12 +1914,12 @@ fn setup_drag_handlers() -> Unit {
 }
 
 ///| Setup video timeline for a video element
-fn setup_video_timeline(video_path : String) -> Unit {
+fn _setup_video_timeline(video_path : String) -> Unit {
   let container = query("#video-timeline")
   if is_null(container) {
     return
   }
-  let port = get_reviw_port()
+  let _port = get_reviw_port()
   let url = location_origin() + "/video-timeline?path=" + video_path
   let es = new_event_source_url(url)
   sse_on_message(es, fn(data) {
@@ -1995,7 +1995,7 @@ fn normalize_text(s : String) -> String {
   let mut prev_space = true
   for ch in chars {
     if ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
-      if not(prev_space) {
+      if !(prev_space) {
         buf.write_char(' ')
         prev_space = true
       }
@@ -2094,14 +2094,14 @@ fn strip_markdown(s : String) -> String {
 fn find_closest_heading_above(el : Element) -> Element {
   // Walk up and back through siblings to find nearest heading
   let mut current = el
-  while not(is_null(current)) {
+  while !(is_null(current)) {
     let tag = get_tag_name(current)
     if tag == "H1" || tag == "H2" || tag == "H3" || tag == "H4" || tag == "H5" || tag == "H6" {
       return current
     }
     // Check previous siblings
     let mut sib = previous_element_sibling(current)
-    while not(is_null(sib)) {
+    while !(is_null(sib)) {
       let sib_tag = get_tag_name(sib)
       if sib_tag == "H1" || sib_tag == "H2" || sib_tag == "H3" || sib_tag == "H4" || sib_tag == "H5" || sib_tag == "H6" {
         return sib
@@ -2318,7 +2318,7 @@ fn preview_source_line_matches(src : String, search : String, allow_contains : B
   if normalized_src == search {
     return true
   }
-  if not(allow_contains) || search.length() < 8 {
+  if !(allow_contains) || search.length() < 8 {
     return false
   }
   normalized_src.contains(search) || search.contains(normalized_src)
@@ -2357,7 +2357,7 @@ fn preview_table_line_matches(src : String, search : String, allow_contains : Bo
       return true
     }
   }
-  if not(allow_contains) || search.length() < 8 {
+  if !(allow_contains) || search.length() < 8 {
     return false
   }
   if normalized_src.contains(search) || search.contains(normalized_src) {
@@ -2377,14 +2377,14 @@ fn find_media_source_line_in_block(block : Element, start_from : Int) -> Int {
     return -1
   }
   let image = query_in(block, "img")
-  if not(is_null(image)) {
+  if !(is_null(image)) {
     let line = find_image_source_line(get_src(image), start_from)
     if line > 0 {
       return line
     }
   }
   let video = query_in(block, "video.video-preview")
-  if not(is_null(video)) {
+  if !(is_null(video)) {
     let line = find_image_source_line(get_attr(video, "src"), start_from)
     if line > 0 {
       return line
@@ -2398,15 +2398,15 @@ fn resolve_preview_media_anchor(block : Element) -> Element {
     return block
   }
   let image = query_in(block, "img")
-  if not(is_null(image)) {
+  if !(is_null(image)) {
     return image
   }
   let video = query_in(block, "video.video-preview")
-  if not(is_null(video)) {
+  if !(is_null(video)) {
     return video
   }
   let mermaid = query_in(block, ".mermaid-container")
-  if not(is_null(mermaid)) {
+  if !(is_null(mermaid)) {
     return mermaid
   }
   block
@@ -2421,14 +2421,14 @@ fn resolve_preview_block_text(block : Element) -> String {
     return text
   }
   let image = query_in(block, "img")
-  if not(is_null(image)) {
+  if !(is_null(image)) {
     let alt = get_attr(image, "alt")
     if alt.length() > 0 {
       return alt
     }
   }
   let video = query_in(block, "video.video-preview")
-  if not(is_null(video)) {
+  if !(is_null(video)) {
     let title = get_attr(video, "title")
     if title.length() > 0 {
       return title
@@ -2452,11 +2452,11 @@ fn normalize_preview_block_target(block : Element) -> Element {
   let tag = get_tag_name(block)
   if tag == "P" {
     let quote = closest(block, "blockquote")
-    if not(is_null(quote)) {
+    if !(is_null(quote)) {
       return quote
     }
     let list_item = closest(block, "li")
-    if not(is_null(list_item)) {
+    if !(is_null(list_item)) {
       return list_item
     }
   }
@@ -2470,7 +2470,7 @@ fn get_comment_bounds_rect(source_hidden : Bool) -> Rect {
     viewport_rect()
   } else {
     let md_right = query(".md-right")
-    if not(is_null(md_right)) && not(is_element_hidden(md_right)) {
+    if !(is_null(md_right)) && !(is_element_hidden(md_right)) {
       rect_from_element(md_right)
     } else {
       viewport_rect()
@@ -2503,23 +2503,23 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element, col
     remove_class(el, "preview-highlight")
   }
   // Add preview highlight to clicked element
-  if not(is_null(preview_el)) {
+  if !(is_null(preview_el)) {
     add_class(preview_el, "preview-highlight")
   }
   // Highlight source rows
   for r = start_row; r <= actual_end; r = r + 1 {
     let row_idx = r - 1 // Convert 1-indexed to 0-indexed data-row
     let cell = query("td[data-row=\"\{row_idx}\"][data-col=\"1\"]")
-    if not(is_null(cell)) {
+    if !(is_null(cell)) {
       add_class(cell, "selected")
     }
   }
   // Scroll source pane to target row
   let md_right = query(".md-right")
-  if not(is_null(md_right)) {
+  if !(is_null(md_right)) {
     let target_row = start_row - 1
     let target_cell = query("td[data-row=\"\{target_row}\"][data-col=\"1\"]")
-    if not(is_null(target_cell)) {
+    if !(is_null(target_cell)) {
       let cell_top = get_offset_top(target_cell)
       let container_height = get_client_height(md_right)
       let scroll_target = cell_top - container_height / 2.0
@@ -2534,20 +2534,20 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element, col
   }
   let source_target = query("td[data-row=\"\{start_row - 1}\"][data-col=\"1\"]")
   // Position card: check if source is hidden (preview-only mode)
-  let is_source_hidden = not(is_null(md_right)) && is_element_hidden(md_right)
-  if is_source_hidden && not(is_null(preview_el)) {
+  let is_source_hidden = !(is_null(md_right)) && is_element_hidden(md_right)
+  if is_source_hidden && !(is_null(preview_el)) {
     let preview_rect = rect_from_element(preview_el)
     let bounds = get_comment_bounds_rect(true)
     show_comment_card_in_rects(preview_el, key, start_row - 1, col, preview_rect, preview_rect, bounds, true)
   } else {
-    let target = if not(is_null(source_target)) {
+    let target = if !(is_null(source_target)) {
       source_target
-    } else if not(is_null(preview_el)) {
+    } else if !(is_null(preview_el)) {
       preview_el
     } else {
       source_target
     }
-    if not(is_null(target)) {
+    if !(is_null(target)) {
       let keepout = match get_selected_source_rect() {
         Some(rect) => rect
         None => rect_from_element(target)
@@ -2564,7 +2564,7 @@ fn select_source_range(start_row : Int, end_row : Int, preview_el : Element, col
 }
 
 ///| Show comment card below element (for preview-only mode)
-fn show_comment_card_below(target : Element, key : String, row : Int, col : Int) -> Unit {
+fn _show_comment_card_below(target : Element, key : String, row : Int, col : Int) -> Unit {
   let target_rect = rect_from_element(target)
   show_comment_card_in_rects(target, key, row, col, target_rect, target_rect, viewport_rect(), true)
 }
@@ -2580,7 +2580,7 @@ fn setup_preview_click() -> Unit {
     if is_null(target) {
       return
     }
-    if not(is_null(closest(target, ".mermaid-fullscreen-btn"))) {
+    if !(is_null(closest(target, ".mermaid-fullscreen-btn"))) {
       return
     }
     let mermaid_range = get_mermaid_source_range(target)
@@ -2602,7 +2602,7 @@ fn setup_preview_click() -> Unit {
     }
     // Code block click (<pre> or <code> inside <pre>)
     let pre = closest(target, "pre")
-    if not(is_null(pre)) {
+    if !(is_null(pre)) {
       let code_text = get_text_content(pre)
       let range = find_code_block_range(code_text)
       if range.0 > 0 {
@@ -2612,7 +2612,7 @@ fn setup_preview_click() -> Unit {
     }
     // Generic block element click
     let block = resolve_preview_click_block(target)
-    if not(is_null(block)) {
+    if !(is_null(block)) {
       let heading = find_closest_heading_above(block)
       let h_line = get_heading_source_line(heading)
       let media_line = find_media_source_line_in_block(block, h_line)
@@ -2704,23 +2704,23 @@ fn setup_preview_mouseup() -> Unit {
 ///| Setup questions UI (overlay, bar, auto-popup, answer tracking)
 fn setup_questions_ui() -> Unit {
   let overlay = query("#reviw-questions-overlay")
-  let bar = query("#reviw-questions-bar")
+  let _bar = query("#reviw-questions-bar")
   if is_null(overlay) {
     return
   }
   // Close button
   let close_btn = query("#reviw-questions-close")
-  if not(is_null(close_btn)) {
+  if !(is_null(close_btn)) {
     on(close_btn, "click", fn(_e) { close_questions_modal(false) })
   }
   // Later button
   let later_btn = query("#reviw-questions-later")
-  if not(is_null(later_btn)) {
+  if !(is_null(later_btn)) {
     on(later_btn, "click", fn(_e) { close_questions_modal(false) })
   }
   // Bar open button
   let bar_open = query("#reviw-questions-bar-open")
-  if not(is_null(bar_open)) {
+  if !(is_null(bar_open)) {
     on(bar_open, "click", fn(_e) { open_questions_modal() })
   }
   // Click overlay background to close
@@ -2733,7 +2733,7 @@ fn setup_questions_ui() -> Unit {
   on_doc("keydown", fn(e) {
     if event_key(e) == "Escape" {
       let ov = query("#reviw-questions-overlay")
-      if not(is_null(ov)) && has_class(ov, "visible") {
+      if !(is_null(ov)) && has_class(ov, "visible") {
         close_questions_modal(false)
       }
     }
@@ -2750,7 +2750,7 @@ fn setup_questions_ui() -> Unit {
       for sib in siblings {
         remove_class(sib, "selected")
       }
-      if not(was_selected) {
+      if !(was_selected) {
         add_class(target, "selected")
       }
       update_questions_count()
@@ -2763,7 +2763,7 @@ fn setup_questions_ui() -> Unit {
   }
   // Resolved toggle
   let resolved_toggle = query(".reviw-resolved-toggle")
-  if not(is_null(resolved_toggle)) {
+  if !(is_null(resolved_toggle)) {
     on(resolved_toggle, "click", fn(_e) {
       if has_class(resolved_toggle, "open") {
         remove_class(resolved_toggle, "open")
@@ -2774,7 +2774,7 @@ fn setup_questions_ui() -> Unit {
   }
   // Auto-popup if there are unresolved questions
   let count_el = query("#reviw-questions-bar-count")
-  if not(is_null(count_el)) {
+  if !(is_null(count_el)) {
     let count_text = get_text_content(count_el)
     if count_text != "0" {
       // Auto-open after short delay
@@ -2786,11 +2786,11 @@ fn setup_questions_ui() -> Unit {
 ///| Open questions modal
 fn open_questions_modal() -> Unit {
   let overlay = query("#reviw-questions-overlay")
-  if not(is_null(overlay)) {
+  if !(is_null(overlay)) {
     add_class(overlay, "visible")
   }
   let bar = query("#reviw-questions-bar")
-  if not(is_null(bar)) {
+  if !(is_null(bar)) {
     remove_class(bar, "visible")
     remove_class_body("has-questions-bar")
   }
@@ -2799,13 +2799,13 @@ fn open_questions_modal() -> Unit {
 ///| Close questions modal
 fn close_questions_modal(_all_answered : Bool) -> Unit {
   let overlay = query("#reviw-questions-overlay")
-  if not(is_null(overlay)) {
+  if !(is_null(overlay)) {
     remove_class(overlay, "visible")
   }
   // Show bar if there are unanswered questions
   let unanswered = count_unanswered_questions()
   let bar = query("#reviw-questions-bar")
-  if unanswered > 0 && not(is_null(bar)) {
+  if unanswered > 0 && !(is_null(bar)) {
     add_class(bar, "visible")
     add_class_body("has-questions-bar")
   }
@@ -2821,9 +2821,9 @@ fn count_unanswered_questions() -> Int {
     // Check if any option selected
     let selected = query_in(card, ".q-option-btn.selected")
     let textarea = query_in(card, ".q-answer")
-    let has_option = not(is_null(selected))
-    let has_text = if not(is_null(textarea)) { get_value(textarea).length() > 0 } else { false }
-    if not(has_option) && not(has_text) {
+    let has_option = !(is_null(selected))
+    let has_text = if !(is_null(textarea)) { get_value(textarea).length() > 0 } else { false }
+    if !(has_option) && !(has_text) {
       unanswered = unanswered + 1
     }
   }
@@ -2834,7 +2834,7 @@ fn count_unanswered_questions() -> Int {
 fn update_questions_count() -> Unit {
   let unanswered = count_unanswered_questions()
   let count_el = query("#reviw-questions-count")
-  if not(is_null(count_el)) {
+  if !(is_null(count_el)) {
     if unanswered > 0 {
       set_inner_html(count_el, "(" + unanswered.to_string() + ")")
     } else {
@@ -2842,7 +2842,7 @@ fn update_questions_count() -> Unit {
     }
   }
   let bar_count = query("#reviw-questions-bar-count")
-  if not(is_null(bar_count)) {
+  if !(is_null(bar_count)) {
     set_inner_html(bar_count, unanswered.to_string())
   }
   // Auto-close if all answered
@@ -2854,7 +2854,7 @@ fn update_questions_count() -> Unit {
 }
 
 ///| Setup heading toggle (collapse/expand sections)
-fn setup_heading_toggles() -> Unit {
+fn _setup_heading_toggles() -> Unit {
   let headings = query_all(".md-heading-toggle")
   for heading in headings {
     let key = get_attr(heading, "data-heading-key")
@@ -2864,14 +2864,14 @@ fn setup_heading_toggles() -> Unit {
     if stored == "collapsed" {
       collapse_heading_section(heading, level)
       let icon = query_in(heading, ".heading-toggle-icon")
-      if not(is_null(icon)) {
+      if !(is_null(icon)) {
         add_class(icon, "collapsed")
         set_inner_html(icon, "\u{25B6}")
       }
     }
     // Toggle icon click handler
     let icon = query_in(heading, ".heading-toggle-icon")
-    if not(is_null(icon)) {
+    if !(is_null(icon)) {
       on(icon, "click", fn(e) {
         prevent_default(e)
         // Stop propagation to prevent preview click handler
@@ -2898,7 +2898,7 @@ fn setup_heading_toggles() -> Unit {
 ///| Collapse all sibling elements until next heading of same or higher level
 fn collapse_heading_section(heading : Element, level : Int) -> Unit {
   let mut sib = next_element_sibling(heading)
-  while not(is_null(sib)) {
+  while !(is_null(sib)) {
     let tag = get_tag_name(sib)
     // Stop at heading of same or higher level
     if (tag == "H1" || tag == "H2" || tag == "H3" || tag == "H4" || tag == "H5" || tag == "H6") {
@@ -2915,7 +2915,7 @@ fn collapse_heading_section(heading : Element, level : Int) -> Unit {
 ///| Expand all sibling elements until next heading of same or higher level
 fn expand_heading_section(heading : Element, level : Int) -> Unit {
   let mut sib = next_element_sibling(heading)
-  while not(is_null(sib)) {
+  while !(is_null(sib)) {
     let tag = get_tag_name(sib)
     if (tag == "H1" || tag == "H2" || tag == "H3" || tag == "H4" || tag == "H5" || tag == "H6") {
       let sib_level = str_to_int(get_attr(sib, "data-heading-level"))
@@ -2946,13 +2946,13 @@ fn setup_mermaid_fullscreen_moonbit() -> Unit {
     fn(e) {
       let target = event_target(e)
       let btn = closest(target, ".mermaid-fullscreen-btn")
-      if not(is_null(btn)) {
+      if !(is_null(btn)) {
         let container = closest(btn, ".mermaid-container")
         let svg = query_in(container, ".mermaid svg")
-        if not(is_null(svg)) {
+        if !(is_null(svg)) {
           // Don't open fullscreen for error SVGs
           let err_icon = query_in(svg, ".error-icon")
-          if not(is_null(err_icon)) {
+          if !(is_null(err_icon)) {
             return
           }
           open_mermaid_fullscreen_moonbit(svg, overlay, fs_content, fs_wrapper, fs_zoom_info)
@@ -2966,28 +2966,28 @@ fn setup_mermaid_fullscreen_moonbit() -> Unit {
   let zoom_out_btn = query("#fs-zoom-out")
   let fs_reset = query("#fs-reset")
   let fs_close = query("#fs-close")
-  if not(is_null(zoom_in_btn)) {
+  if !(is_null(zoom_in_btn)) {
     on(zoom_in_btn, "click", fn(_e) {
-      if fs_mermaid_zpv.val.is_some() {
+      if fs_mermaid_zpv.val is Some(_) {
         zoom_in(fs_mermaid_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(zoom_out_btn)) {
+  if !(is_null(zoom_out_btn)) {
     on(zoom_out_btn, "click", fn(_e) {
-      if fs_mermaid_zpv.val.is_some() {
+      if fs_mermaid_zpv.val is Some(_) {
         zoom_out(fs_mermaid_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(fs_reset)) {
+  if !(is_null(fs_reset)) {
     on(fs_reset, "click", fn(_e) {
-      if fs_mermaid_zpv.val.is_some() {
+      if fs_mermaid_zpv.val is Some(_) {
         reset_view(fs_mermaid_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(fs_close)) {
+  if !(is_null(fs_close)) {
     on(fs_close, "click", fn(_e) { close_mermaid_fullscreen_moonbit(overlay) })
   }
   // ESC to close + overlay background click
@@ -3016,7 +3016,7 @@ fn open_mermaid_fullscreen_moonbit(
   fs_zoom_info : Element
 ) -> Unit {
   // Destroy previous viewer
-  if fs_mermaid_zpv.val.is_some() {
+  if fs_mermaid_zpv.val is Some(_) {
     destroy_zoom_pan_viewer(fs_mermaid_zpv.val.unwrap())
     fs_mermaid_zpv.val = None
   }
@@ -3035,7 +3035,7 @@ fn open_mermaid_fullscreen_moonbit(
   // Setup minimap: clone SVG into minimap-content
   let minimap_content = query("#fs-minimap-content")
   let minimap_viewport = query("#fs-minimap-viewport")
-  if not(is_null(minimap_content)) {
+  if !(is_null(minimap_content)) {
     clear_children(minimap_content)
     let minimap_svg = clone_node_deep(svg)
     append_child(minimap_content, minimap_svg)
@@ -3071,7 +3071,7 @@ fn open_mermaid_fullscreen_moonbit(
 
 ///| Close mermaid fullscreen (MoonBit native)
 fn close_mermaid_fullscreen_moonbit(overlay : Element) -> Unit {
-  if fs_mermaid_zpv.val.is_some() {
+  if fs_mermaid_zpv.val is Some(_) {
     destroy_zoom_pan_viewer(fs_mermaid_zpv.val.unwrap())
     fs_mermaid_zpv.val = None
   }
@@ -3101,7 +3101,7 @@ fn setup_image_fullscreen_moonbit() -> Unit {
     let target = event_target(e)
     if get_tag_name(target) == "IMG" {
       // Don't open if inside mermaid container
-      if not(is_null(closest(target, ".mermaid-container"))) {
+      if !(is_null(closest(target, ".mermaid-container"))) {
         return
       }
       let all_images = query_all_in(preview, "img")
@@ -3135,39 +3135,39 @@ fn setup_image_fullscreen_moonbit() -> Unit {
   let fs_close = query("#img-fs-close")
   let fs_prev = query("#img-fs-prev")
   let fs_next = query("#img-fs-next")
-  if not(is_null(zoom_in_btn)) {
+  if !(is_null(zoom_in_btn)) {
     on(zoom_in_btn, "click", fn(_e) {
-      if fs_image_zpv.val.is_some() {
+      if fs_image_zpv.val is Some(_) {
         zoom_in(fs_image_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(zoom_out_btn)) {
+  if !(is_null(zoom_out_btn)) {
     on(zoom_out_btn, "click", fn(_e) {
-      if fs_image_zpv.val.is_some() {
+      if fs_image_zpv.val is Some(_) {
         zoom_out(fs_image_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(fs_reset)) {
+  if !(is_null(fs_reset)) {
     on(fs_reset, "click", fn(_e) {
-      if fs_image_zpv.val.is_some() {
+      if fs_image_zpv.val is Some(_) {
         reset_view(fs_image_zpv.val.unwrap())
       }
     })
   }
-  if not(is_null(fs_close)) {
+  if !(is_null(fs_close)) {
     on(fs_close, "click", fn(_e) { close_image_fullscreen_moonbit(overlay) })
   }
   // Previous/Next navigation buttons
-  if not(is_null(fs_prev)) {
+  if !(is_null(fs_prev)) {
     on(fs_prev, "click", fn(_e) {
       navigate_image_fullscreen_moonbit(
         -1, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
       )
     })
   }
-  if not(is_null(fs_next)) {
+  if !(is_null(fs_next)) {
     on(fs_next, "click", fn(_e) {
       navigate_image_fullscreen_moonbit(
         1, overlay, fs_content, fs_wrapper, fs_zoom_info, fs_counter,
@@ -3183,7 +3183,7 @@ fn setup_image_fullscreen_moonbit() -> Unit {
   on_doc(
     "keydown",
     fn(e) {
-      if not(has_class_visible(overlay)) {
+      if !(has_class_visible(overlay)) {
         return
       }
       let key = event_key(e)
@@ -3236,7 +3236,7 @@ fn show_image_fullscreen_moonbit(
   }
   current_image_index.val = index
   // Destroy previous viewer
-  if fs_image_zpv.val.is_some() {
+  if fs_image_zpv.val is Some(_) {
     destroy_zoom_pan_viewer(fs_image_zpv.val.unwrap())
     fs_image_zpv.val = None
   }
@@ -3256,7 +3256,7 @@ fn show_image_fullscreen_moonbit(
   set_style(cloned, "height", nat_h.to_string() + "px")
   append_child(fs_wrapper, cloned)
   // Update counter
-  if not(is_null(fs_counter)) {
+  if !(is_null(fs_counter)) {
     set_text_content(
       fs_counter,
       (index + 1).to_string() + " / " + images.length().to_string(),
@@ -3267,7 +3267,7 @@ fn show_image_fullscreen_moonbit(
   // Setup image minimap
   let img_minimap_content = query("#image-fs-minimap-content")
   let img_minimap_viewport = query("#image-fs-minimap-viewport")
-  if not(is_null(img_minimap_content)) {
+  if !(is_null(img_minimap_content)) {
     clear_children(img_minimap_content)
     let minimap_img = clone_node_deep(cloned)
     set_style(minimap_img, "width", "100%")
@@ -3327,7 +3327,7 @@ fn navigate_image_fullscreen_moonbit(
 fn close_image_fullscreen_moonbit(overlay : Element) -> Unit {
   // Capture the original image before resetting state
   let saved_index = current_image_index.val
-  if fs_image_zpv.val.is_some() {
+  if fs_image_zpv.val is Some(_) {
     destroy_zoom_pan_viewer(fs_image_zpv.val.unwrap())
     fs_image_zpv.val = None
   }
@@ -3390,7 +3390,7 @@ fn setup_video_fullscreen_moonbit() -> Unit {
   add_video_fullscreen_buttons(preview, overlay, container, fs_counter)
   // Close button
   let fs_close = query("#video-close")
-  if not(is_null(fs_close)) {
+  if !(is_null(fs_close)) {
     on(fs_close, "click", fn(_e) { close_video_fullscreen_moonbit(overlay, container) })
   }
   // ESC + overlay click + keyboard
@@ -3402,7 +3402,7 @@ fn setup_video_fullscreen_moonbit() -> Unit {
   on_doc(
     "keydown",
     fn(e) {
-      if not(has_class_visible(overlay)) {
+      if !(has_class_visible(overlay)) {
         return
       }
       let key = event_key(e)
@@ -3410,12 +3410,12 @@ fn setup_video_fullscreen_moonbit() -> Unit {
         close_video_fullscreen_moonbit(overlay, container)
         prevent_default(e)
       } else if key == "ArrowLeft" || key == "j" {
-        if fs_video_timeline.val.is_some() {
+        if fs_video_timeline.val is Some(_) {
           navigate(fs_video_timeline.val.unwrap(), -1)
         }
         prevent_default(e)
       } else if key == "ArrowRight" || key == "l" {
-        if fs_video_timeline.val.is_some() {
+        if fs_video_timeline.val is Some(_) {
           navigate(fs_video_timeline.val.unwrap(), 1)
         }
         prevent_default(e)
@@ -3427,7 +3427,7 @@ fn setup_video_fullscreen_moonbit() -> Unit {
         prevent_default(e)
       } else if key == " " || key == "k" {
         let vid = query_in(container, "video")
-        if not(is_null(vid)) {
+        if !(is_null(vid)) {
           if video_is_paused(vid) { video_play(vid) } else { video_pause(vid) }
         }
         prevent_default(e)
@@ -3496,7 +3496,7 @@ fn setup_video_settings_moonbit(
   })
   on(settings_panel, "click", fn(e) { stop_propagation(e) })
   // Scene threshold buttons
-  if not(is_null(scene_buttons_div)) {
+  if !(is_null(scene_buttons_div)) {
     let btns = query_all_in(scene_buttons_div, "button")
     for btn in btns {
       on(btn, "click", fn(_e) {
@@ -3510,7 +3510,7 @@ fn setup_video_settings_moonbit(
     }
   }
   // Stabilization threshold buttons
-  if not(is_null(stab_buttons_div)) {
+  if !(is_null(stab_buttons_div)) {
     let btns = query_all_in(stab_buttons_div, "button")
     for btn in btns {
       on(btn, "click", fn(_e) {
@@ -3539,7 +3539,7 @@ fn regenerate_timeline_moonbit(
     return
   }
   // Destroy old timeline and recreate
-  if fs_video_timeline.val.is_some() {
+  if fs_video_timeline.val is Some(_) {
     let new_vtl = recreate_timeline(
       fs_video_timeline.val.unwrap(),
       current_scene_threshold.val,
@@ -3562,13 +3562,13 @@ fn show_video_fullscreen_moonbit(
   }
   current_video_index.val = index
   // Cleanup previous timeline
-  if fs_video_timeline.val.is_some() {
+  if fs_video_timeline.val is Some(_) {
     destroy_video_timeline(fs_video_timeline.val.unwrap())
     fs_video_timeline.val = None
   }
   // Remove existing video
   let existing_vid = query_in(container, "video")
-  if not(is_null(existing_vid)) {
+  if !(is_null(existing_vid)) {
     video_pause(existing_vid)
     remove_element(existing_vid)
   }
@@ -3578,7 +3578,7 @@ fn show_video_fullscreen_moonbit(
   let new_video = create_video_element(src)
   append_child(container, new_video)
   // Update counter
-  if not(is_null(fs_counter)) {
+  if !(is_null(fs_counter)) {
     set_text_content(
       fs_counter,
       (index + 1).to_string() + " / " + videos.length().to_string(),
@@ -3595,7 +3595,7 @@ fn show_video_fullscreen_moonbit(
   show_overlay(overlay)
   // Close settings panel when opening new video
   let settings_panel = query("#video-settings-panel")
-  if not(is_null(settings_panel)) {
+  if !(is_null(settings_panel)) {
     remove_class(settings_panel, "visible")
   }
 }
@@ -3625,12 +3625,12 @@ fn navigate_video_fullscreen_moonbit(
 fn close_video_fullscreen_moonbit(overlay : Element, container : Element) -> Unit {
   // Pause and remove video
   let vid = query_in(container, "video")
-  if not(is_null(vid)) {
+  if !(is_null(vid)) {
     video_pause(vid)
     remove_element(vid)
   }
   // Cleanup timeline
-  if fs_video_timeline.val.is_some() {
+  if fs_video_timeline.val is Some(_) {
     destroy_video_timeline(fs_video_timeline.val.unwrap())
     fs_video_timeline.val = None
   }

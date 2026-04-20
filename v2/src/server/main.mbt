@@ -92,7 +92,7 @@ fn lock_path(port : Int) -> String {
 ///| Ensure lock directory exists
 fn ensure_lock_dir() -> Unit {
   let dir = lock_dir()
-  if not(exists_sync(dir)) {
+  if !(exists_sync(dir)) {
     mkdir_sync(dir, mkdir_recursive_opts())
   }
 }
@@ -100,7 +100,7 @@ fn ensure_lock_dir() -> Unit {
 ///| Check if a port is locked by another process
 fn is_port_locked(port : Int) -> Bool {
   let lp = lock_path(port)
-  if not(exists_sync(lp)) {
+  if !(exists_sync(lp)) {
     return false
   }
   // Read PID from lock file and check if process is alive
@@ -143,7 +143,7 @@ fn find_available_port(base : Int) -> Int {
   let mut port = base
   let mut attempts = 0
   while attempts < max_port_attempts {
-    if not(is_port_locked(port)) {
+    if !(is_port_locked(port)) {
       return port
     }
     console_log("Port \{port} locked, trying \{port + 1}...")
@@ -190,7 +190,7 @@ fn main {
       if i < args.length() {
         encoding_override.val = args[i]
       }
-    } else if not(arg.has_prefix("-")) {
+    } else if !(arg.has_prefix("-")) {
       files.push(arg)
     }
     i = i + 1
@@ -212,7 +212,7 @@ fn main {
   ignore(load_ui_js())
   // Check stdin if no files
   if files.is_empty() {
-    if not(is_stdin_tty()) {
+    if !(is_stdin_tty()) {
       let stdin_content = read_stdin_sync()
       if stdin_content.length() > 0 {
         start_stdin_server(stdin_content, port, no_open)
@@ -315,7 +315,7 @@ fn detect_encoding(buf : JsValue) -> String {
         break
       }
     }
-    if not(valid) {
+    if !(valid) {
       is_utf8 = false
       break
     }
@@ -476,7 +476,7 @@ fn history_dir() -> String {
 ///| Ensure history directory exists
 fn ensure_history_dir() -> Unit {
   let dir = history_dir()
-  if not(exists_sync(dir)) {
+  if !(exists_sync(dir)) {
     mkdir_sync(dir, mkdir_recursive_opts())
     chmod_sync(dir, 448) // 0o700
   }
@@ -491,7 +491,7 @@ fn history_path(file_path : String) -> String {
 ///| Load history from file
 fn load_history(file_path : String) -> String {
   let hp = history_path(file_path)
-  if not(exists_sync(hp)) {
+  if !(exists_sync(hp)) {
     return "[]"
   }
   let data = read_file_safe(hp)
@@ -600,7 +600,7 @@ fn try_listen(ctx : ServerContext, port : Int, attempt : Int, no_open : Bool) ->
       let display_host = if host == "0.0.0.0" { "127.0.0.1" } else { host }
       let url = "http://\{display_host}:\{port}"
       console_log("reviw serving \{ctx.filename} at \{url}")
-      if not(no_open) {
+      if !(no_open) {
         open_browser(url)
       }
     },
@@ -765,7 +765,7 @@ fn serve_static_file(
   // Ensure resolved path is under base_dir
   let resolved_static = path_resolve(static_path)
   let resolved_base = path_resolve(base_dir)
-  if not(resolved_static.has_prefix(resolved_base)) {
+  if !@core.is_path_under(resolved_base, resolved_static) {
     res_write_head(res, 403, "text/plain")
     res_end(res, "Forbidden")
     return
@@ -811,7 +811,7 @@ fn serve_static_file_head(
   let static_path = path_join(base_dir, relative_path)
   let resolved_static = path_resolve(static_path)
   let resolved_base = path_resolve(base_dir)
-  if not(resolved_static.has_prefix(resolved_base)) {
+  if !@core.is_path_under(resolved_base, resolved_static) {
     res_write_head(res, 403, "text/plain")
     res_end(res, "")
     return
@@ -881,7 +881,7 @@ fn remove_active_tab(ctx : ServerContext, tab_id : String) -> Unit {
 }
 
 fn cancel_pending_close(ctx : ServerContext) -> Unit {
-  if not(js_is_nullish(ctx.pending_close_timer)) {
+  if !(js_is_nullish(ctx.pending_close_timer)) {
     clear_timeout(ctx.pending_close_timer)
     ctx.pending_close_timer = js_null()
   }
@@ -976,7 +976,7 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
   }
   all_results.push(result)
   // Save to history (including decision-only submits)
-  if comments.length() > 0 || summary.length() > 0 || not(decision.is_empty()) {
+  if comments.length() > 0 || summary.length() > 0 || decision is Some(_) {
     let entry_buf = StringBuilder::new()
     entry_buf.write_string("{\"timestamp\":\"")
     entry_buf.write_string(iso_now())
@@ -1048,7 +1048,7 @@ fn schedule_close_submit(ctx : ServerContext, draft : String) -> Unit {
   ctx.pending_close_timer = set_timeout(
     fn() {
       ctx.pending_close_timer = js_null()
-      if ctx.finished || not(ctx.active_tabs.is_empty()) {
+      if ctx.finished || !(ctx.active_tabs.is_empty()) {
         return
       }
       handle_submit(ctx, draft_body)
@@ -1099,19 +1099,19 @@ fn handle_video_timeline(
   let base_dir = path_dirname(ctx.file_path)
   let resolved_video = path_resolve(path_join(base_dir, video_path))
   let resolved_base = path_resolve(base_dir)
-  if not(resolved_video.has_prefix(resolved_base)) {
+  if !@core.is_path_under(resolved_base, resolved_video) {
     res_write_head(res, 403, "text/plain")
     res_end(res, "Forbidden")
     return
   }
   // Use resolved path from here
   let video_path = resolved_video
-  if not(exists_sync(video_path)) {
+  if !(exists_sync(video_path)) {
     res_write_head(res, 404, "text/plain")
     res_end(res, "File not found")
     return
   }
-  if not(command_exists("ffmpeg")) {
+  if !(command_exists("ffmpeg")) {
     res_write_head(res, 500, "text/plain")
     res_end(res, "ffmpeg not available")
     return

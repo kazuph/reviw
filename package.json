@@ -1,6 +1,6 @@
 {
   "name": "reviw",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Lightweight file reviewer with in-browser comments for CSV, TSV, Markdown, and Git diffs.",
   "type": "module",
   "bin": {
@@ -24,7 +24,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
-    "playwright": "^1.57.0"
+    "@playwright/test": "^1.59.1",
+    "playwright": "^1.59.1"
   }
 }
