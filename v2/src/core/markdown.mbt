@@ -1179,7 +1179,6 @@ pub fn build_markdown_html(
   build_comment_card(buf)
   build_comment_list_aside(buf)
   build_submit_modal(buf)
-  build_send_to_ai_bar(buf)
   build_recovery_modal(buf)
   build_mermaid_fullscreen(buf)
   build_image_fullscreen(buf)
