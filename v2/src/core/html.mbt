@@ -127,11 +127,12 @@ fn build_page_start(
   buf.write_string("<span class=\"badge\">Click to comment / ESC to cancel</span>")
   buf.write_string("<button class=\"pill\" id=\"pill-comments\" title=\"Toggle comment panel\">Comments <strong id=\"comment-count\">0</strong></button>")
   buf.write_string("</div><div class=\"actions\">")
+  buf.write_string("<span class=\"sse-dot sse-dot-connected\" id=\"sse-status\" role=\"status\" aria-live=\"polite\" title=\"Connected\"><span class=\"sse-dot-label\">Connected</span></span>")
   buf.write_string("<button class=\"media-sidebar-toggle\" id=\"media-sidebar-toggle\" title=\"Media Gallery\" aria-label=\"Toggle media gallery\">\u{1F5BC}<span class=\"toggle-count\" id=\"media-toggle-count\"></span></button>")
   buf.write_string("<button class=\"view-toggle\" id=\"view-toggle\" title=\"Hide source panel\">&#128221;</button>")
   buf.write_string("<button class=\"history-toggle\" id=\"history-toggle\" title=\"Review History\">&#9776;</button>")
   buf.write_string("<button class=\"theme-toggle\" id=\"theme-toggle\" title=\"Toggle theme\"><span id=\"theme-icon\">&#127769;</span></button>")
-  buf.write_string("<button id=\"send-and-exit\">Submit &amp; Exit</button>")
+  buf.write_string("<button id=\"send-and-exit\" class=\"submit-exit-btn\">Submit &amp; Exit</button>")
   buf.write_string("</div></header>")
 }
 
@@ -176,16 +177,6 @@ fn build_submit_modal(buf : StringBuilder) -> Unit {
   buf.write_string("<button id=\"modal-cancel\">Cancel</button>")
   buf.write_string("<button class=\"decision-btn decision-request-changes\" id=\"modal-request-changes\" title=\"Request Changes\">\u{1F504} Request Changes <kbd class=\"kbd-hint\">\u{2318}Enter</kbd></button>")
   buf.write_string("</div></div></div>")
-}
-
-///| Build the "Send to AI" fixed bottom bar
-fn build_send_to_ai_bar(buf : StringBuilder) -> Unit {
-  buf.write_string("<div class=\"send-to-ai-bar\" id=\"send-to-ai-bar\">")
-  buf.write_string("<div class=\"send-to-ai-inner\">")
-  buf.write_string("<span class=\"sse-status\" id=\"sse-status\">\u{1F7E2} Connected</span>")
-  buf.write_string("<input type=\"text\" class=\"send-to-ai-input\" id=\"send-to-ai-summary\" placeholder=\"Comment to AI (optional)\" />")
-  buf.write_string("<button class=\"send-to-ai-btn\" id=\"send-to-ai-btn\">\u{1F4E4} Send to AI</button>")
-  buf.write_string("</div></div>")
 }
 
 fn build_comment_list_aside(buf : StringBuilder) -> Unit {
@@ -477,7 +468,6 @@ pub fn build_csv_html(data : CsvData, filename : String, port : Int) -> String {
   buf.write_string("</tbody></table></div>")
   build_comment_card(buf)
   build_submit_modal(buf)
-  build_send_to_ai_bar(buf)
   build_history_panel(buf)
   build_recovery_modal(buf)
   buf.write_string("<script>const DATA = ")
@@ -570,7 +560,6 @@ pub fn build_diff_html(data : DiffData, filename : String, port : Int) -> String
   buf.write_string("</div>")
   build_comment_card(buf)
   build_submit_modal(buf)
-  build_send_to_ai_bar(buf)
   build_history_panel(buf)
   build_recovery_modal(buf)
   build_script_footer(buf, port, "diff", filename)
@@ -599,7 +588,6 @@ pub fn build_text_html(
   buf.write_string("</div>")
   build_comment_card(buf)
   build_submit_modal(buf)
-  build_send_to_ai_bar(buf)
   build_history_panel(buf)
   build_recovery_modal(buf)
   build_script_footer(buf, port, "text", filename)

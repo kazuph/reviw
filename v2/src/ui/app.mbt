@@ -48,7 +48,6 @@ let decision_approve : String = "approve"
 let decision_request_changes : String = "request_changes"
 
 ///| Action constants (must match @core.ReviewAction::to_string)
-let action_handoff : String = "handoff"
 let action_final_approve : String = "final_approve"
 let action_final_request_changes : String = "final_request_changes"
 
@@ -519,20 +518,6 @@ pub fn init_app() -> Unit {
       },
     )
   }
-  // Setup Send to AI button + summary input
-  let send_to_ai_btn = query("#send-to-ai-btn")
-  if not(is_null(send_to_ai_btn)) {
-    on(send_to_ai_btn, "click", fn(_e) { send_to_ai(port) })
-  }
-  let send_to_ai_input = query("#send-to-ai-summary")
-  if not(is_null(send_to_ai_input)) {
-    on(send_to_ai_input, "keydown", fn(e) {
-      if event_key(e) == "Enter" && not(event_is_composing(e)) {
-        prevent_default(e)
-        send_to_ai(port)
-      }
-    })
-  }
   // Setup recovery modal buttons
   let recovery_restore = query("#recovery-restore")
   if not(is_null(recovery_restore)) {
@@ -562,8 +547,6 @@ pub fn init_app() -> Unit {
           submit_review(port)
           return
         }
-        // Otherwise, Send to AI (Cmd+Enter = quick send)
-        send_to_ai(port)
       }
       if event_key(e) == "Escape" {
         hide_comment_card()
@@ -1242,84 +1225,6 @@ fn submit_review(port : Int) -> Unit {
   )
 }
 
-///| Restore draft saved by Send to AI handoff
-
-///| Send to AI: save draft to localStorage, POST /exit with action:handoff, show overlay, poll healthz
-fn send_to_ai(port : Int) -> Unit {
-  if submit_in_flight.val {
-    return
-  }
-  submit_in_flight.val = true
-  close_report_sent.val = true
-  // Set action to handoff
-  pending_action.val = action_handoff
-  // Copy Send to AI summary input into global-comment for payload
-  let ai_summary_input = query("#send-to-ai-summary")
-  if not(is_null(ai_summary_input)) {
-    let ai_summary = get_value(ai_summary_input)
-    if ai_summary.length() > 0 {
-      let global_comment = query("#global-comment")
-      if not(is_null(global_comment)) {
-        set_value(global_comment, ai_summary)
-      }
-    }
-  }
-  let payload = build_review_payload()
-  // Immediately nuke localStorage BEFORE any async ops (prevent recovery on reload)
-  let storage_key = get_storage_key()
-  ls_remove(storage_key)
-  // Clear all comments from memory and UI
-  hide_comment_card()
-  comments.clear()
-  active_key.val = ""
-  current_comment_image.val = ""
-  // Force-clear localStorage again (sync_active_comment_draft inside build_review_payload may have re-persisted)
-  ls_remove(storage_key)
-  // Update UI: remove all .has-comment classes, reset count badge, clear comment list
-  update_comment_indicators()
-  // Clear input fields
-  if not(is_null(ai_summary_input)) {
-    set_value(ai_summary_input, "")
-  }
-  let gc = query("#global-comment")
-  if not(is_null(gc)) {
-    set_value(gc, "")
-  }
-  // Show "Sent!" feedback on button
-  let btn = query("#send-to-ai-btn")
-  if not(is_null(btn)) {
-    set_inner_html(btn, "\u{2705} Sent!")
-    add_class(btn, "sent")
-    ignore(set_timeout_dom(fn() {
-      set_inner_html(btn, "\u{1F4E4} Send to AI")
-      remove_class(btn, "sent")
-    }, 3000))
-  }
-  // Set SSE status to disconnected immediately (server is about to exit)
-  let status_el = query("#sse-status")
-  if not(is_null(status_el)) {
-    set_inner_html(status_el, "\u{1F534} Sending... <span style=\"font-size:11px;color:var(--muted)\">(server restarting)</span>")
-  }
-  set_send_buttons_enabled(false)
-  // Final localStorage cleanup before POST
-  ls_remove(storage_key)
-  // POST /exit with handoff action — server will exit
-  // Browser stays open. SSE will reconnect when server restarts.
-  let url = location_origin() + "/exit"
-  fetch_post(
-    url,
-    payload,
-    fn(_response) {
-      // Server exited. Reset flags so user can interact in new round.
-      submit_in_flight.val = false
-      close_report_sent.val = false
-      pending_action.val = ""
-      // One more cleanup in case anything re-persisted
-      ls_remove(storage_key)
-    },
-  )
-}
-
 ///|
 fn json_encode_string(s : String) -> String {
   "\"" + @core.escape_js_string(s) + "\""
@@ -1378,43 +1283,50 @@ fn init_view_toggle_narrow(view_toggle : Element) -> Unit {
 }
 
 ///|
-///| Enable/disable Send to AI and Submit & Exit buttons based on SSE connection
+///| Enable/disable Submit & Exit button based on SSE connection
 fn set_send_buttons_enabled(enabled : Bool) -> Unit {
-  let send_btn = query("#send-to-ai-btn")
-  if not(is_null(send_btn)) {
-    set_disabled(send_btn, not(enabled))
-  }
   let submit_btn = query("#send-and-exit")
   if not(is_null(submit_btn)) {
     set_disabled(submit_btn, not(enabled))
   }
 }
 
+///| Update SSE status dot state (connected / reconnecting / sending)
+fn set_sse_status(state : String, label : String) -> Unit {
+  let status_el = query("#sse-status")
+  if is_null(status_el) {
+    return
+  }
+  remove_class(status_el, "sse-dot-connected")
+  remove_class(status_el, "sse-dot-reconnecting")
+  remove_class(status_el, "sse-dot-sending")
+  if state == "connected" {
+    add_class(status_el, "sse-dot-connected")
+  } else if state == "reconnecting" {
+    add_class(status_el, "sse-dot-reconnecting")
+  } else if state == "sending" {
+    add_class(status_el, "sse-dot-sending")
+  }
+  set_attribute(status_el, "title", label)
+  set_inner_html(status_el, "<span class=\"sse-dot-label\">" + label + "</span>")
+}
+
 ///| Track whether SSE was previously connected (to show "Reconnected")
 let sse_was_connected : Ref[Bool] = Ref::new(false)
 
-fn setup_sse(port : Int) -> Unit {
+fn setup_sse(_port : Int) -> Unit {
   let url = location_origin() + "/sse"
   let es = new_event_source(url)
   sse_on(es, "reload", fn(_e) { location_reload() })
   // SSE connection status tracking
   sse_on_open(es, fn() {
-    let status_el = query("#sse-status")
-    if not(is_null(status_el)) {
-      if sse_was_connected.val {
-        set_inner_html(status_el, "\u{1F7E2} Reconnected")
-      } else {
-        set_inner_html(status_el, "\u{1F7E2} Connected")
-      }
-    }
+    let label = if sse_was_connected.val { "Reconnected" } else { "Connected" }
+    set_sse_status("connected", label)
     sse_was_connected.val = true
     set_send_buttons_enabled(true)
   })
   sse_on_error_status(es, fn() {
-    let status_el = query("#sse-status")
-    if not(is_null(status_el)) {
-      set_inner_html(status_el, "\u{1F534} Disconnected <span style=\"font-size:11px;color:var(--muted)\">(reconnecting...)</span>")
-    }
+    set_sse_status("reconnecting", "Reconnecting...")
     set_send_buttons_enabled(false)
   })
 }
