@@ -183,8 +183,9 @@ npx skills add https://github.com/kazuph/reviw -g -a codex -s '*' --copy -y
 npx skills add https://github.com/kazuph/reviw -g -a codex -a opencode -s '*' --copy -y
 ```
 
-`npx skills` distributes the skill directories under `plugin/skills/`. Claude Code plugin commands and hooks are installed through the Claude Code plugin flow above, not through `npx skills`.
-```
+`npx skills` distributes the skill directories under `plugin/skills/`. With `-a codex -g --copy`, the skills are copied into Codex's global skills directory at `~/.agents/skills/`. If `~/.agents/skills` is a symlink, the copied files land in the symlink target.
+
+Claude Code plugin commands and hooks are installed through the Claude Code plugin flow above, not through `npx skills`.
 
 ### Plugin Directory Structure
 

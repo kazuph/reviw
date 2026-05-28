@@ -25,7 +25,9 @@ npx skills add https://github.com/kazuph/reviw -g -a codex -s '*' --copy -y
 npx skills add https://github.com/kazuph/reviw -g -a codex -a opencode -s '*' --copy -y
 ```
 
-この経路で入るのは `plugin/skills/` の skill だけです。Claude Code の command や hooks まで含めたい場合は、上のプラグイン導線を使ってください。
+この経路で入るのは `plugin/skills/` の skill だけです。`-a codex -g --copy` を付けると、Codex のグローバルスキル置き場である `~/.agents/skills/` にコピーされます。`~/.agents/skills` が symlink の場合は、そのリンク先に実体が置かれます。
+
+Claude Code の command や hooks まで含めたい場合は、上のプラグイン導線を使ってください。
 
 ## 更新
 
