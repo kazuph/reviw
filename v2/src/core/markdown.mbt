@@ -502,6 +502,14 @@ fn render_inline(text : String) -> String {
         if url_end > 0 {
           let alt = safe_slice_range(text, alt_start, alt_end)
           let src = safe_slice_range(text, url_start, url_end)
+          // ![alt]() with an empty target renders as a ghost <img> that
+          // swallows the literal text (e.g. when quoting the syntax itself)
+          // and pollutes the media sidebar — keep it as plain text instead.
+          if is_blank_url(src) {
+            buf.write_string(escape_html(safe_slice_range(text, i, url_end + 1)))
+            i = url_end + 1
+            continue
+          }
           let escaped_src = escape_html(src)
           if is_video_url(src) {
             buf.write_string("<video class=\"video-preview\" controls preload=\"metadata\" src=\"")
@@ -919,6 +927,11 @@ fn is_mermaid_content(text : String) -> Bool {
   t.has_prefix("gitGraph") || t.has_prefix("mindmap") || t.has_prefix("timeline")
 }
 
+///| Is the image/link target empty or whitespace-only?
+fn is_blank_url(url : String) -> Bool {
+  trim(url) == ""
+}
+
 ///| Check if URL points to a video file
 fn is_video_url(url : String) -> Bool {
   let lower = url.to_lower()
@@ -1073,7 +1086,6 @@ fn build_media_sidebar(buf : StringBuilder) -> Unit {
   // Sidebar container
   buf.write_string("<div class=\"media-sidebar hidden\" id=\"media-sidebar\">")
   buf.write_string("<div class=\"media-sidebar-thumbs\" id=\"media-sidebar-thumbs\"></div>")
-  buf.write_string("<div class=\"media-sidebar-viewer\" id=\"media-sidebar-viewer\"></div>")
   buf.write_string("</div>")
 }
 

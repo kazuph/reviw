@@ -376,9 +376,9 @@ fn update_minimap_viewport(state : ZPVState) -> Unit {
   if vp_rect[2] <= 0.0 || vp_rect[3] <= 0.0 {
     return
   }
-  let minimap = closest(state.minimap_viewport_el, ".minimap, .sidebar-minimap")
+  let minimap = closest(state.minimap_viewport_el, ".minimap")
   if is_null(minimap) { return }
-  let minimap_content = query_in(minimap, ".minimap-content, .sidebar-minimap-content")
+  let minimap_content = query_in(minimap, ".minimap-content")
   if is_null(minimap_content) { return }
   let minimap_subject = query_in(minimap_content, "svg, img")
   if is_null(minimap_subject) { return }

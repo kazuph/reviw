@@ -412,6 +412,7 @@ pub fn init_app() -> Unit {
   if saved_theme.length() > 0 {
     set_theme(saved_theme)
     toggle_hljs_theme(saved_theme)
+    update_theme_button(saved_theme)
   }
   // Setup theme toggle with localStorage persistence
   let theme_btn = query("#theme-toggle")
@@ -425,10 +426,12 @@ pub fn init_app() -> Unit {
           set_theme("light")
           toggle_hljs_theme("light")
           local_storage_set("reviw:theme", "light")
+          update_theme_button("light")
         } else {
           set_theme("dark")
           toggle_hljs_theme("dark")
           local_storage_set("reviw:theme", "dark")
+          update_theme_button("dark")
         }
       },
     )
@@ -1230,6 +1233,32 @@ fn json_encode_string(s : String) -> String {
   "\"" + @core.escape_js_string(s) + "\""
 }
 
+///| Theme button shows the mode you would switch TO (moon=to dark, sun=to light)
+fn update_theme_button(theme : String) -> Unit {
+  let icon = query("#theme-icon")
+  if !(is_null(icon)) {
+    set_text_content(icon, if theme == "dark" { "\u{2600}\u{FE0F}" } else { "\u{1F319}" })
+  }
+  let btn = query("#theme-toggle")
+  if !(is_null(btn)) {
+    set_attribute(
+      btn,
+      "title",
+      if theme == "dark" { "Switch to light theme" } else { "Switch to dark theme" },
+    )
+  }
+}
+
+///| Swap the view-toggle icon without wiping the "Source" text label
+fn set_view_toggle_icon(view_toggle : Element, icon : String) -> Unit {
+  let icon_el = query("#view-toggle-icon")
+  if is_null(icon_el) {
+    set_text_content(view_toggle, icon)
+  } else {
+    set_text_content(icon_el, icon)
+  }
+}
+
 ///| Panel state toggle — cli.cjs L7232-7270 initPanelState
 fn init_view_toggle() -> Unit {
   let view_toggle = query("#view-toggle")
@@ -1241,7 +1270,7 @@ fn init_view_toggle() -> Unit {
   let saved = local_storage_get("reviw-panel-state")
   if saved == "preview-only" {
     add_class(md_layout, "preview-only")
-    set_text_content(view_toggle, "\u{1F441}")
+    set_view_toggle_icon(view_toggle, "\u{1F441}")
     set_attribute(view_toggle, "title", "Show source panel")
     add_class(view_toggle, "active")
   }
@@ -1256,12 +1285,12 @@ fn init_view_toggle() -> Unit {
       let is_now_preview_only = !(has_class(md_layout, "preview-only"))
       if is_now_preview_only {
         add_class(md_layout, "preview-only")
-        set_text_content(view_toggle, "\u{1F441}")
+        set_view_toggle_icon(view_toggle, "\u{1F441}")
         set_attribute(view_toggle, "title", "Show source panel")
         add_class(view_toggle, "active")
       } else {
         remove_class(md_layout, "preview-only")
-        set_text_content(view_toggle, "\u{1F4DD}")
+        set_view_toggle_icon(view_toggle, "\u{1F4DD}")
         set_attribute(view_toggle, "title", "Hide source panel")
         remove_class(view_toggle, "active")
       }

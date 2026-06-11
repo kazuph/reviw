@@ -239,65 +239,119 @@ async function measureMinimap(page: Page, selectors: MinimapSelectors): Promise<
   }, selectors);
 }
 
-interface OverlaySelectors {
-  viewport: string;
-  minimap: string;
+interface NavState {
+  activeIndex: number | null;
+  highlightedIndex: number | null;
+  highlightCount: number;
+  visibleRatio: number | null;
 }
 
-interface OverlayPlacement {
-  ok: boolean;
-  reason?: string;
-  found?: Record<string, boolean>;
-  viewportRect?: Record<string, number>;
-  minimapRect?: Record<string, number>;
-  marginTop?: number;
-  marginRight?: number;
-  centerY?: number;
-  viewportMidY?: number;
-  isUpperHalf?: boolean;
-  insideViewport?: boolean;
-}
+// Video extensions accepted by the runtime (collect_media_items in media_sidebar.mbt).
+// Keep in sync so test indices never drift from sidebar thumb indices.
+const VIDEO_EXTS = [".mp4", ".mov", ".webm", ".avi", ".mkv", ".m4v", ".ogv"];
 
-async function measureOverlayPlacement(page: Page, selectors: OverlaySelectors): Promise<OverlayPlacement> {
-  return page.evaluate((sel) => {
-    const viewport = document.querySelector(sel.viewport);
-    const minimap = document.querySelector(sel.minimap);
-    if (!viewport || !minimap) {
-      return { ok: false, reason: "missing-elements", found: { viewport: !!viewport, minimap: !!minimap } };
+// Snapshot of the scroll-navigator state: which thumb is active, which
+// preview media is highlighted, and how visible the media at `index` is.
+async function measureNavState(page: Page, index: number): Promise<NavState> {
+  return page.evaluate(({ idx, exts }) => {
+    const preview = document.querySelector(".md-preview");
+    const mediaEls = preview
+      ? Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+          if (el.tagName !== "VIDEO") return true;
+          const src = (el.getAttribute("src") || "").toLowerCase();
+          return exts.some((ext: string) => src.endsWith(ext));
+        })
+      : [];
+    const activeThumb = document.querySelector(".media-sidebar-thumb.active");
+    const activeIndex = activeThumb
+      ? parseInt(activeThumb.getAttribute("data-media-index") || "-1", 10)
+      : null;
+    const highlighted = Array.from(document.querySelectorAll(".media-nav-highlight"));
+    const highlightedIndex = highlighted.length === 1 ? mediaEls.indexOf(highlighted[0]) : null;
+
+    let visibleRatio: number | null = null;
+    const target = mediaEls[idx];
+    if (target) {
+      const r = target.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+      visibleRatio = visible / Math.min(r.height, vh);
     }
-    const rect = (el: Element) => {
-      const r = el.getBoundingClientRect();
-      return {
-        left: r.left,
-        top: r.top,
-        right: r.right,
-        bottom: r.bottom,
-        width: r.width,
-        height: r.height,
-      };
-    };
-    const viewportRect = rect(viewport);
-    const minimapRect = rect(minimap);
-    const marginTop = minimapRect.top - viewportRect.top;
-    const marginRight = viewportRect.right - minimapRect.right;
-    const centerY = minimapRect.top + minimapRect.height / 2;
-    const viewportMidY = viewportRect.top + viewportRect.height / 2;
+
     return {
-      ok: true,
-      viewportRect,
-      minimapRect,
-      marginTop,
-      marginRight,
-      centerY,
-      viewportMidY,
-      isUpperHalf: centerY < viewportMidY,
-      insideViewport:
-        minimapRect.left >= viewportRect.left &&
-        minimapRect.top >= viewportRect.top &&
-        minimapRect.right <= viewportRect.right &&
-        minimapRect.bottom <= viewportRect.bottom,
+      activeIndex,
+      highlightedIndex,
+      highlightCount: highlighted.length,
+      visibleRatio,
     };
-  }, selectors);
+  }, { idx: index, exts: VIDEO_EXTS });
+}
+
+// Wait until the smooth scroll towards media `index` settles (target rect
+// stable for several consecutive polls) instead of a fixed sleep.
+async function waitForNavSettle(page: Page, index: number): Promise<void> {
+  await page.waitForFunction(
+    ({ idx, exts }) => {
+      const w = window as any;
+      const preview = document.querySelector(".md-preview");
+      if (!preview) return false;
+      const mediaEls = Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+        if (el.tagName !== "VIDEO") return true;
+        const src = (el.getAttribute("src") || "").toLowerCase();
+        return exts.some((ext: string) => src.endsWith(ext));
+      });
+      const target = mediaEls[idx];
+      if (!target) return false;
+      const top = target.getBoundingClientRect().top;
+      if (!w.__navSettle || w.__navSettle.idx !== idx) {
+        w.__navSettle = { idx, top, stable: 0 };
+        return false;
+      }
+      if (Math.abs(w.__navSettle.top - top) < 0.5) {
+        w.__navSettle.stable++;
+      } else {
+        w.__navSettle.top = top;
+        w.__navSettle.stable = 0;
+      }
+      return w.__navSettle.stable >= 3;
+    },
+    { idx: index, exts: VIDEO_EXTS },
+    { timeout: 10000, polling: 100 },
+  );
+}
+
+// Start sampling preview media counts (50ms interval) to prove nothing
+// disappears mid-navigation — guards the original "blank flash" complaint.
+async function startMediaSampler(page: Page): Promise<void> {
+  await page.evaluate((exts) => {
+    const w = window as any;
+    w.__mediaSamples = [];
+    w.__mediaSampler = setInterval(() => {
+      const preview = document.querySelector(".md-preview");
+      const els = preview
+        ? Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+            if (el.tagName !== "VIDEO") return true;
+            const src = (el.getAttribute("src") || "").toLowerCase();
+            return exts.some((ext: string) => src.endsWith(ext));
+          })
+        : [];
+      let rendered = 0;
+      els.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        if (r.width > 0 && r.height > 0 && style.visibility !== "hidden" && style.display !== "none") rendered++;
+      });
+      w.__mediaSamples.push({ total: els.length, rendered });
+    }, 50);
+  }, VIDEO_EXTS);
+}
+
+async function stopMediaSampler(page: Page): Promise<Array<{ total: number; rendered: number }>> {
+  return page.evaluate(() => {
+    const w = window as any;
+    clearInterval(w.__mediaSampler);
+    return w.__mediaSamples as Array<{ total: number; rendered: number }>;
+  });
 }
 
 const proc = spawn(
@@ -331,11 +385,15 @@ try {
   await page.goto(`http://127.0.0.1:${port}`, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(3000);
 
-  const thumbSummary = await page.evaluate(() => {
+  const thumbSummary = await page.evaluate((exts) => {
     const preview = document.querySelector(".md-preview");
     const thumbs = Array.from(document.querySelectorAll(".media-sidebar-thumb"));
     const expected = preview
-      ? preview.querySelectorAll("img, video.video-preview, .mermaid-container").length
+      ? Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+          if (el.tagName !== "VIDEO") return true;
+          const src = (el.getAttribute("src") || "").toLowerCase();
+          return exts.some((ext: string) => src.endsWith(ext));
+        }).length
       : 0;
     return {
       expected,
@@ -352,7 +410,7 @@ try {
         };
       }),
     };
-  });
+  }, VIDEO_EXTS);
 
   assert(pageErrors.length === 0, "ページ初期化でJS例外が出ない", pageErrors);
   assert(
@@ -366,62 +424,100 @@ try {
     thumbSummary.details,
   );
 
-  await page.locator(".media-sidebar-thumb-mermaid").first().click();
-  await page.waitForTimeout(800);
-  const sidebarMeasure = await measureMinimap(page, {
-    source: ".sidebar-mermaid-wrapper svg",
-    wrapper: ".sidebar-mermaid-wrapper",
-    viewport: ".sidebar-mermaid-viewport",
-    minimap: ".sidebar-minimap",
-    minimapSvg: ".sidebar-minimap-content svg",
-    minimapViewport: ".sidebar-minimap-viewport",
-  });
+  // --- Scroll-navigator spec: the 45vw sidebar viewer panel is gone ---
+  const viewerGone = await page.evaluate(() => ({
+    viewerEl: !!document.querySelector("#media-sidebar-viewer"),
+    viewerClass: !!document.querySelector(".media-sidebar-viewer"),
+  }));
   assert(
-    sidebarMeasure.ok && sidebarMeasure.maxAbsDelta! <= 3,
-    "Sidebar Mermaid ミニマップが表示領域に追従する",
-    sidebarMeasure,
-  );
-  const sidebarPlacement = await measureOverlayPlacement(page, {
-    viewport: ".sidebar-mermaid-viewport",
-    minimap: ".sidebar-minimap",
-  });
-  assert(
-    sidebarPlacement.ok &&
-      sidebarPlacement.insideViewport! &&
-      sidebarPlacement.isUpperHalf! &&
-      sidebarPlacement.marginTop! >= 0 &&
-      sidebarPlacement.marginTop! <= 32 &&
-      sidebarPlacement.marginRight! >= 0 &&
-      sidebarPlacement.marginRight! <= 24,
-    "Sidebar Mermaid ミニマップが右下ではなく右上に固定される",
-    sidebarPlacement,
+    !viewerGone.viewerEl && !viewerGone.viewerClass,
+    "サイドバービューアパネルがDOMに存在しない（スクロールナビ仕様）",
+    viewerGone,
   );
 
-  const sidebarViewport = page.locator(".sidebar-mermaid-viewport");
-  const sidebarBox = await sidebarViewport.boundingBox();
-  await page.mouse.move(sidebarBox!.x + sidebarBox!.width * 0.72, sidebarBox!.y + sidebarBox!.height * 0.46);
-  await page.mouse.down();
-  await page.mouse.move(sidebarBox!.x + sidebarBox!.width * 0.54, sidebarBox!.y + sidebarBox!.height * 0.34, {
-    steps: 8,
-  });
-  await page.mouse.up();
-  await page.waitForTimeout(250);
-  const sidebarAfterPan = await measureMinimap(page, {
-    source: ".sidebar-mermaid-wrapper svg",
-    wrapper: ".sidebar-mermaid-wrapper",
-    viewport: ".sidebar-mermaid-viewport",
-    minimap: ".sidebar-minimap",
-    minimapSvg: ".sidebar-minimap-content svg",
-    minimapViewport: ".sidebar-minimap-viewport",
-  });
+  // --- Click the last thumbnail: preview scrolls to that media + highlight ---
+  const lastIdx = thumbSummary.actual - 1;
+  await page.locator(`.media-sidebar-thumb[data-media-index="${lastIdx}"]`).click();
+  await waitForNavSettle(page, lastIdx);
+
+  const afterClick = await measureNavState(page, lastIdx);
   assert(
-    sidebarAfterPan.ok && sidebarAfterPan.maxAbsDelta! <= 3,
-    "Sidebar Mermaid ミニマップがパン後も表示領域に追従する",
-    sidebarAfterPan,
+    afterClick.activeIndex === lastIdx,
+    "サムネクリックで該当サムネが active になる",
+    afterClick,
+  );
+  assert(
+    afterClick.visibleRatio !== null && afterClick.visibleRatio >= 0.5,
+    "サムネクリックでメインプレビューが該当メディアまでスクロールする",
+    afterClick,
+  );
+  assert(
+    afterClick.highlightCount === 1 && afterClick.highlightedIndex === lastIdx,
+    "スクロール先のメディアにハイライトリングが付く",
+    afterClick,
   );
 
+  // --- Highlight auto-clears after ~1.6s (poll instead of fixed sleep) ---
+  const highlightCleared = await page.waitForFunction(
+    () => document.querySelectorAll(".media-nav-highlight").length === 0,
+    undefined,
+    { timeout: 5000 },
+  ).then(() => true).catch(() => false);
+  assert(highlightCleared, "ハイライトリングは約1.6秒で自動的に消える");
+
+  // --- Arrow navigation while sampling media counts: nothing may disappear
+  //     mid-transition (guards the original "blank flash" complaint) ---
+  await startMediaSampler(page);
+
+  await page.keyboard.press("ArrowUp");
+  await waitForNavSettle(page, lastIdx - 1);
+  const afterUp = await measureNavState(page, lastIdx - 1);
+  assert(
+    afterUp.activeIndex === lastIdx - 1 &&
+      afterUp.visibleRatio !== null &&
+      afterUp.visibleRatio >= 0.5 &&
+      afterUp.highlightedIndex === lastIdx - 1,
+    "ArrowUp で前のメディアへスクロール＆ハイライトする",
+    afterUp,
+  );
+
+  await page.keyboard.press("ArrowDown");
+  await waitForNavSettle(page, lastIdx);
+  const afterDown = await measureNavState(page, lastIdx);
+  assert(
+    afterDown.activeIndex === lastIdx &&
+      afterDown.visibleRatio !== null &&
+      afterDown.visibleRatio >= 0.5,
+    "ArrowDown で次のメディアへ戻る",
+    afterDown,
+  );
+
+  const samples = await stopMediaSampler(page);
+  const expectedCount = thumbSummary.expected;
+  const flickered = samples.filter((s) => s.total !== expectedCount || s.rendered !== expectedCount);
+  assert(
+    samples.length >= 5 && flickered.length === 0,
+    "矢印キー遷移中もプレビューのメディアが一切消えない（チラつき非再発）",
+    { sampleCount: samples.length, expectedCount, flickered: flickered.slice(0, 5) },
+  );
+
+  // --- Escape clears the active selection and highlight ---
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(300);
+  const escaped = await page.waitForFunction(
+    () =>
+      !document.querySelector(".media-sidebar-thumb.active") &&
+      document.querySelectorAll(".media-nav-highlight").length === 0,
+    undefined,
+    { timeout: 3000 },
+  ).then(() => true).catch(() => false);
+  const afterEscape = await measureNavState(page, lastIdx);
+  assert(
+    escaped && afterEscape.activeIndex === null && afterEscape.highlightCount === 0,
+    "Escape で active とハイライトが解除される",
+    afterEscape,
+  );
+
+  // --- Fullscreen Mermaid minimap (full-size viewing now lives here) ---
   await page.locator(".mermaid-fullscreen-btn").first().click();
   await page.waitForTimeout(800);
   const fullscreenMeasure = await measureMinimap(page, {
@@ -480,30 +576,35 @@ try {
     fullscreenAfterZoom,
   );
 
-  // --- Video settings panel button functionality ---
-  // Find and click a video thumbnail
+  // --- Fullscreen video viewer: settings panel button functionality ---
   await page.keyboard.press("Escape");
   await page.waitForTimeout(300);
-  const videoThumb = page.locator(".media-sidebar-thumb").filter({ has: page.locator("video") }).first();
-  if (await videoThumb.count() > 0) {
-    await videoThumb.click();
+  const fsBtn = page.locator(".video-fs-overlay-btn").first();
+  if (await fsBtn.count() > 0) {
+    await fsBtn.click();
     await page.waitForTimeout(1500);
 
+    const overlayVisible = await page.evaluate(() => {
+      const overlay = document.querySelector("#video-fullscreen");
+      return overlay ? overlay.classList.contains("visible") : false;
+    });
+    assert(overlayVisible, "動画フルスクリーンビューアが開く");
+
     // Open settings panel
-    const settingsBtn = page.locator(".sidebar-viewer-settings-btn");
+    const settingsBtn = page.locator("#video-settings-btn");
     if (await settingsBtn.count() > 0) {
       await settingsBtn.click();
       await page.waitForTimeout(300);
 
       const panelVisible = await page.evaluate(() => {
-        const p = document.querySelector(".video-settings-panel");
+        const p = document.querySelector("#video-settings-panel");
         return p ? p.classList.contains("visible") : false;
       });
       assert(panelVisible, "Video settings panel opens on button click");
 
-      // Click a non-selected button in Scene Sensitivity
+      // Click a non-selected button in the first settings row
       const result = await page.evaluate(() => {
-        const rows = document.querySelectorAll(".video-settings-panel .video-settings-buttons");
+        const rows = document.querySelectorAll("#video-settings-panel .video-settings-buttons");
         if (!rows[0]) return { ok: false, reason: "no button row", rowCount: rows.length };
         const buttons = rows[0].querySelectorAll("button");
         if (buttons.length < 2) return { ok: false, reason: "not enough buttons", count: buttons.length };
@@ -514,7 +615,11 @@ try {
         return { ok: newSelected === targetIdx, initialSelected, newSelected, targetIdx };
       });
       assert(result.ok, "Video settings button click updates selected state", result);
+    } else {
+      fail("動画フルスクリーンの settings ボタンが見つからない");
     }
+  } else {
+    fail("動画の fullscreen ボタン (.video-fs-overlay-btn) が見つからない");
   }
 
   if (failed > 0) {

@@ -39,8 +39,13 @@ A lightweight browser-based tool for reviewing and annotating tabular data, text
 
 ### Media Sidebar
 - Thumbnail gallery of all images and videos in the left sidebar
-- Click any thumbnail to scroll to the corresponding media and highlight the source line
+- Click any thumbnail to scroll to the corresponding media and highlight it
+- ArrowUp/ArrowDown to jump between media, Escape to clear the selection
 - Numbered badges for quick identification
+
+### Media Embed Discipline (AI-friendly)
+- `reviw file.md` refuses to start (exit 1) when media files are written as `[text](path)` links instead of `![alt](path)` embeds
+- The error lists every violation with line numbers and ready-to-apply fixes, so AI agents can self-correct and retry
 
 ### Media Fullscreen
 - Click images in Markdown preview to open fullscreen viewer

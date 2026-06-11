@@ -222,12 +222,50 @@ fn main {
     print_usage()
     process_exit(1)
   }
+  // Enforce media embed discipline before serving anything:
+  // [text](media) links hide evidence from the reviewer — refuse and
+  // let the caller (usually an AI agent) fix the markdown first.
+  enforce_media_discipline(files)
   // Start servers for each file
   expected_count.val = files.length()
   ensure_lock_dir()
   for idx, file_path in files {
     let current_port = find_available_port(port + idx)
     start_file_server(file_path, current_port, no_open)
+  }
+}
+
+///| Exit with a fix-it message when markdown files link (instead of embed) media
+fn enforce_media_discipline(files : Array[String]) -> Unit {
+  let mut violation_total = 0
+  for file_path in files {
+    let resolved = path_resolve(file_path)
+    if !(exists_sync(resolved)) { continue }
+    if detect_mode(resolved) != @core.FileMode::Markdown { continue }
+    let content = decode_file(resolved, encoding_override.val)
+    let violations = @core.find_media_link_violations(content)
+    if violations.is_empty() { continue }
+    if violation_total == 0 {
+      console_error("reviw: media embed discipline violation")
+    }
+    console_error("")
+    console_error(resolved)
+    for v in violations {
+      console_error("  line " + v.line_no.to_string() + ": " + v.snippet)
+      console_error("    fix: " + v.fixed)
+    }
+    violation_total = violation_total + violations.length()
+  }
+  if violation_total > 0 {
+    console_error("")
+    console_error(
+      "Images and videos must be EMBEDDED with ![alt](path) image syntax, not referenced as [text](path) links.",
+    )
+    console_error(
+      "reviw renders only embedded media; a plain link hides the evidence from the reviewer.",
+    )
+    console_error("Fix the lines above, then run reviw again.")
+    process_exit(1)
   }
 }
 

@@ -85,6 +85,24 @@ test "parse markdown images" {
   ))
 }
 
+test "empty image target stays literal text (no ghost img)" {
+  // Quoting the ![]() syntax itself must not produce <img src="">
+  let md = parse_markdown("use ![]() syntax for media")
+  inspect(md.html.contains("<img"), content=(
+    #|false
+  ))
+  inspect(md.html.contains("![]()"), content=(
+    #|true
+  ))
+}
+
+test "whitespace-only image target stays literal text" {
+  let md = parse_markdown("broken ![alt](  ) embed")
+  inspect(md.html.contains("<img"), content=(
+    #|false
+  ))
+}
+
 test "parse markdown blockquote" {
   let md = parse_markdown("> quoted text")
   inspect(md.html.contains("<blockquote>"), content=(

@@ -100,9 +100,6 @@ extern "js" fn event_target(e : Event) -> Element =
 extern "js" fn event_key(e : Event) -> String =
   #|(e) => e.key || ""
 
-extern "js" fn event_property_name(e : Event) -> String =
-  #|(e) => e.propertyName || ""
-
 extern "js" fn event_meta_key(e : Event) -> Bool =
   #|(e) => e.metaKey || false
 
@@ -614,9 +611,6 @@ extern "js" fn get_attribute(el : Element, name : String) -> String =
 
 extern "js" fn remove_attribute(el : Element, name : String) -> Unit =
   #|(el, n) => { if (el) el.removeAttribute(n); }
-
-extern "js" fn get_client_width(el : Element) -> Double =
-  #|(el) => el?.clientWidth || 0
 
 extern "js" fn clone_node_deep(el : Element) -> Element =
   #|(el) => el ? el.cloneNode(true) : null
