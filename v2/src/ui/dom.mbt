@@ -203,18 +203,18 @@ extern "js" fn ls_remove(key : String) -> Unit =
   #|(key) => localStorage.removeItem(key)
 
 ///| Window globals
-extern "js" fn get_douzo_port() -> Int =
-  #|() => window.__DOUZO_PORT__ || 4989
+extern "js" fn get_yunomi_port() -> Int =
+  #|() => window.__YUNOMI_PORT__ || 4989
 
-extern "js" fn get_douzo_mode() -> String =
-  #|() => window.__DOUZO_MODE__ || "text"
+extern "js" fn get_yunomi_mode() -> String =
+  #|() => window.__YUNOMI_MODE__ || "text"
 
-extern "js" fn get_douzo_filename() -> String =
-  #|() => window.__DOUZO_FILENAME__ || ""
+extern "js" fn get_yunomi_filename() -> String =
+  #|() => window.__YUNOMI_FILENAME__ || ""
 
 extern "js" fn get_or_create_tab_id() -> String =
   #|() => {
-  #|  const key = "douzo:tab-id";
+  #|  const key = "yunomi:tab-id";
   #|  try {
   #|    let id = sessionStorage.getItem(key);
   #|    if (!id) {
@@ -224,7 +224,7 @@ extern "js" fn get_or_create_tab_id() -> String =
   #|    return id;
   #|  } catch (_) {
   #|    if (!window.name) {
-  #|      window.name = `douzo-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  #|      window.name = `yunomi-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   #|    }
   #|    return window.name;
   #|  }
@@ -744,8 +744,8 @@ extern "js" fn get_computed_style(el : Element, prop : String) -> String =
 extern "js" fn _children_count(el : Element) -> Int =
   #|(el) => el?.children?.length || 0
 
-///| Collect douzo answers from question panel
-extern "js" fn collect_douzo_answers() -> String =
+///| Collect yunomi answers from question panel
+extern "js" fn collect_yunomi_answers() -> String =
   #|() => {
   #|  var answers = {};
   #|  document.querySelectorAll('.question-card').forEach(function(item) {
@@ -956,7 +956,7 @@ extern "js" fn log_mermaid_errors_to_console() -> Unit =
   #|() => {
   #|  const errs = window.__mermaidErrors || [];
   #|  if (errs.length > 0) {
-  #|    console.error('[douzo] Mermaid has ' + errs.length + ' error(s):');
-  #|    errs.forEach(function(e, i) { console.error('[douzo] Mermaid error #' + (i+1) + ' (line ' + (e.line||'?') + '):', e.message || String(e)); });
+  #|    console.error('[yunomi] Mermaid has ' + errs.length + ' error(s):');
+  #|    errs.forEach(function(e, i) { console.error('[yunomi] Mermaid error #' + (i+1) + ' (line ' + (e.line||'?') + '):', e.message || String(e)); });
   #|  }
   #|}

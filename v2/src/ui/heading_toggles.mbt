@@ -214,7 +214,7 @@ fn setup_toggle_handlers(toggle : HeadingToggle, config : ToggleConfig) -> Unit 
 fn toggle_storage_key(toggle : HeadingToggle) -> String {
   let key = get_attribute(toggle.original_heading, "data-heading-key")
   if key.length() > 0 {
-    "douzo:heading:" + key
+    "yunomi:heading:" + key
   } else {
     ""
   }

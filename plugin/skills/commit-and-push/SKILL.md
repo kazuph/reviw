@@ -4,7 +4,7 @@ description: Auto-generate commit message, commit all changes, and push
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
-# /douzo-plugin:commit-and-push
+# /yunomi-plugin:commit-and-push
 
 <command-name>commit-and-push</command-name>
 

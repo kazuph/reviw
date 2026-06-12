@@ -304,29 +304,29 @@ npx playwright test tests/e2e/<spec>.spec.ts \
 2) Continuously append executed commands and logs.
 3) After UI changes, retake all screenshots and save to `.artifacts/<feature=branch_name>/images/` (videos to `videos/`).
 4) Verify differences visually (human-in-the-loop). If intentional, paste into README.
-5) **Start review with douzo** (see "Review with douzo" section below)
+5) **Start review with yunomi** (see "Review with yunomi" section below)
 6) If rejected, re-implement, retake screenshots and videos as long as there are changes, update REPORT.md if necessary, execute step 5 again, and loop until approved
 7) Only commit after user approval; if there's a PR, reflect all modifications in the PR description
 
-## Review with douzo
+## Review with yunomi
 
-douzo is a CLI tool that reviews CSV/TSV/Markdown/Diff/text files in a browser and outputs comments in YAML format.
+yunomi is a CLI tool that reviews CSV/TSV/Markdown/Diff/text files in a browser and outputs comments in YAML format.
 
 ### Basic Commands
 
 ```bash
 # Open a report (must run in foreground)
-npx douzo .artifacts/<feature=branch_name>/REPORT.md
+npx yunomi .artifacts/<feature=branch_name>/REPORT.md
 
 # If there's a video, open it first
 open .artifacts/<feature=branch_name>/videos/demo.webm
-npx douzo .artifacts/<feature=branch_name>/REPORT.md
+npx yunomi .artifacts/<feature=branch_name>/REPORT.md
 
 # Review git diff
-git diff HEAD | npx douzo
+git diff HEAD | npx yunomi
 
 # Open multiple files simultaneously
-npx douzo file1.md file2.csv data.tsv
+npx yunomi file1.md file2.csv data.tsv
 ```
 
 ### Options
@@ -337,7 +337,7 @@ npx douzo file1.md file2.csv data.tsv
 | `--encoding <enc>` | Specify character encoding (shift_jis, euc-jp, etc.) |
 | `--no-open` | Disable automatic browser launch |
 
-### douzo UI Features
+### yunomi UI Features
 
 - **Markdown**: Side-by-side preview, scroll sync, Mermaid diagram rendering
 - **CSV/TSV**: Fixed header, column pinning, filtering
@@ -348,7 +348,7 @@ npx douzo file1.md file2.csv data.tsv
 ### Review Workflow
 
 ```
-npx douzo .artifacts/<feature=branch_name>/REPORT.md  # Launch in foreground
+npx yunomi .artifacts/<feature=branch_name>/REPORT.md  # Launch in foreground
     ↓
 Browser opens
     ↓
@@ -360,17 +360,17 @@ Feedback is output in YAML format
     ↓
 Register feedback in TodoWrite (detailed, no summarizing)
     ↓
-Fix → Review again with douzo → Repeat until approved
+Fix → Review again with yunomi → Repeat until approved
 ```
 
 ### Important: Foreground Launch Required
 
 ```bash
 # Correct (can receive feedback)
-npx douzo report.md
+npx yunomi report.md
 
 # Wrong (cannot receive feedback)
-npx douzo report.md &
+npx yunomi report.md &
 ```
 
 Launching in the background prevents receiving user comments, so **always launch in foreground**.
@@ -521,7 +521,7 @@ Or convert to GIF for embedding:
 ffmpeg -i demo.webm -vf "fps=10,scale=600:-1" demo.gif
 ```
 
-## douzo-Specific Features
+## yunomi-Specific Features
 
 ### Collapsible Sections (details/summary)
 Use collapsible sections for long logs or detailed information:
@@ -580,7 +580,7 @@ flowchart TD
 ```
 
 ### Mermaid Diagrams
-douzo auto-renders Mermaid diagrams:
+yunomi auto-renders Mermaid diagrams:
 ```markdown
 ```mermaid
 flowchart LR
@@ -597,7 +597,7 @@ Note: Place Mermaid blocks outside tables, not inside table cells.
 - **Don't stack screenshots vertically; use 2-3 column table layouts for horizontal utilization**.
 - **Always use commit hashes in image URLs so they display even after branch deletion**.
 - **Always manage videos with Git LFS to avoid repository bloat**.
-- **Use `![](video.mp4)` syntax for video thumbnails in douzo**.
+- **Use `![](video.mp4)` syntax for video thumbnails in yunomi**.
 - **Include a Flow column with arrow notation** to describe video content at a glance.
 - **Use `<details>` for collapsible sections to keep reports clean**.
 - **Never put code fences inside table cells - it breaks the parser**.

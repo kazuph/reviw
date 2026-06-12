@@ -5,7 +5,7 @@ argument-hint: <file-or-url>
 allowed-tools: Bash, Read
 ---
 
-# /douzo-plugin:open
+# /yunomi-plugin:open
 
 <command-name>open</command-name>
 
@@ -15,8 +15,8 @@ macOSの`open`コマンドでファイルやURLを開きます。
 
 ### 引数ありの場合
 ```
-/douzo-plugin:open /path/to/file.png
-/douzo-plugin:open https://localhost:3000
+/yunomi-plugin:open /path/to/file.png
+/yunomi-plugin:open https://localhost:3000
 ```
 
 ### 引数なしの場合

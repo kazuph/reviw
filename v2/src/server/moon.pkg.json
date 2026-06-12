@@ -1,7 +1,7 @@
 {
   "is-main": true,
   "import": [
-    { "path": "kazuph/douzo/core", "alias": "core" }
+    { "path": "kazuph/yunomi/core", "alias": "core" }
   ],
   "link": {
     "js": {

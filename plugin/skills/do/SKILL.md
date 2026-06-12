@@ -1,6 +1,6 @@
 ---
 name: do
-description: Task Start - worktree creation, planning, and review preparation in douzo
+description: Task Start - worktree creation, planning, and review preparation in yunomi
 argument-hint: <task description>
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
@@ -11,7 +11,7 @@ Receive requests for tasks to be done, set up the work environment, and create a
 
 **Role: You are the Project Manager (PM) interviewing the Product Owner (user).**
 
-**ALL checkpoints must be passed before task completion. Do NOT split into separate PRs, report partial progress, or defer remaining checkpoints to "next time". This is a single continuous flow that ends with `/douzo-plugin:done`.**
+**ALL checkpoints must be passed before task completion. Do NOT split into separate PRs, report partial progress, or defer remaining checkpoints to "next time". This is a single continuous flow that ends with `/yunomi-plugin:done`.**
 
 ## ☑ 1. Interactive Discovery (REQUIRED)
 
@@ -178,13 +178,13 @@ Launch applicable agents in parallel with the Agent tool:
 
 ```
 # Code & Security の観点で助言をもらう
-Agent(subagent_type="douzo-plugin:review-code-security", prompt="以下の設計案に助言してください：\n[設計案の要約]\n[変更ファイル一覧]\n[トレードオフ]")
+Agent(subagent_type="yunomi-plugin:review-code-security", prompt="以下の設計案に助言してください：\n[設計案の要約]\n[変更ファイル一覧]\n[トレードオフ]")
 
 # E2E の観点で助言をもらう（テストに影響する変更の場合）
-Agent(subagent_type="douzo-plugin:review-e2e", prompt="以下の設計案にE2E観点で助言してください：\n[設計案の要約]")
+Agent(subagent_type="yunomi-plugin:review-e2e", prompt="以下の設計案にE2E観点で助言してください：\n[設計案の要約]")
 
 # UI/UX の観点で助言をもらう（UI変更がある場合のみ）
-Agent(subagent_type="douzo-plugin:review-ui-ux", prompt="以下のUI設計案に助言してください：\n[設計案の要約]")
+Agent(subagent_type="yunomi-plugin:review-ui-ux", prompt="以下のUI設計案に助言してください：\n[設計案の要約]")
 ```
 
 Incorporate Review Agent advisory feedback into the proposal.
@@ -361,13 +361,13 @@ Launch subagent with Task tool
 
 $ARGUMENTS = Request text for what to do, specification explanation, etc.
 
-## When Receiving Feedback from douzo (YAML format)
+## When Receiving Feedback from yunomi (YAML format)
 
-When `/do` is called with YAML-formatted feedback from douzo (after user submits review), follow this flow:
+When `/do` is called with YAML-formatted feedback from yunomi (after user submits review), follow this flow:
 
-### Detecting douzo Feedback
+### Detecting yunomi Feedback
 
-If $ARGUMENTS contains YAML with `file:`, `mode:`, `comments:` fields, this is douzo feedback:
+If $ARGUMENTS contains YAML with `file:`, `mode:`, `comments:` fields, this is yunomi feedback:
 
 ```yaml
 file: REPORT.md
@@ -403,7 +403,7 @@ comments:
    ```
 
 4. **Final verification**
-   - Run /douzo-plugin:done to open report in douzo for user review
+   - Run /yunomi-plugin:done to open report in yunomi for user review
    - Get explicit user approval before completing
 
 ### Example
@@ -703,7 +703,7 @@ Mermaid diagrams should only be used when visual representation adds value that 
 
 #### Common
 - [ ] Collect evidence with artifact-proof
-- [ ] Complete report with /done (review in douzo)
+- [ ] Complete report with /done (review in yunomi)
 
 ### Completion Criteria
 
@@ -711,7 +711,7 @@ Mermaid diagrams should only be used when visual representation adds value that 
 - [ ] Build successful
 - [ ] Operation verified
 - [ ] Evidence (screenshots/videos) collected
-- [ ] Reviewed in douzo
+- [ ] Reviewed in yunomi
 
 ## Test Results
 
@@ -766,7 +766,7 @@ The main thread should focus on the director role and proceed with the following
 │     ├─ Independent tasks → Launch subagents in parallel         │
 │     └─ Dependent tasks → Launch after previous completion       │
 │  3. Integrate results from each subagent                        │
-│  4. Proceed to /douzo-plugin:done                               │
+│  4. Proceed to /yunomi-plugin:done                               │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -775,18 +775,18 @@ The main thread should focus on the director role and proceed with the following
 
 ```
 # Launch 3 independent component implementations in parallel
-Task(subagent_type="douzo-plugin:webapp-impl", prompt="Implement HeaderComponent...")
-Task(subagent_type="douzo-plugin:webapp-impl", prompt="Implement SidebarComponent...")
-Task(subagent_type="douzo-plugin:webapp-impl", prompt="Implement FooterComponent...")
+Task(subagent_type="yunomi-plugin:webapp-impl", prompt="Implement HeaderComponent...")
+Task(subagent_type="yunomi-plugin:webapp-impl", prompt="Implement SidebarComponent...")
+Task(subagent_type="yunomi-plugin:webapp-impl", prompt="Implement FooterComponent...")
 ```
 
 **Subagent Selection Criteria:**
 
 | Task Type | subagent_type | Project Types | Notes |
 |-----------|---------------|---------------|------|
-| Web UI Implementation | `douzo-plugin:webapp-impl` | web, fullstack | General frontend with zero-tolerance policy |
-| Backend Implementation | `douzo-plugin:backend-impl` | backend, fullstack | API/service implementation |
-| Mobile Implementation | `douzo-plugin:mobile-impl` | mobile | Mobile app implementation |
+| Web UI Implementation | `yunomi-plugin:webapp-impl` | web, fullstack | General frontend with zero-tolerance policy |
+| Backend Implementation | `yunomi-plugin:backend-impl` | backend, fullstack | API/service implementation |
+| Mobile Implementation | `yunomi-plugin:mobile-impl` | mobile | Mobile app implementation |
 | Expo/RN Implementation | `expo-app-maker` | mobile | Expo/React Native specific |
 | Code Investigation | `Explore` | ALL | Understanding existing code |
 | Design Review | `Plan` | ALL | Architecture review |
@@ -812,28 +812,28 @@ Task(subagent_type="douzo-plugin:webapp-impl", prompt="Implement FooterComponent
 |  Completion criteria:                                         |
 |    1/3: Implementation complete                               |
 |    2/3: Build, start, and operation verification complete     |
-|    3/3: Review in douzo → User approval                       |
+|    3/3: Review in yunomi → User approval                       |
 |                                                               |
 |  Tools to use:                                                |
-|    - douzo: Browser-based review tool                         |
+|    - yunomi: Browser-based review tool                         |
 |    - webapp-testing: Browser operation and verification       |
 |    - artifact-proof: Evidence collection                      |
 |                                                               |
 +---------------------------------------------------------------+
 ```
 
-## ☑ 5. Execute /douzo-plugin:done (MANDATORY)
+## ☑ 5. Execute /yunomi-plugin:done (MANDATORY)
 
-**After implementation is complete, you MUST execute `/douzo-plugin:done` to proceed to the review flow.**
+**After implementation is complete, you MUST execute `/yunomi-plugin:done` to proceed to the review flow.**
 
 This is NOT optional. Implementation without review is incomplete.
 
 ```
 Implementation done
   ↓
-Execute /douzo-plugin:done
+Execute /yunomi-plugin:done
   ↓
-done handles: build → verification → review agents → report → douzo
+done handles: build → verification → review agents → report → yunomi
   ↓
 User approval
   ↓
@@ -974,4 +974,4 @@ This will:
 2. Write the plan to `.worktree/feature-add-login-button/.artifacts/add-login-button/REPORT.md`
 3. Register TODOs in TodoWrite
 4. Display deliverable-focused action guidelines
-5. After implementation, execute `/douzo-plugin:done` for review
+5. After implementation, execute `/yunomi-plugin:done` for review

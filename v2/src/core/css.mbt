@@ -971,44 +971,44 @@ fn build_css() -> String {
     #|  border-radius: 4px;
     #|  font-size: 11px;
     #|}
-    #|/* Douzo questions preview cards */
-    #|.douzo-questions-preview {
+    #|/* Yunomi questions preview cards */
+    #|.yunomi-questions-preview {
     #|  display: flex;
     #|  flex-direction: column;
     #|  gap: 8px;
     #|}
-    #|.douzo-q-card {
+    #|.yunomi-q-card {
     #|  background: var(--code-bg);
     #|  border: 1px solid var(--border);
     #|  border-radius: 8px;
     #|  padding: 10px 12px;
     #|}
-    #|.douzo-q-card.resolved {
+    #|.yunomi-q-card.resolved {
     #|  border-left: 3px solid #22c55e;
     #|}
-    #|.douzo-q-card.pending {
+    #|.yunomi-q-card.pending {
     #|  border-left: 3px solid #f59e0b;
     #|}
-    #|.douzo-q-header {
+    #|.yunomi-q-header {
     #|  font-size: 12px;
     #|  color: var(--text-dim);
     #|  margin-bottom: 4px;
     #|}
-    #|.douzo-q-header strong {
+    #|.yunomi-q-header strong {
     #|  color: var(--accent);
     #|}
-    #|.douzo-q-question {
+    #|.yunomi-q-question {
     #|  font-size: 13px;
     #|  color: var(--text);
     #|  margin-bottom: 6px;
     #|}
-    #|.douzo-q-options {
+    #|.yunomi-q-options {
     #|  display: flex;
     #|  flex-wrap: wrap;
     #|  gap: 4px;
     #|  margin-bottom: 6px;
     #|}
-    #|.douzo-q-answer {
+    #|.yunomi-q-answer {
     #|  font-size: 12px;
     #|  color: #22c55e;
     #|  background: rgba(34, 197, 94, 0.1);
@@ -1423,8 +1423,8 @@ fn build_css() -> String {
     #|  text-align: center;
     #|  margin-right: 2px;
     #|}
-    #|/* Douzo Questions Modal */
-    #|.douzo-questions-overlay {
+    #|/* Yunomi Questions Modal */
+    #|.yunomi-questions-overlay {
     #|  display: none;
     #|  position: fixed;
     #|  inset: 0;
@@ -1433,10 +1433,10 @@ fn build_css() -> String {
     #|  justify-content: center;
     #|  align-items: center;
     #|}
-    #|.douzo-questions-overlay.visible {
+    #|.yunomi-questions-overlay.visible {
     #|  display: flex;
     #|}
-    #|.douzo-questions-modal {
+    #|.yunomi-questions-modal {
     #|  background: var(--card-bg);
     #|  border: 1px solid var(--border);
     #|  border-radius: 16px;
@@ -1447,25 +1447,25 @@ fn build_css() -> String {
     #|  flex-direction: column;
     #|  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
     #|}
-    #|.douzo-questions-header {
+    #|.yunomi-questions-header {
     #|  display: flex;
     #|  justify-content: space-between;
     #|  align-items: center;
     #|  padding: 16px 20px;
     #|  border-bottom: 1px solid var(--border);
     #|}
-    #|.douzo-questions-header h2 {
+    #|.yunomi-questions-header h2 {
     #|  margin: 0;
     #|  font-size: 16px;
     #|  font-weight: 600;
     #|  color: var(--text);
     #|}
-    #|.douzo-questions-header h2 span {
+    #|.yunomi-questions-header h2 span {
     #|  font-size: 14px;
     #|  color: var(--text-dim);
     #|  font-weight: 400;
     #|}
-    #|.douzo-questions-close {
+    #|.yunomi-questions-close {
     #|  width: 32px;
     #|  height: 32px;
     #|  border: none;
@@ -1476,22 +1476,22 @@ fn build_css() -> String {
     #|  border-radius: 8px;
     #|  transition: all 150ms ease;
     #|}
-    #|.douzo-questions-close:hover {
+    #|.yunomi-questions-close:hover {
     #|  background: var(--border);
     #|  color: var(--text);
     #|}
-    #|.douzo-questions-body {
+    #|.yunomi-questions-body {
     #|  flex: 1;
     #|  overflow-y: auto;
     #|  padding: 16px 20px;
     #|}
-    #|.douzo-questions-footer {
+    #|.yunomi-questions-footer {
     #|  padding: 12px 20px;
     #|  border-top: 1px solid var(--border);
     #|  display: flex;
     #|  justify-content: flex-end;
     #|}
-    #|.douzo-questions-later {
+    #|.yunomi-questions-later {
     #|  padding: 8px 16px;
     #|  border: 1px solid var(--border);
     #|  background: transparent;
@@ -1501,34 +1501,34 @@ fn build_css() -> String {
     #|  font-size: 13px;
     #|  transition: all 150ms ease;
     #|}
-    #|.douzo-questions-later:hover {
+    #|.yunomi-questions-later:hover {
     #|  background: var(--border);
     #|  color: var(--text);
     #|}
     #|/* Question Item */
-    #|.douzo-question-item {
+    #|.yunomi-question-item {
     #|  margin-bottom: 20px;
     #|  padding-bottom: 20px;
     #|  border-bottom: 1px solid var(--border);
     #|}
-    #|.douzo-question-item:last-child {
+    #|.yunomi-question-item:last-child {
     #|  margin-bottom: 0;
     #|  padding-bottom: 0;
     #|  border-bottom: none;
     #|}
-    #|.douzo-question-text {
+    #|.yunomi-question-text {
     #|  font-size: 14px;
     #|  color: var(--text);
     #|  margin-bottom: 12px;
     #|  line-height: 1.5;
     #|}
-    #|.douzo-question-options {
+    #|.yunomi-question-options {
     #|  display: flex;
     #|  flex-wrap: wrap;
     #|  gap: 8px;
     #|  margin-bottom: 12px;
     #|}
-    #|.douzo-question-option {
+    #|.yunomi-question-option {
     #|  padding: 8px 14px;
     #|  border: 1px solid var(--border);
     #|  background: transparent;
@@ -1538,16 +1538,16 @@ fn build_css() -> String {
     #|  font-size: 13px;
     #|  transition: all 150ms ease;
     #|}
-    #|.douzo-question-option:hover {
+    #|.yunomi-question-option:hover {
     #|  border-color: var(--accent);
     #|  background: rgba(96, 165, 250, 0.1);
     #|}
-    #|.douzo-question-option.selected {
+    #|.yunomi-question-option.selected {
     #|  border-color: var(--accent);
     #|  background: var(--accent);
     #|  color: var(--text-inverse);
     #|}
-    #|.douzo-question-input {
+    #|.yunomi-question-input {
     #|  width: 100%;
     #|  padding: 10px 12px;
     #|  border: 1px solid var(--border);
@@ -1558,22 +1558,22 @@ fn build_css() -> String {
     #|  resize: vertical;
     #|  min-height: 60px;
     #|}
-    #|.douzo-question-input:focus {
+    #|.yunomi-question-input:focus {
     #|  outline: none;
     #|  border-color: var(--accent);
     #|}
-    #|.douzo-question-input::placeholder {
+    #|.yunomi-question-input::placeholder {
     #|  color: var(--text-dim);
     #|}
-    #|.douzo-check-mark {
+    #|.yunomi-check-mark {
     #|  color: #22c55e;
     #|  font-weight: bold;
     #|}
-    #|.douzo-question-item.answered {
+    #|.yunomi-question-item.answered {
     #|  border-color: #22c55e;
     #|  background: rgba(34, 197, 94, 0.05);
     #|}
-    #|.douzo-question-submit {
+    #|.yunomi-question-submit {
     #|  margin-top: 10px;
     #|  padding: 8px 16px;
     #|  border: none;
@@ -1585,20 +1585,20 @@ fn build_css() -> String {
     #|  font-weight: 500;
     #|  transition: all 150ms ease;
     #|}
-    #|.douzo-question-submit:hover {
+    #|.yunomi-question-submit:hover {
     #|  filter: brightness(1.1);
     #|}
-    #|.douzo-question-submit:disabled {
+    #|.yunomi-question-submit:disabled {
     #|  opacity: 0.5;
     #|  cursor: not-allowed;
     #|}
     #|/* Resolved Section */
-    #|.douzo-resolved-section {
+    #|.yunomi-resolved-section {
     #|  margin-top: 16px;
     #|  border-top: 1px solid var(--border);
     #|  padding-top: 12px;
     #|}
-    #|.douzo-resolved-toggle {
+    #|.yunomi-resolved-toggle {
     #|  display: flex;
     #|  align-items: center;
     #|  gap: 8px;
@@ -1609,43 +1609,43 @@ fn build_css() -> String {
     #|  cursor: pointer;
     #|  padding: 4px 0;
     #|}
-    #|.douzo-resolved-toggle:hover {
+    #|.yunomi-resolved-toggle:hover {
     #|  color: var(--text);
     #|}
-    #|.douzo-resolved-toggle .arrow {
+    #|.yunomi-resolved-toggle .arrow {
     #|  transition: transform 150ms ease;
     #|}
-    #|.douzo-resolved-toggle.open .arrow {
+    #|.yunomi-resolved-toggle.open .arrow {
     #|  transform: rotate(90deg);
     #|}
-    #|.douzo-resolved-list {
+    #|.yunomi-resolved-list {
     #|  display: none;
     #|  margin-top: 12px;
     #|}
-    #|.douzo-resolved-list.visible {
+    #|.yunomi-resolved-list.visible {
     #|  display: block;
     #|}
-    #|.douzo-resolved-item {
+    #|.yunomi-resolved-item {
     #|  padding: 10px 12px;
     #|  background: var(--input-bg);
     #|  border-radius: 8px;
     #|  margin-bottom: 8px;
     #|  opacity: 0.7;
     #|}
-    #|.douzo-resolved-item:last-child {
+    #|.yunomi-resolved-item:last-child {
     #|  margin-bottom: 0;
     #|}
-    #|.douzo-resolved-q {
+    #|.yunomi-resolved-q {
     #|  font-size: 12px;
     #|  color: var(--text-dim);
     #|  margin-bottom: 4px;
     #|}
-    #|.douzo-resolved-a {
+    #|.yunomi-resolved-a {
     #|  font-size: 13px;
     #|  color: var(--text);
     #|}
     #|/* Notice Bar */
-    #|.douzo-questions-bar {
+    #|.yunomi-questions-bar {
     #|  display: none;
     #|  position: fixed;
     #|  top: 0;
@@ -1660,10 +1660,10 @@ fn build_css() -> String {
     #|  align-items: center;
     #|  gap: 12px;
     #|}
-    #|.douzo-questions-bar.visible {
+    #|.yunomi-questions-bar.visible {
     #|  display: flex;
     #|}
-    #|.douzo-questions-bar button {
+    #|.yunomi-questions-bar button {
     #|  padding: 4px 12px;
     #|  border: 1px solid rgba(255, 255, 255, 0.3);
     #|  background: rgba(255, 255, 255, 0.1);
@@ -1673,7 +1673,7 @@ fn build_css() -> String {
     #|  font-size: 12px;
     #|  transition: all 150ms ease;
     #|}
-    #|.douzo-questions-bar button:hover {
+    #|.yunomi-questions-bar button:hover {
     #|  background: rgba(255, 255, 255, 0.2);
     #|}
     #|/* Adjust layout when bar is visible */

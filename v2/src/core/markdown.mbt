@@ -44,8 +44,8 @@ pub fn parse_markdown(input : String) -> MarkdownData {
     }
     src_buf.write_string(line)
   }
-  // Parse douzo questions from frontmatter lines
-  let questions = parse_douzo_questions(lines, 0, if content_start > 0 { content_start } else { 0 })
+  // Parse yunomi questions from frontmatter lines
+  let questions = parse_yunomi_questions(lines, 0, if content_start > 0 { content_start } else { 0 })
   { source: src_buf.to_string(), html, frontmatter, questions }
 }
 
@@ -940,13 +940,13 @@ fn is_video_url(url : String) -> Bool {
   lower.has_suffix(".ogv")
 }
 
-///| Parse douzo questions from frontmatter lines
-fn parse_douzo_questions(lines : Array[String], start : Int, end : Int) -> Array[DouzoQuestion] {
-  let questions : Array[DouzoQuestion] = []
+///| Parse yunomi questions from frontmatter lines
+fn parse_yunomi_questions(lines : Array[String], start : Int, end : Int) -> Array[YunomiQuestion] {
+  let questions : Array[YunomiQuestion] = []
   let mut i = start
   while i < end {
     let line = lines[i]
-    if trim(line) == "douzo:" {
+    if trim(line) == "yunomi:" {
       i = i + 1
       while i < end {
         let ql = lines[i]
@@ -979,7 +979,7 @@ fn parse_douzo_questions(lines : Array[String], start : Int, end : Int) -> Array
 }
 
 ///| Parse a single question item starting at line i, returns (question, next_line_idx)
-fn parse_single_question(lines : Array[String], start : Int, end : Int) -> (DouzoQuestion, Int) {
+fn parse_single_question(lines : Array[String], start : Int, end : Int) -> (YunomiQuestion, Int) {
   let mut id = ""
   let mut question = ""
   let mut resolved = false
@@ -1145,8 +1145,8 @@ pub fn build_markdown_html(
     buf.write_string("<div class=\"frontmatter-header\">Document Metadata</div>")
     buf.write_string("<table class=\"frontmatter-table\"><tbody>")
     md.frontmatter.each(fn(key, value) {
-      // Skip douzo: questions from metadata display
-      if key == "douzo" {
+      // Skip yunomi: questions from metadata display
+      if key == "yunomi" {
         return
       }
       buf.write_string("<tr><th>")
@@ -1157,7 +1157,7 @@ pub fn build_markdown_html(
     })
     // Show questions preview in metadata if present
     if md.questions.length() > 0 {
-      buf.write_string("<tr><th>douzo questions</th><td>")
+      buf.write_string("<tr><th>yunomi questions</th><td>")
       buf.write_string(md.questions.length().to_string())
       buf.write_string(" question(s)</td></tr>")
     }
@@ -1204,7 +1204,7 @@ pub fn build_markdown_html(
   buf.write_string(";</script>")
   // Inject questions data
   if md.questions.length() > 0 {
-    buf.write_string("<script>window.__DOUZO_QUESTIONS__=")
+    buf.write_string("<script>window.__YUNOMI_QUESTIONS__=")
     buf.write_string(serialize_questions_json(md.questions))
     buf.write_string(";</script>")
   }

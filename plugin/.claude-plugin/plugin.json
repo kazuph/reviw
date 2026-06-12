@@ -1,13 +1,13 @@
 {
-  "name": "douzo-plugin",
+  "name": "yunomi-plugin",
   "version": "2.0.0",
-  "description": "douzo CLI integration - task management skills, review workflow, and report generation agents. Supports web, backend, and mobile projects.",
+  "description": "yunomi CLI integration - task management skills, review workflow, and report generation agents. Supports web, backend, and mobile projects.",
   "author": {
     "name": "kazuph",
     "url": "https://github.com/kazuph"
   },
-  "homepage": "https://github.com/kazuph/douzo",
-  "repository": "https://github.com/kazuph/douzo",
+  "homepage": "https://github.com/kazuph/yunomi",
+  "repository": "https://github.com/kazuph/yunomi",
   "license": "MIT",
   "keywords": [
     "review",

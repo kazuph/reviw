@@ -541,7 +541,7 @@ fn spawn_async(cmd : String, args_json : String) -> JsValue {
 
 ///| Make temp directory
 fn make_temp_dir() -> String {
-  fs_mkdtemp_sync(os_tmpdir() + "/douzo-")
+  fs_mkdtemp_sync(os_tmpdir() + "/yunomi-")
 }
 
 ///| Remove directory recursively

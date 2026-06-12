@@ -1,10 +1,10 @@
 {
-  "name": "douzo",
+  "name": "yunomi",
   "version": "2.0.0",
-  "description": "douzo 🍵 — Human-in-the-loop approval gate for AI coding workflows. The AI serves its report; you review and approve. (formerly reviw)",
+  "description": "yunomi 🍵 — Human-in-the-loop approval gate for AI coding workflows. The AI serves its report; you review and approve. (formerly reviw)",
   "type": "module",
   "bin": {
-    "douzo": "dist/server/server.js"
+    "yunomi": "dist/server/server.js"
   },
   "files": [
     "dist/"
@@ -24,11 +24,11 @@
     "markdown",
     "report",
     "diff",
-    "douzo"
+    "yunomi"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kazuph/douzo.git"
+    "url": "git+https://github.com/kazuph/yunomi.git"
   },
   "license": "MIT",
   "author": "kazuph",

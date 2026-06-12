@@ -1,6 +1,6 @@
 ---
 name: done
-description: Task completion check - Evidence collection, douzo review initiation
+description: Task completion check - Evidence collection, yunomi review initiation
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 
@@ -67,7 +67,7 @@ Options:
   1. "Full Review (Recommended)" - All 3 review agents + detailed evidence + comprehensive REPORT.md
   2. "Quick Review" - E2E + Code Security only, minimal evidence
   3. "Evidence Only" - Skip review agents, just collect screenshots/videos
-  4. "Skip to douzo" - Already have evidence, go straight to douzo review
+  4. "Skip to yunomi" - Already have evidence, go straight to yunomi review
 ```
 
 **Actions based on selection:**
@@ -77,7 +77,7 @@ Options:
 | Full Review | All 3 (code-security, e2e, ui-ux) | Screenshots + Video | Comprehensive |
 | Quick Review | 2 (code-security, e2e) | Screenshots only | Summary |
 | Evidence Only | Skip | Screenshots + Video | Basic |
-| Skip to douzo | Skip | Use existing | Use existing |
+| Skip to yunomi | Skip | Use existing | Use existing |
 
 ## Important: Subagent Mandatory (compact countermeasure)
 
@@ -137,7 +137,7 @@ Conditions for checking:
 |-------|---------|----------|
 | 1/3 | Implementation complete | Do NOT report yet |
 | 2/3 | Build/start/operation verification complete | Do NOT report yet |
-| 3/3 | douzo review → User approval | Now finally complete |
+| 3/3 | yunomi review → User approval | Now finally complete |
 
 ```
 +---------------------------------------------------------------+
@@ -290,7 +290,7 @@ On rejection, display:
 ```
 Launch review agents simultaneously with Task tool (selection depends on PROJECT_TYPE):
 
-1. subagent_type: "douzo-plugin:review-code-security"
+1. subagent_type: "yunomi-plugin:review-code-security"
    → Applies to: ALL project types
    → Type safety (any type detection)
    → Error handling adequacy
@@ -299,7 +299,7 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
    → Hardcoded secrets, auth issues
    → Append "Code & Security Review" section to REPORT.md
 
-2. subagent_type: "douzo-plugin:review-e2e"
+2. subagent_type: "yunomi-plugin:review-e2e"
    → Applies to: ALL project types (adapted per type)
    → Web/Fullstack: goto restrictions, UI flow fidelity, Playwright assertions
    → Backend: test framework assertions, no curl, API contract verification
@@ -311,7 +311,7 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
    → Hardcoded values/environment locks
    → Append "E2E Test Review" section to REPORT.md
 
-3. subagent_type: "douzo-plugin:review-ui-ux"
+3. subagent_type: "yunomi-plugin:review-ui-ux"
    → Applies to: web, mobile (if UI changes), fullstack (if frontend changes)
    → SKIP for: backend (no UI to review)
    → WCAG 2.2 AA compliance
@@ -349,13 +349,13 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
 **Agent name mapping (for reference):**
 | Old name (deprecated) | New integrated agent |
 |-----------------------|----------------------|
-| review-code-quality | douzo-plugin:review-code-security |
-| review-security | douzo-plugin:review-code-security |
-| review-a11y-ux | douzo-plugin:review-ui-ux |
-| review-figma-fidelity | douzo-plugin:review-ui-ux |
-| review-copy-consistency | douzo-plugin:review-ui-ux |
-| review-e2e-integrity | douzo-plugin:review-e2e |
-| e2e-health-reviewer | douzo-plugin:review-e2e |
+| review-code-quality | yunomi-plugin:review-code-security |
+| review-security | yunomi-plugin:review-code-security |
+| review-a11y-ux | yunomi-plugin:review-ui-ux |
+| review-figma-fidelity | yunomi-plugin:review-ui-ux |
+| review-copy-consistency | yunomi-plugin:review-ui-ux |
+| review-e2e-integrity | yunomi-plugin:review-e2e |
+| e2e-health-reviewer | yunomi-plugin:review-e2e |
 
 ## ☑ 7. Review Agent Findings Check (CRITICAL - Do NOT Skip)
 
@@ -394,12 +394,12 @@ Launch review agents simultaneously with Task tool (selection depends on PROJECT
 ```
 Launch ONE agent with Task tool:
 
-subagent_type: "douzo-plugin:report-builder"
+subagent_type: "yunomi-plugin:report-builder"
    → artifact-proof skill auto-loads
    → Calculate total review score (X/15 for 3 agents)
    → Organize priority action items
    → Execute report creation/evidence organization
-   → Ready to start douzo review
+   → Ready to start yunomi review
 ```
 
 ### ☑ 8a. Report Validation (artifact-proof 5 Rules Check)
@@ -426,23 +426,23 @@ validate-report
 
 | Result | Action |
 |--------|--------|
-| 5/5 Pass | Proceed to ☑ 9. (douzo review) |
+| 5/5 Pass | Proceed to ☑ 9. (yunomi review) |
 | 3-4/5 Pass | Warning displayed, recommend fixes before proceeding |
 | 0-2/5 Pass | Return to ☑ 8., request report-builder to fix violations |
 
-## ☑ 9. Start douzo Review
+## ☑ 9. Start yunomi Review
 
-**Important: Launch douzo in foreground**
+**Important: Launch yunomi in foreground**
 
 ```bash
 # Open video file first (if exists)
 open .artifacts/<feature=branch_name>/demo.mp4
 
-# Open report with douzo (foreground)
-npx douzo .artifacts/<feature=branch_name>/REPORT.md
+# Open report with yunomi (foreground)
+npx yunomi .artifacts/<feature=branch_name>/REPORT.md
 ```
 
-When douzo review starts:
+When yunomi review starts:
 1. Browser opens, report is displayed
 2. User adds comments and Submit & Exit
 3. Feedback returns in YAML format
@@ -454,7 +454,7 @@ When douzo review starts:
 
 ## ☑ 10. User Feedback Response (Improvement Cycle)
 
-After receiving user feedback from douzo:
+After receiving user feedback from yunomi:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -474,7 +474,7 @@ After receiving user feedback from douzo:
 │     - Re-collect evidence (webapp-testing)                      │
 │     - Update REPORT.md with new evidence                        │
 │                                                                 │
-│  5. Return to ☑ 8. (Start douzo Review again)                  │
+│  5. Return to ☑ 8. (Start yunomi Review again)                  │
 │     - User will verify fixes                                    │
 │     - Repeat until approval                                     │
 │                                                                 │
@@ -487,20 +487,20 @@ After receiving user feedback from douzo:
 - Summarize feedback (copy exact text)
 - Batch multiple fixes without individual TODO tracking
 
-## douzo Usage Tips
+## yunomi Usage Tips
 
 ```bash
 # Open Markdown
-npx douzo report.md
+npx yunomi report.md
 
 # Open multiple files
-npx douzo file1.md file2.csv
+npx yunomi file1.md file2.csv
 
 # Open git diff
-git diff HEAD | npx douzo
+git diff HEAD | npx yunomi
 
 # Specify port
-npx douzo report.md --port 5000
+npx yunomi report.md --port 5000
 ```
 
 ## TodoList Management (CRITICAL)
@@ -518,7 +518,7 @@ When the user adds new requests/tasks during the session:
 - "It works" report without evidence
 - Omitting verification via mock/skip/bypass
 - **Checking TODO just for implementing**
-- **Launching douzo in background**
+- **Launching yunomi in background**
 - **Ignoring new user requests without adding to TodoList**
 
 ## Report Template
@@ -546,4 +546,4 @@ When the user adds new requests/tasks during the session:
 
 **Until this checklist is satisfied, it cannot be called task complete.**
 **If completion is claimed with only implementation, immediately reject.**
-**Task completion only occurs after receiving douzo review.**
+**Task completion only occurs after receiving yunomi review.**

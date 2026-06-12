@@ -4,7 +4,7 @@ description: Lightweight task completion - screenshot/video capture, open for re
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQuestion
 ---
 
-# /douzo-plugin:tiny-done
+# /yunomi-plugin:tiny-done
 
 <command-name>tiny-done</command-name>
 
@@ -13,7 +13,7 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQues
 
 **ALL checkpoints must be passed before task completion. Do NOT report completion without user approval.**
 
-**tiny-doneは/doneの軽量版です。REPORT.md・レビューエージェント・npx douzoを省略する代わりに、スクショ・動画をopenで直接開いてユーザー確認します。完了基準は同じ（ユーザー承認まで終わらない）。**
+**tiny-doneは/doneの軽量版です。REPORT.md・レビューエージェント・npx yunomiを省略する代わりに、スクショ・動画をopenで直接開いてユーザー確認します。完了基準は同じ（ユーザー承認まで終わらない）。**
 
 ## doneとの違い
 
@@ -24,8 +24,8 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, TodoWrite, Task, AskUserQues
 | 保存先 | `.artifacts/<feature>/` | `/tmp/tiny-done/` |
 | レビューエージェント | 4並列（code-security, e2e, ui-ux, Codex） | なし |
 | REPORT.md | 作成+検証 | 作らない |
-| npx douzo | 必須 | なし |
-| 確認方法 | douzo上でレビュー | **openコマンドで直接開く** |
+| npx yunomi | 必須 | なし |
+| 確認方法 | yunomi上でレビュー | **openコマンドで直接開く** |
 | ユーザー承認 | 必須 | 必須 |
 
 ---
@@ -138,7 +138,7 @@ cd .worktree/<branch-name>
 
 - REPORT.mdを作成する
 - artifact-proof skillを使う
-- npx douzoを起動する
+- npx yunomiを起動する
 - レビューエージェントを使う
 - codexスキルを使う
 - openせずに完了報告する

@@ -4,7 +4,7 @@ description: Deep user requirements elicitation - interview before coding
 allowed-tools: AskUserQuestion, Read, Grep, Glob
 ---
 
-# /douzo-plugin:ask
+# /yunomi-plugin:ask
 
 <command-name>ask</command-name>
 

@@ -10,7 +10,7 @@ const SERVER_JS = new URL(
   import.meta.url,
 ).pathname;
 const FEATURES_MD = new URL("../../examples/test-features.md", import.meta.url).pathname;
-const LOCK_DIR = join(tmpdir(), "douzo-media-sidebar-locks");
+const LOCK_DIR = join(tmpdir(), "yunomi-media-sidebar-locks");
 
 mkdirSync(LOCK_DIR, { recursive: true });
 
@@ -362,7 +362,7 @@ const proc = spawn(
   [SERVER_JS, "--no-open", "--port", String(BASE_PORT), FEATURES_MD],
   {
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, DOUZO_LOCK_DIR: LOCK_DIR },
+    env: { ...process.env, YUNOMI_LOCK_DIR: LOCK_DIR },
   },
 );
 

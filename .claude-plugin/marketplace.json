@@ -1,15 +1,15 @@
 {
-  "name": "douzo-plugins",
+  "name": "yunomi-plugins",
   "owner": {
     "name": "kazuph",
     "url": "https://github.com/kazuph"
   },
-  "description": "douzo - Browser-based file review tool with YAML output",
+  "description": "yunomi - Browser-based file review tool with YAML output",
   "plugins": [
     {
-      "name": "douzo-plugin",
+      "name": "yunomi-plugin",
       "source": "./plugin",
-      "description": "douzo CLI integration for Claude Code - task management, review workflow, and report generation"
+      "description": "yunomi CLI integration for Claude Code - task management, review workflow, and report generation"
     }
   ]
 }

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kazuph/douzo/main/assets/hero.png" alt="douzo — お茶を差し出すボクセルロボットと報告書を読むエンジニア" width="720">
+  <img src="https://raw.githubusercontent.com/kazuph/yunomi/main/assets/hero.png" alt="yunomi — お茶を差し出すボクセルロボットと報告書を読むエンジニア" width="720">
 </p>
 
 <p align="center">
@@ -7,50 +7,50 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/douzo"><img src="https://img.shields.io/npm/v/douzo.svg" alt="npm version"></a>
-  <a href="https://github.com/kazuph/douzo/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/douzo.svg" alt="license"></a>
+  <a href="https://www.npmjs.com/package/yunomi"><img src="https://img.shields.io/npm/v/yunomi.svg" alt="npm version"></a>
+  <a href="https://github.com/kazuph/yunomi/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/yunomi.svg" alt="license"></a>
   <a href="./README.md">English</a>
 </p>
 
 ---
 
-# douzo 🍵
+# yunomi 🍵
 
-> **インストール手順はありません。** AIに *「`npx douzo` を実行してね」* と言うだけ。あとはAIが分かってくれます。
+> **インストール手順はありません。** AIに *「`npx yunomi` を実行してね」* と言うだけ。あとはAIが分かってくれます。
 
-**douzo**（どうぞ）は、日本でお客さんにお茶を差し出すときの言葉。両手を添えて、すこし会釈して——「どうぞ」。
+**yunomi**（湯のみ）は、お茶を差し出すときのあの器。取っ手はなく、両手で包むと温かい。湯のみでお茶が出てくるとき、そこには小さな会釈とひとことが添えられます——「どうぞ」。
 
 ## ストーリー
 
-douzoは、人間が「やったものを見せろ」と要求するためのツールではありません。
+yunomiは、人間が「やったものを見せろ」と要求するためのツールではありません。
 その**逆の所作**のためのツールです。
 
 AIエージェントは仕事を終えるたび、ただ「できました」とは言いません。
-報告書を淹れます——何を変えたのか、なぜか、エビデンスとテスト結果——それをお盆に載せて、あなたに差し出します:
+報告書を淹れます——何を変えたのか、なぜか、エビデンスとテスト結果——それを湯のみに注いで、あなたに差し出します:
 
 ```bash
-npx douzo REPORT.md
+npx yunomi REPORT.md
 ```
 
 「どうぞ🍵」
 
-ブラウザが開きます。あなたは自分のペースで読み、コメントを残し、承認するか、突き返すか決めます。エージェントは良い給仕がそうするように、静かに待ちます——あなたが決めるまで。Submitするとdouzoは終了し、あなたの判断を構造化YAMLとしてエージェントへ返します。承認が出るまで、このループが続きます。
+ブラウザが開きます。あなたは自分のペースで読み、コメントを残し、承認するか、突き返すか決めます。エージェントは良い給仕がそうするように、静かに待ちます——あなたが決めるまで。Submitするとyunomiは終了し、あなたの判断を構造化YAMLとしてエージェントへ返します。承認が出るまで、このループが続きます。
 
-vibe codingの時代、人間はもうすべてのdiffを読みません。読むのは仕事そのもの——**意図・変更・証拠**です。douzoは、AIの仕事と人間の判断のあいだの受け渡しの瞬間。毎回、礼儀正しく差し出されます。
+vibe codingの時代、人間はもうすべてのdiffを読みません。読むのは仕事そのもの——**意図・変更・証拠**です。yunomiは、AIの仕事と人間の判断のあいだの受け渡しの瞬間。毎回、礼儀正しく差し出されます。
 
 ## はじめかた（手順はこれだけ）
 
 AIエージェントにこう言ってください:
 
-> 「これから、仕事が終わったら `npx douzo` を実行してね」
+> 「これから、仕事が終わったら `npx yunomi` を実行してね」
 
-以上です。エージェントが引数なしで `npx douzo` を実行すると、スキル文書が出力され、エージェントはすべてを理解します——良い報告書の書き方、差し出し方、あなたの判断の受け取り方、承認まで続くループの回し方。続けてエージェントが「douzoを永続スキルとしてインストールしますか？」と提案するので、一度YESと答えれば、以降は二度と言う必要はありません。
+以上です。エージェントが引数なしで `npx yunomi` を実行すると、スキル文書が出力され、エージェントはすべてを理解します——良い報告書の書き方、差し出し方、あなたの判断の受け取り方、承認まで続くループの回し方。続けてエージェントが「yunomiを永続スキルとしてインストールしますか？」と提案するので、一度YESと答えれば、以降は二度と言う必要はありません。
 
 グローバルインストール不要。プラグイン設定不要。設定ファイル不要。**お茶は勝手に出てきます。**
 
 ---
 
-douzo（旧名 **reviw**）は、Markdown報告書・表形式データ・テキスト・diffファイルをレビュー・注釈するための軽量ブラウザベースツール。[MoonBit](https://www.moonbitlang.com/)で書かれており、手書きJavaScriptはゼロ。CSV、TSV、プレーンテキスト、Markdown、unified diff形式をサポート。コメントはYAML形式で標準出力に出力されます。
+yunomi（旧名 **reviw**）は、Markdown報告書・表形式データ・テキスト・diffファイルをレビュー・注釈するための軽量ブラウザベースツール。[MoonBit](https://www.moonbitlang.com/)で書かれており、手書きJavaScriptはゼロ。CSV、TSV、プレーンテキスト、Markdown、unified diff形式をサポート。コメントはYAML形式で標準出力に出力されます。
 
 ## 機能
 
@@ -78,7 +78,7 @@ douzo（旧名 **reviw**）は、Markdown報告書・表形式データ・テキ
 - 番号バッジ付きで素早く識別
 
 ### メディア埋め込み規律チェック（AIフレンドリー）
-- メディアファイルが `![alt](path)` 埋め込みではなく `[text](path)` リンクで書かれている場合、`douzo file.md` はエラー（exit 1）で起動を拒否
+- メディアファイルが `![alt](path)` 埋め込みではなく `[text](path)` リンクで書かれている場合、`yunomi file.md` はエラー（exit 1）で起動を拒否
 - 行番号とそのまま適用できる修正案を全件表示するので、AIエージェントが自動修正してリトライできる
 
 ### メディアフルスクリーン
@@ -115,32 +115,32 @@ douzo（旧名 **reviw**）は、Markdown報告書・表形式データ・テキ
 基本的に不要です——[はじめかた](#はじめかた手順はこれだけ)を見てください。グローバルコマンドが欲しい場合は:
 
 ```bash
-npm install -g douzo
+npm install -g yunomi
 ```
 
 またはnpxで直接実行:
 
 ```bash
-npx douzo <file>
+npx yunomi <file>
 ```
 
 ## 使い方
 
 ```bash
 # 引数なし: AIエージェント向けスキル文書を出力
-douzo
+yunomi
 
 # 単一ファイル
-douzo <file> [--port 4989] [--encoding utf8|shift_jis|...]
+yunomi <file> [--port 4989] [--encoding utf8|shift_jis|...]
 
 # 複数ファイル（各ファイルは連続するポートで開く）
-douzo file1.csv file2.md file3.tsv --port 4989
+yunomi file1.csv file2.md file3.tsv --port 4989
 
 # 標準入力からのdiff
-git diff HEAD | douzo
+git diff HEAD | yunomi
 
 # diffファイル
-douzo changes.diff
+yunomi changes.diff
 ```
 
 ### オプション
@@ -160,31 +160,31 @@ douzo changes.diff
 ## スクリーンショット
 
 ### Markdownビュー（メディアサイドバー付き）
-![Markdown View with Media Sidebar](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-media-sidebar.png)
+![Markdown View with Media Sidebar](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-media-sidebar.png)
 
 ### プレビューオンリーモード
-![Preview-only Mode](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-preview-only.png)
+![Preview-only Mode](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-preview-only.png)
 
 ### 見出し折りたたみ
-![Heading Toggle](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-heading-toggle.png)
+![Heading Toggle](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-heading-toggle.png)
 
 ### コメントダイアログ（画像添付対応）
-![Comment Dialog](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-comment-dialog.png)
+![Comment Dialog](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-comment-dialog.png)
 
 ### 動画フルスクリーン（タイムラインサムネイル付き）
-![Video Fullscreen](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-video-thumbnails.png)
+![Video Fullscreen](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-video-thumbnails.png)
 
 ### Mermaidフルスクリーン（ミニマップ付き）
-![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-mermaid-fullscreen.png)
+![Mermaid Fullscreen](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-mermaid-fullscreen.png)
 
 ### レビュー送信ダイアログ（画像添付対応）
-![Submit Review Dialog](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-submit-modal.png)
+![Submit Review Dialog](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-submit-modal.png)
 
 ### CSVビュー
-![CSV View](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-csv.png)
+![CSV View](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-csv.png)
 
 ### Diffビュー
-![Diff View](https://raw.githubusercontent.com/kazuph/douzo/main/assets/screenshot-diff.png)
+![Diff View](https://raw.githubusercontent.com/kazuph/yunomi/main/assets/screenshot-diff.png)
 
 ## 出力例
 
@@ -203,31 +203,31 @@ summary: Overall the data looks good, minor issues noted above.
 
 ## Claude Codeプラグイン
 
-このリポジトリはClaude Codeプラグインマーケットプレイスとしても機能します。プラグインはタスク管理とレビュー自動化でdouzoをClaude Codeワークフローに統合します。
+このリポジトリはClaude Codeプラグインマーケットプレイスとしても機能します。プラグインはタスク管理とレビュー自動化でyunomiをClaude Codeワークフローに統合します。
 
-> 注: プラグインは v2.0.0 で `reviw-plugin` から `douzo-plugin` に改名されました。旧プラグインを入れている場合は削除のうえ `douzo-plugin@douzo-plugins` を入れ直してください。
+> 注: プラグインは v2.0.0 で `reviw-plugin` から `yunomi-plugin` に改名されました。旧プラグインを入れている場合は削除のうえ `yunomi-plugin@yunomi-plugins` を入れ直してください。
 
 ### インストール
 
 ```bash
 # Claude Codeで
-/plugin marketplace add kazuph/douzo
-/plugin install douzo-plugin@douzo-plugins
+/plugin marketplace add kazuph/yunomi
+/plugin install yunomi-plugin@yunomi-plugins
 ```
 
 ### `npx skills` でスキルを入れる
 
-Codex、OpenCode、Cursor など、`npx skills` 対応エージェントで douzo のタスクスキルを使いたい場合はこちらを使います。Claude Code は上のプラグイン導線を使ってください。
+Codex、OpenCode、Cursor など、`npx skills` 対応エージェントで yunomi のタスクスキルを使いたい場合はこちらを使います。Claude Code は上のプラグイン導線を使ってください。
 
 ```bash
 # まず検出されるスキルを確認
-npx skills add https://github.com/kazuph/douzo --list
+npx skills add https://github.com/kazuph/yunomi --list
 
 # Codex 向けに全スキルをグローバルインストール
-npx skills add https://github.com/kazuph/douzo -g -a codex -s '*' --copy -y
+npx skills add https://github.com/kazuph/yunomi -g -a codex -s '*' --copy -y
 
 # Codex と OpenCode へまとめてグローバルインストール
-npx skills add https://github.com/kazuph/douzo -g -a codex -a opencode -s '*' --copy -y
+npx skills add https://github.com/kazuph/yunomi -g -a codex -a opencode -s '*' --copy -y
 ```
 
 `npx skills` が配るのは `plugin/skills/` 配下のスキル群です。`-a codex -g --copy` を付けると、Codex のグローバルスキル置き場である `~/.agents/skills/` にコピーされます。`~/.agents/skills` が symlink の場合は、そのリンク先に実体が置かれます。
@@ -285,11 +285,11 @@ plugin/
 
 | 種類 | 名前 | 説明 |
 |------|------|------|
-| **タスクスキル** | `/douzo:do` | タスク開始 - git wtでworktree作成、計画、todo登録 |
-| **タスクスキル** | `/douzo:done` | 完了チェックリスト - 7レビューエージェント実行、エビデンス収集、レビュー開始 |
-| **タスクスキル** | `/douzo:tiny-do` | 小タスク向けの軽量開始フロー |
-| **タスクスキル** | `/douzo:tiny-done` | 小タスク向けの軽量完了フロー |
-| **タスクスキル** | `/douzo:bucho` | Claude Code と Codex を束ねる部長モード |
+| **タスクスキル** | `/yunomi:do` | タスク開始 - git wtでworktree作成、計画、todo登録 |
+| **タスクスキル** | `/yunomi:done` | 完了チェックリスト - 7レビューエージェント実行、エビデンス収集、レビュー開始 |
+| **タスクスキル** | `/yunomi:tiny-do` | 小タスク向けの軽量開始フロー |
+| **タスクスキル** | `/yunomi:tiny-done` | 小タスク向けの軽量完了フロー |
+| **タスクスキル** | `/yunomi:bucho` | Claude Code と Codex を束ねる部長モード |
 | **エージェント** | `report-builder` | ユーザーレビュー用レポート準備 |
 | **エージェント** | `review-code-quality` | コード品質: 可読性、DRY、型安全性、エラーハンドリング |
 | **エージェント** | `review-security` | セキュリティ: XSS、インジェクション、OWASP Top 10、秘密情報検出 |
@@ -317,14 +317,14 @@ plugin/
 | `check-yourself` | 推測を禁止し、実際の検証を強制する |
 | `commit-and-push` | コミットメッセージ生成、commit、push、最終状態確認まで実行する |
 | `do` | worktree 作成、計画策定、レビュー準備を含むフルの開始フローを実行する |
-| `done` | エビデンス収集と douzo レビューを含むフルの完了フローを実行する |
+| `done` | エビデンス収集と yunomi レビューを含むフルの完了フローを実行する |
 | `exit-notifier` | background task の終了結果と stdout/stderr を現在の tmux / Herdr pane に返す |
 | `open` | ファイル、成果物、URL を macOS の `open` で開く |
 | `tiny-do` | 小さなタスク向けの軽量開始フローで実装へ入る |
 | `tiny-done` | 小さなタスク向けの軽量完了フローで検証と確認を行う |
 | `validate-report` | `done` から呼ばれる内部 helper として `REPORT.md` を検証する |
 
-#### `/douzo:do <タスク説明>`
+#### `/yunomi:do <タスク説明>`
 
 適切な環境セットアップで新しいタスクを開始します。
 
@@ -346,7 +346,7 @@ plugin/
 
 **タスク再開:** セッション開始時またはコンテキスト圧縮後、スキルは既存のworktreeを確認（`git wt`）し、`REPORT.md`から再開します。
 
-#### `/douzo:done`
+#### `/yunomi:done`
 
 タスク完了を許可する前に完了基準を検証します。
 
@@ -356,12 +356,12 @@ plugin/
 - [ ] `webapp-testing`スキルで検証
 - [ ] `.artifacts/<feature>/`にエビデンス収集
 - [ ] `artifact-proof`スキルでレポート作成
-- [ ] douzoでレビュー（フォアグラウンドモード）
+- [ ] yunomiでレビュー（フォアグラウンドモード）
 - [ ] ユーザー承認取得
 
 **禁止事項:**
 - 検証なしに「実装完了」と言う
-- douzoレビュー前にコミット/プッシュ
+- yunomiレビュー前にコミット/プッシュ
 - エビデンスなしのレポート
 
 ---
@@ -375,8 +375,8 @@ plugin/
 **役割:**
 - 実装を構造化レポートに整理
 - エビデンス（スクリーンショット、動画）を収集・配置
-- douzoレビュー用に`REPORT.md`を準備
-- douzoフィードバックを解析してtodoに登録
+- yunomiレビュー用に`REPORT.md`を準備
+- yunomiフィードバックを解析してtodoに登録
 
 **呼び出し:**
 ```
@@ -399,14 +399,14 @@ Task tool with subagent_type: "report-builder"
 - 動画ファイル用Git LFSセットアップ
 - コミットハッシュ付きPR画像URL（ブランチ削除後も永続）
 
-**douzo統合:**
+**yunomi統合:**
 ```bash
-# douzoでレポートを開く（フォアグラウンド必須）
-npx douzo .artifacts/<feature>/REPORT.md
+# yunomiでレポートを開く（フォアグラウンド必須）
+npx yunomi .artifacts/<feature>/REPORT.md
 
 # 動画プレビュー付き
 open .artifacts/<feature>/videos/demo.webm
-npx douzo .artifacts/<feature>/REPORT.md
+npx yunomi .artifacts/<feature>/REPORT.md
 ```
 
 #### `webapp-testing`
@@ -440,7 +440,7 @@ node -e "const { chromium } = require('playwright');
 
 `git commit`または`git push`検出時にトリガー。
 
-**メッセージ:** コミット前に`/douzo:done`を実行してdouzoでレビューするよう促す。
+**メッセージ:** コミット前に`/yunomi:done`を実行してyunomiでレビューするよう促す。
 
 #### UserPromptSubmit
 
@@ -453,7 +453,7 @@ node -e "const { chromium } = require('playwright');
 ### ワークフロー
 
 ```
-/douzo:do <タスク説明>
+/yunomi:do <タスク説明>
     ↓
 Worktree作成 + 計画 + TodoWrite
     ↓
@@ -461,11 +461,11 @@ Worktree作成 + 計画 + TodoWrite
     ↓
 ビルド & 検証（webapp-testing）
     ↓
-/douzo:done
+/yunomi:done
     ↓
 エビデンス収集（artifact-proof）
     ↓
-npx douzoでレポートを開く（フォアグラウンド）
+npx yunomiでレポートを開く（フォアグラウンド）
     ↓
 ユーザーコメント → Submit & Exit
     ↓
@@ -482,7 +482,7 @@ npx douzoでレポートを開く（フォアグラウンド）
 |----------|------|----------|
 | 1/3 | 実装完了 | まだ報告しない |
 | 2/3 | ビルド、起動、検証完了 | まだ報告しない |
-| 3/3 | douzoでレビュー → ユーザー承認 | 完了 |
+| 3/3 | yunomiでレビュー → ユーザー承認 | 完了 |
 
 ### 設計思想
 
@@ -532,7 +532,7 @@ git add --force .artifacts/feature/videos/demo.mp4
 
 ## 開発
 
-douzoは[MoonBit](https://www.moonbitlang.com/)で書かれており、JavaScriptにコンパイルされます。
+yunomiは[MoonBit](https://www.moonbitlang.com/)で書かれており、JavaScriptにコンパイルされます。
 
 ```bash
 # ビルド
