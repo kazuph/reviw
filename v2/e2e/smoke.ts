@@ -832,6 +832,14 @@ if (playwrightAvailable) {
     // --- Comment image paste flow E2E ---
     // In markdown mode, comment card opens via mousedown+mouseup (drag flow), not click
     // Use Playwright's mouse API to simulate the full drag interaction
+    // Default view is preview-only, so reveal the source panel first
+    const layoutIsPreviewOnly = await page.evaluate(() => {
+      const layout = document.querySelector(".md-layout");
+      return layout ? layout.classList.contains("preview-only") : false;
+    });
+    if (layoutIsPreviewOnly) {
+      await page.locator("#view-toggle").click();
+    }
     const sourceCell = page.locator("td[data-row]").first();
     await sourceCell.waitFor({ state: "visible", timeout: 5000 });
     const box = await sourceCell.boundingBox();
@@ -977,6 +985,14 @@ if (playwrightAvailable) {
     const afterReload = await httpGet(closePort, "/healthz");
     assert(afterReload.status === 200, "Browser Close: reload does not terminate the server");
 
+    // Default view is preview-only, so reveal the source panel first
+    const closePreviewOnly = await closePage.evaluate(() => {
+      const layout = document.querySelector(".md-layout");
+      return layout ? layout.classList.contains("preview-only") : false;
+    });
+    if (closePreviewOnly) {
+      await closePage.locator("#view-toggle").click();
+    }
     const draftCell = closePage.locator("td[data-row]").first();
     await draftCell.waitFor({ state: "visible", timeout: 5000 });
     const draftBox = await draftCell.boundingBox();

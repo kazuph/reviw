@@ -36,6 +36,9 @@ let is_dragging : Ref[Bool] = Ref::new(false)
 let drag_start_row : Ref[Int] = Ref::new(-1)
 let drag_end_row : Ref[Int] = Ref::new(-1)
 
+///| Max number of images attachable to the submit review
+let submit_image_limit : Int = 10
+
 ///| Image state for paste attachment
 let current_comment_image : Ref[String] = Ref::new("")
 let submit_images : Array[String] = []
@@ -1237,7 +1240,10 @@ fn json_encode_string(s : String) -> String {
 fn update_theme_button(theme : String) -> Unit {
   let icon = query("#theme-icon")
   if !(is_null(icon)) {
-    set_text_content(icon, if theme == "dark" { "\u{2600}\u{FE0F}" } else { "\u{1F319}" })
+    set_inner_html(
+      icon,
+      if theme == "dark" { @core.icon_svg_sun } else { @core.icon_svg_moon },
+    )
   }
   let btn = query("#theme-toggle")
   if !(is_null(btn)) {
@@ -1249,16 +1255,6 @@ fn update_theme_button(theme : String) -> Unit {
   }
 }
 
-///| Swap the view-toggle icon without wiping the "Source" text label
-fn set_view_toggle_icon(view_toggle : Element, icon : String) -> Unit {
-  let icon_el = query("#view-toggle-icon")
-  if is_null(icon_el) {
-    set_text_content(view_toggle, icon)
-  } else {
-    set_text_content(icon_el, icon)
-  }
-}
-
 ///| Panel state toggle — cli.cjs L7232-7270 initPanelState
 fn init_view_toggle() -> Unit {
   let view_toggle = query("#view-toggle")
@@ -1266,11 +1262,10 @@ fn init_view_toggle() -> Unit {
   if is_null(view_toggle) || is_null(md_layout) {
     return
   }
-  // Load saved state
+  // Load saved state — default is preview-only; show source only when explicitly saved
   let saved = local_storage_get("reviw-panel-state")
-  if saved == "preview-only" {
+  if saved != "both" {
     add_class(md_layout, "preview-only")
-    set_view_toggle_icon(view_toggle, "\u{1F441}")
     set_attribute(view_toggle, "title", "Show source panel")
     add_class(view_toggle, "active")
   }
@@ -1285,12 +1280,10 @@ fn init_view_toggle() -> Unit {
       let is_now_preview_only = !(has_class(md_layout, "preview-only"))
       if is_now_preview_only {
         add_class(md_layout, "preview-only")
-        set_view_toggle_icon(view_toggle, "\u{1F441}")
         set_attribute(view_toggle, "title", "Show source panel")
         add_class(view_toggle, "active")
       } else {
         remove_class(md_layout, "preview-only")
-        set_view_toggle_icon(view_toggle, "\u{1F4DD}")
         set_attribute(view_toggle, "title", "Hide source panel")
         remove_class(view_toggle, "active")
       }
@@ -1337,7 +1330,6 @@ fn set_sse_status(state : String, label : String) -> Unit {
     add_class(status_el, "sse-dot-sending")
   }
   set_attribute(status_el, "title", label)
-  set_inner_html(status_el, "<span class=\"sse-dot-label\">" + label + "</span>")
 }
 
 ///| Track whether SSE was previously connected (to show "Reconnected")
@@ -1571,7 +1563,7 @@ fn setup_paste_handler() -> Unit {
         (get_attr(comment_card, "class").contains("visible") ||
          get_computed_style(comment_card, "display") != "none")
       if submit_visible {
-        if submit_images.length() < 5 {
+        if submit_images.length() < submit_image_limit {
           submit_images.push(base64)
           render_submit_image_preview()
         }
@@ -1590,6 +1582,18 @@ fn render_submit_image_preview() -> Unit {
   let container = query("#submit-image-preview")
   if is_null(container) {
     return
+  }
+  // Show attached/limit so the user never has to count thumbnails
+  let label = query("#submit-image-label")
+  if !(is_null(label)) {
+    set_text_content(
+      label,
+      "Attach images (Paste, " +
+      submit_images.length().to_string() +
+      "/" +
+      submit_image_limit.to_string() +
+      ")",
+    )
   }
   let buf = StringBuilder::new()
   for i, img in submit_images {
@@ -2957,6 +2961,41 @@ fn expand_heading_section(heading : Element, level : Int) -> Unit {
   }
 }
 
+///| Close a fullscreen overlay when the backdrop is clicked.
+///  Closes on any click that is not on the zoomable content (content_sel),
+///  the header controls, or the minimap. Clicks that follow a pan-drag
+///  (pointer moved more than ~6px between mousedown and click) are ignored.
+fn setup_overlay_backdrop_close(
+  overlay : Element,
+  content_sel : String,
+  close_fn : () -> Unit
+) -> Unit {
+  let down_x : Ref[Int] = Ref::new(0)
+  let down_y : Ref[Int] = Ref::new(0)
+  on(overlay, "mousedown", fn(e) {
+    down_x.val = get_event_client_x(e)
+    down_y.val = get_event_client_y(e)
+  })
+  on(overlay, "click", fn(e) {
+    let dx = get_event_client_x(e) - down_x.val
+    let dy = get_event_client_y(e) - down_y.val
+    if dx * dx + dy * dy > 36 {
+      return
+    }
+    let target = event_target(e)
+    if !(is_null(closest(target, content_sel))) {
+      return
+    }
+    if !(is_null(closest(target, ".fullscreen-header"))) {
+      return
+    }
+    if !(is_null(closest(target, ".minimap"))) {
+      return
+    }
+    close_fn()
+  })
+}
+
 ///| Mermaid fullscreen ZoomPanViewer handle (MoonBit native)
 let fs_mermaid_zpv : Ref[ZPVState?] = Ref::new(None)
 
@@ -2969,14 +3008,13 @@ fn setup_mermaid_fullscreen_moonbit() -> Unit {
   if is_null(overlay) || is_null(fs_content) || is_null(fs_wrapper) {
     return
   }
-  // Click handler: open mermaid fullscreen
+  // Click handler: open mermaid fullscreen (click anywhere on the diagram, like images)
   on_doc(
     "click",
     fn(e) {
       let target = event_target(e)
-      let btn = closest(target, ".mermaid-fullscreen-btn")
-      if !(is_null(btn)) {
-        let container = closest(btn, ".mermaid-container")
+      let container = closest(target, ".mermaid-container")
+      if !(is_null(container)) {
         let svg = query_in(container, ".mermaid svg")
         if !(is_null(svg)) {
           // Don't open fullscreen for error SVGs
@@ -3019,11 +3057,9 @@ fn setup_mermaid_fullscreen_moonbit() -> Unit {
   if !(is_null(fs_close)) {
     on(fs_close, "click", fn(_e) { close_mermaid_fullscreen_moonbit(overlay) })
   }
-  // ESC to close + overlay background click
-  on(overlay, "click", fn(e) {
-    if elem_eq(event_target(e), overlay) {
-      close_mermaid_fullscreen_moonbit(overlay)
-    }
+  // ESC to close + backdrop click (anything except diagram/controls; ignore pan-drags)
+  setup_overlay_backdrop_close(overlay, "#fs-wrapper", fn() {
+    close_mermaid_fullscreen_moonbit(overlay)
   })
   on_doc(
     "keydown",
@@ -3134,10 +3170,11 @@ fn setup_image_fullscreen_moonbit() -> Unit {
         return
       }
       let all_images = query_all_in(preview, "img")
-      // Filter out mermaid images
+      // Filter out mermaid images and video-timeline scene thumbnails
       let images : Array[Element] = []
       for img in all_images {
-        if is_null(closest(img, ".mermaid-container")) {
+        if is_null(closest(img, ".mermaid-container")) &&
+           is_null(closest(img, ".video-timeline")) {
           images.push(img)
         }
       }
@@ -3203,11 +3240,9 @@ fn setup_image_fullscreen_moonbit() -> Unit {
       )
     })
   }
-  // ESC to close + overlay background click + arrow key navigation
-  on(overlay, "click", fn(e) {
-    if elem_eq(event_target(e), overlay) {
-      close_image_fullscreen_moonbit(overlay)
-    }
+  // ESC to close + backdrop click (anything except image/controls; ignore pan-drags) + arrow key navigation
+  setup_overlay_backdrop_close(overlay, "#image-fs-wrapper", fn() {
+    close_image_fullscreen_moonbit(overlay)
   })
   on_doc(
     "keydown",
@@ -3243,7 +3278,8 @@ fn collect_preview_images() -> Array[Element] {
   let all = query_all_in(preview, "img")
   let result : Array[Element] = []
   for img in all {
-    if is_null(closest(img, ".mermaid-container")) {
+    if is_null(closest(img, ".mermaid-container")) &&
+       is_null(closest(img, ".video-timeline")) {
       result.push(img)
     }
   }
@@ -3422,9 +3458,10 @@ fn setup_video_fullscreen_moonbit() -> Unit {
   if !(is_null(fs_close)) {
     on(fs_close, "click", fn(_e) { close_video_fullscreen_moonbit(overlay, container) })
   }
-  // ESC + overlay click + keyboard
+  // ESC + backdrop click (overlay or empty container area) + keyboard
   on(overlay, "click", fn(e) {
-    if elem_eq(event_target(e), overlay) {
+    let target = event_target(e)
+    if elem_eq(target, overlay) || elem_eq(target, container) {
       close_video_fullscreen_moonbit(overlay, container)
     }
   })
@@ -3502,8 +3539,33 @@ fn add_video_fullscreen_buttons(
       }
     })
     append_child(wrapper, btn)
+    // Inline scene-thumbnail timeline: reserve the element now (no layout
+    // shift later) and start thumbnail loading once the video scrolls into view
+    let src = get_src(vid)
+    if src.length() > 0 {
+      let video_path = url_to_pathname(src)
+      let vtl = create_video_timeline_moonbit(
+        vid, wrapper, video_path,
+        current_scene_threshold.val, current_stab_threshold.val, true,
+        autostart=false,
+      )
+      observe_visible_once(vid, fn() { start_timeline_loading(vtl) })
+    }
   }
 }
+
+///| Run callback once when element first becomes visible in the viewport
+extern "js" fn observe_visible_once(el : Element, cb : () -> Unit) -> Unit =
+  #|(el, cb) => {
+  #|  if (!el) return;
+  #|  if (typeof IntersectionObserver === 'undefined') { cb(); return; }
+  #|  const obs = new IntersectionObserver((entries) => {
+  #|    for (const en of entries) {
+  #|      if (en.isIntersecting) { obs.disconnect(); cb(); return; }
+  #|    }
+  #|  }, { threshold: 0.1 });
+  #|  obs.observe(el);
+  #|}
 
 ///| Setup video settings panel (scene threshold / stabilization buttons) - MoonBit native
 fn setup_video_settings_moonbit(

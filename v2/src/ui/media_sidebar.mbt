@@ -123,6 +123,8 @@ fn collect_media_items(preview : Element) -> Array[MediaItem] {
     if tag == "IMG" {
       // Skip ghost images (empty src attribute resolves to the page URL)
       if get_attribute(el, "src") == "" { return }
+      // Skip inline video-timeline scene thumbnails (not document media)
+      if !(is_null(closest(el, ".video-timeline"))) { return }
       img_count = img_count + 1
       let src = get_src(el)
       let alt = get_attribute(el, "alt")
@@ -305,9 +307,11 @@ fn navigate_to(state : MediaSidebarState, idx : Int) -> Unit {
     remove_class(state.highlighted, "media-nav-highlight")
   }
 
-  // Smooth-scroll the preview to the media element
+  // Smooth-scroll the preview to the media element.
+  // Persistent variant: lazy-loaded media above can shift layout mid-scroll,
+  // so keep correcting until the target is really on screen.
   let target = item.element
-  scroll_into_view(target)
+  scroll_into_view_persistent(target)
 
   // Flash highlight; seq guards against stale timers when navigating quickly
   add_class(target, "media-nav-highlight")

@@ -167,6 +167,13 @@ function centerOf(rect: Box | null): Point | null {
 
 async function createPage(browser: Browser, viewport = { width: 1440, height: 1000 }): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ viewport });
+  // These scenarios exercise the split (preview + source) view; the app now
+  // defaults to preview-only, so opt into the saved "both" panel state.
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem("reviw-panel-state", "both");
+    } catch {}
+  });
   const page = await context.newPage();
   page.on("pageerror", (err) => {
     console.error("PAGEERROR:", String(err));

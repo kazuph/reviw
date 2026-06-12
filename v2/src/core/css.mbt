@@ -81,7 +81,10 @@ fn build_css() -> String {
     #|  font-family: var(--font-display, "Inter", "Hiragino Kaku Gothic ProN", "Hiragino Sans", system-ui, -apple-system, sans-serif);
     #|  background: var(--bg-gradient);
     #|  color: var(--text);
-    #|  min-height: 100vh;
+    #|  height: 100vh;
+    #|  display: flex;
+    #|  flex-direction: column;
+    #|  overflow: hidden;
     #|  -webkit-font-smoothing: antialiased;
     #|  -moz-osx-font-smoothing: grayscale;
     #|  letter-spacing: -0.005em;
@@ -91,6 +94,7 @@ fn build_css() -> String {
     #|  position: sticky;
     #|  top: 0;
     #|  z-index: 5;
+    #|  flex-shrink: 0;
     #|  padding: 14px 20px;
     #|  background: var(--panel-alpha);
     #|  backdrop-filter: saturate(140%) blur(18px);
@@ -107,24 +111,14 @@ fn build_css() -> String {
     #|header h1 { display: flex; flex-direction: column; margin: 0; line-height: 1.3; }
     #|header h1 .title-path { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0.02em; }
     #|header h1 .title-file { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
-    #|header .badge {
-    #|  background: var(--accent-soft);
-    #|  color: var(--accent-strong);
-    #|  padding: 5px 12px;
-    #|  border-radius: var(--radius-pill);
-    #|  font-size: 11px;
-    #|  font-weight: 600;
-    #|  letter-spacing: 0.02em;
-    #|  border: 1px solid transparent;
-    #|}
     #|/* Default header icon buttons (ghost) */
     #|header button {
     #|  background: transparent;
     #|  color: var(--text);
     #|  border: 1px solid transparent;
     #|  border-radius: var(--radius-sm);
-    #|  padding: 0 12px;
-    #|  height: 34px;
+    #|  padding: 5px 12px;
+    #|  min-height: 34px;
     #|  min-width: 34px;
     #|  font-size: 14px;
     #|  font-weight: 500;
@@ -143,7 +137,7 @@ fn build_css() -> String {
     #|  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
     #|  color: var(--text-inverse);
     #|  border: none;
-    #|  padding: 0 18px;
+    #|  padding: 6px 18px;
     #|  font-weight: 700;
     #|  letter-spacing: 0.01em;
     #|  box-shadow: var(--shadow-soft);
@@ -204,10 +198,16 @@ fn build_css() -> String {
     #|.sse-dot-connected::before { background: var(--success); box-shadow: 0 0 8px rgba(107, 191, 134, 0.45); }
     #|.sse-dot-reconnecting::before { background: var(--error); animation: sseBlink 1.1s ease-in-out infinite; }
     #|.sse-dot-sending::before { background: var(--warning); animation: sseBlink 0.9s ease-in-out infinite; }
-    #|.sse-dot-label { font-size: 11px; font-weight: 600; color: var(--muted); user-select: none; }
     #|@keyframes sseBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
     #|
-    #|.wrap { padding: 12px 16px 12px; }
+    #|.wrap {
+    #|  padding: 12px 16px 12px;
+    #|  flex: 1;
+    #|  min-height: 0;
+    #|  display: flex;
+    #|  flex-direction: column;
+    #|  overflow-y: auto;
+    #|}
     #|.toolbar {
     #|  display: flex;
     #|  gap: 12px;
@@ -567,8 +567,13 @@ fn build_css() -> String {
     #|  gap: 16px;
     #|  align-items: stretch;
     #|  margin-top: 8px;
-    #|  height: calc(100vh - 80px);
+    #|  flex: 1;
+    #|  min-height: 0;
     #|}
+    #|/* Panel order: source (left) | preview (center) | media thumbs (right) */
+    #|.md-layout > .md-right { order: 1; }
+    #|.md-layout > .md-left { order: 2; }
+    #|.md-layout > .media-sidebar { order: 3; }
     #|.md-left {
     #|  flex: 1;
     #|  min-width: 200px;
@@ -612,7 +617,7 @@ fn build_css() -> String {
     #|.media-sidebar {
     #|  display: flex;
     #|  flex-shrink: 0;
-    #|  height: calc(100vh - 80px);
+    #|  height: auto;
     #|  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     #|  position: relative;
     #|  z-index: 10;
@@ -626,7 +631,7 @@ fn build_css() -> String {
     #|  overflow-y: auto;
     #|  overflow-x: hidden;
     #|  padding: 8px;
-    #|  border-right: 1px solid var(--border);
+    #|  border-left: 1px solid var(--border);
     #|  display: flex;
     #|  flex-direction: column;
     #|  gap: 8px;
@@ -787,17 +792,14 @@ fn build_css() -> String {
     #|  border-radius: var(--radius-pill);
     #|  line-height: 1.4;
     #|}
-    #|/* Text labels that make the header action buttons self-explanatory */
-    #|.action-label {
-    #|  font-size: 12px;
-    #|  font-weight: 600;
-    #|  letter-spacing: 0.01em;
-    #|  user-select: none;
+    #|/* Header action buttons are icon-only (SVG, currentColor) with title tooltips */
+    #|header .actions button svg {
+    #|  width: 16px;
+    #|  height: 16px;
+    #|  display: block;
+    #|  flex-shrink: 0;
     #|}
-    #|@media (max-width: 1180px) {
-    #|  .action-label, .sse-dot-label { display: none; }
-    #|  .sse-dot { padding: 0 6px; }
-    #|}
+    #|header .actions #theme-icon { display: inline-flex; }
     #|.view-toggle {
     #|  background: transparent;
     #|  border: 1px solid transparent;
@@ -1972,7 +1974,9 @@ fn build_css() -> String {
     #|.text-line .line-content { flex: 1; color: var(--text); }
     #|
     #|@media (max-width: 840px) {
-    #|  header { flex-direction: column; align-items: flex-start; }
+    #|  header { flex-direction: column; align-items: stretch; }
+    #|  /* Primary action (Submit & Exit) stays right-aligned when the header wraps */
+    #|  header .actions { justify-content: flex-end; flex-wrap: wrap; }
     #|  .comment-list { width: calc(100% - 24px); right: 12px; }
     #|}
     #|/* Mermaid diagram styles */
@@ -2325,7 +2329,7 @@ fn build_css() -> String {
     #|.media-sidebar {
     #|  display: flex;
     #|  flex-shrink: 0;
-    #|  height: calc(100vh - 80px);
+    #|  height: auto;
     #|  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     #|  position: relative;
     #|  z-index: 10;
@@ -2337,7 +2341,7 @@ fn build_css() -> String {
     #|  overflow-y: auto;
     #|  overflow-x: hidden;
     #|  padding: 8px;
-    #|  border-right: 1px solid var(--border);
+    #|  border-left: 1px solid var(--border);
     #|  display: flex;
     #|  flex-direction: column;
     #|  gap: 8px;

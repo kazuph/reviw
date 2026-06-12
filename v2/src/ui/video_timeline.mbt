@@ -16,6 +16,7 @@ struct VTLState {
   mut event_source : EventSource
   mut is_loading : Bool
   mut active_thumb_idx : Int
+  mut started : Bool
   // Event handles for cleanup
   handles : Array[ListenerHandle]
 }
@@ -37,14 +38,18 @@ fn format_time(seconds : Double) -> String {
   }
 }
 
-///| Create a new VideoTimeline with the given configuration
+///| Create a new VideoTimeline with the given configuration.
+///  With autostart=false the timeline element (and its height) is created
+///  immediately but thumbnail loading waits for start_timeline_loading —
+///  used for inline timelines so lazy loading causes no layout shift.
 pub fn create_video_timeline_moonbit(
   video_el : Element,
   container : Element,
   video_path : String,
   scene_threshold : Double,
   stabilization_threshold : Double,
-  prevent_bubble : Bool
+  prevent_bubble : Bool,
+  autostart~ : Bool = true
 ) -> VTLState {
   // Create timeline element
   let timeline_el = create_element("div")
@@ -69,6 +74,7 @@ pub fn create_video_timeline_moonbit(
     event_source: create_null_event_source(),
     is_loading: true,
     active_thumb_idx: -1,
+    started: false,
     handles: [],
   }
 
@@ -80,13 +86,25 @@ pub fn create_video_timeline_moonbit(
     state.handles.push(h)
   }
 
-  // Start SSE connection
-  start_sse_connection(state)
+  // Start SSE connection (deferred when autostart=false)
+  if autostart {
+    start_timeline_loading(state)
+  }
 
   // Setup video time update listener
   setup_timeupdate_listener(state)
 
   state
+}
+
+///| Begin thumbnail loading for a timeline created with autostart=false.
+///  Safe to call multiple times; only the first call connects.
+pub fn start_timeline_loading(state : VTLState) -> Unit {
+  if state.started {
+    return
+  }
+  state.started = true
+  start_sse_connection(state)
 }
 
 ///| Start SSE connection for thumbnail streaming

@@ -257,6 +257,7 @@ async function measureNavState(page: Page, index: number): Promise<NavState> {
     const preview = document.querySelector(".md-preview");
     const mediaEls = preview
       ? Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+          if (el.tagName === "IMG" && el.closest(".video-timeline")) return false;
           if (el.tagName !== "VIDEO") return true;
           const src = (el.getAttribute("src") || "").toLowerCase();
           return exts.some((ext: string) => src.endsWith(ext));
@@ -296,6 +297,7 @@ async function waitForNavSettle(page: Page, index: number): Promise<void> {
       const preview = document.querySelector(".md-preview");
       if (!preview) return false;
       const mediaEls = Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+        if (el.tagName === "IMG" && el.closest(".video-timeline")) return false;
         if (el.tagName !== "VIDEO") return true;
         const src = (el.getAttribute("src") || "").toLowerCase();
         return exts.some((ext: string) => src.endsWith(ext));
@@ -330,6 +332,7 @@ async function startMediaSampler(page: Page): Promise<void> {
       const preview = document.querySelector(".md-preview");
       const els = preview
         ? Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+            if (el.tagName === "IMG" && el.closest(".video-timeline")) return false;
             if (el.tagName !== "VIDEO") return true;
             const src = (el.getAttribute("src") || "").toLowerCase();
             return exts.some((ext: string) => src.endsWith(ext));
@@ -390,6 +393,7 @@ try {
     const thumbs = Array.from(document.querySelectorAll(".media-sidebar-thumb"));
     const expected = preview
       ? Array.from(preview.querySelectorAll("img, video.video-preview, .mermaid-container")).filter((el) => {
+          if (el.tagName === "IMG" && el.closest(".video-timeline")) return false;
           if (el.tagName !== "VIDEO") return true;
           const src = (el.getAttribute("src") || "").toLowerCase();
           return exts.some((ext: string) => src.endsWith(ext));

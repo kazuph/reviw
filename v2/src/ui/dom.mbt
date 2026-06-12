@@ -781,6 +781,30 @@ extern "js" fn show_toast(msg : String) -> Unit =
 extern "js" fn scroll_into_view(el : Element) -> Unit =
   #|(el) => { if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 
+///| Smooth-scroll to element and keep correcting until it is actually visible.
+///  Lazy-loaded images/videos shift the layout while the smooth scroll is in
+///  flight, which makes a single scrollIntoView land short — re-aim until the
+///  target is at least 90% visible (or attempts run out).
+extern "js" fn scroll_into_view_persistent(el : Element) -> Unit =
+  #|(el) => {
+  #|  if (!el) return;
+  #|  const ratio = () => {
+  #|    const r = el.getBoundingClientRect();
+  #|    const vh = window.innerHeight;
+  #|    const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+  #|    return visible / Math.min(r.height || 1, vh);
+  #|  };
+  #|  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  #|  let attempts = 0;
+  #|  const tick = () => {
+  #|    attempts++;
+  #|    if (ratio() >= 0.9 || attempts > 8) return;
+  #|    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  #|    setTimeout(tick, 250);
+  #|  };
+  #|  setTimeout(tick, 300);
+  #|}
+
 ///| Get cell index of TD/TH element (-1 if not a table cell)
 extern "js" fn get_cell_index(el : Element) -> Int =
   #|(el) => (el && el.cellIndex != null) ? el.cellIndex : -1

@@ -1124,10 +1124,11 @@ pub fn build_markdown_html(
   md : MarkdownData,
   filename : String,
   port : Int,
-  file_path~ : String = ""
+  file_path~ : String = "",
+  tab_title~ : String = ""
 ) -> String {
   let buf = StringBuilder::new()
-  build_page_start(buf, filename, file_path~)
+  build_page_start(buf, filename, file_path~, tab_title~)
   // History panel (must be after header, before wrap)
   build_history_panel(buf)
   // Main content wrap

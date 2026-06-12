@@ -81,17 +81,33 @@ pub fn serialize_source_lines_json(lines : Array[String]) -> String {
   buf.to_string()
 }
 
+///| Minimal monochrome icons for header action buttons (lucide-style outlines)
+pub let icon_svg_media : String = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\"/><circle cx=\"9\" cy=\"9\" r=\"2\"/><path d=\"m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21\"/></svg>"
+
+///|
+pub let icon_svg_code : String = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><polyline points=\"16 18 22 12 16 6\"/><polyline points=\"8 6 2 12 8 18\"/></svg>"
+
+///|
+pub let icon_svg_clock : String = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg>"
+
+///|
+pub let icon_svg_moon : String = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\"/></svg>"
+
+///|
+pub let icon_svg_sun : String = "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2\"/><path d=\"M12 20v2\"/><path d=\"m4.93 4.93 1.41 1.41\"/><path d=\"m17.66 17.66 1.41 1.41\"/><path d=\"M2 12h2\"/><path d=\"M20 12h2\"/><path d=\"m6.34 17.66-1.41 1.41\"/><path d=\"m19.07 4.93-1.41 1.41\"/></svg>"
+
 fn build_page_start(
   buf : StringBuilder,
   filename : String,
-  file_path~ : String = ""
+  file_path~ : String = "",
+  tab_title~ : String = ""
 ) -> Unit {
   buf.write_string("<!DOCTYPE html><html lang=\"en\" data-theme=\"light\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">")
   buf.write_string("<meta http-equiv=\"Cache-Control\" content=\"no-store, no-cache, must-revalidate\">")
   buf.write_string("<meta http-equiv=\"Pragma\" content=\"no-cache\">")
   buf.write_string("<meta http-equiv=\"Expires\" content=\"0\">")
   buf.write_string("<title>")
-  buf.write_string(escape_html(filename))
+  buf.write_string(escape_html(if tab_title.length() > 0 { tab_title } else { filename }))
   buf.write_string(" | reviw</title>")
   // highlight.js CDN stylesheets (dark/light theme support)
   buf.write_string("<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11/build/styles/github-dark.min.css\" id=\"hljs-theme-dark\" disabled>")
@@ -124,14 +140,21 @@ fn build_page_start(
   buf.write_string("<span class=\"title-file\">")
   buf.write_string(escape_html(filename))
   buf.write_string("</span></h1>")
-  buf.write_string("<span class=\"badge\">Click to comment / ESC to cancel</span>")
-  buf.write_string("<button class=\"pill\" id=\"pill-comments\" title=\"Toggle comment panel\">Comments <strong id=\"comment-count\">0</strong></button>")
   buf.write_string("</div><div class=\"actions\">")
-  buf.write_string("<span class=\"sse-dot sse-dot-connected\" id=\"sse-status\" role=\"status\" aria-live=\"polite\" title=\"Connected\"><span class=\"sse-dot-label\">Connected</span></span>")
-  buf.write_string("<button class=\"media-sidebar-toggle\" id=\"media-sidebar-toggle\" title=\"Show / hide media thumbnail list\" aria-label=\"Toggle media gallery\">\u{1F5BC}<span class=\"action-label\">Media</span><span class=\"toggle-count\" id=\"media-toggle-count\"></span></button>")
-  buf.write_string("<button class=\"view-toggle\" id=\"view-toggle\" title=\"Hide source panel\"><span id=\"view-toggle-icon\">&#128221;</span><span class=\"action-label\">Source</span></button>")
-  buf.write_string("<button class=\"history-toggle\" id=\"history-toggle\" title=\"Show review history\">\u{1F552}<span class=\"action-label\">History</span></button>")
-  buf.write_string("<button class=\"theme-toggle\" id=\"theme-toggle\" title=\"Switch to dark theme\"><span id=\"theme-icon\">&#127769;</span><span class=\"action-label\">Theme</span></button>")
+  buf.write_string("<span class=\"sse-dot sse-dot-connected\" id=\"sse-status\" role=\"status\" aria-live=\"polite\" title=\"Connected\"></span>")
+  buf.write_string("<button class=\"pill\" id=\"pill-comments\" title=\"Click anywhere to comment / ESC to cancel\">Comments <strong id=\"comment-count\">0</strong></button>")
+  buf.write_string("<button class=\"media-sidebar-toggle\" id=\"media-sidebar-toggle\" title=\"Show / hide media thumbnail list\" aria-label=\"Toggle media gallery\">")
+  buf.write_string(icon_svg_media)
+  buf.write_string("<span class=\"toggle-count\" id=\"media-toggle-count\"></span></button>")
+  buf.write_string("<button class=\"view-toggle\" id=\"view-toggle\" title=\"Hide source panel\" aria-label=\"Toggle source panel\">")
+  buf.write_string(icon_svg_code)
+  buf.write_string("</button>")
+  buf.write_string("<button class=\"history-toggle\" id=\"history-toggle\" title=\"Show review history\" aria-label=\"Review history\">")
+  buf.write_string(icon_svg_clock)
+  buf.write_string("</button>")
+  buf.write_string("<button class=\"theme-toggle\" id=\"theme-toggle\" title=\"Switch to dark theme\" aria-label=\"Toggle theme\"><span id=\"theme-icon\">")
+  buf.write_string(icon_svg_moon)
+  buf.write_string("</span></button>")
   buf.write_string("<button id=\"send-and-exit\" class=\"submit-exit-btn\">Submit &amp; Exit</button>")
   buf.write_string("</div></header>")
 }
@@ -169,7 +192,7 @@ fn build_submit_modal(buf : StringBuilder) -> Unit {
   buf.write_string("<ul id=\"mermaid-error-list\" style=\"margin:4px 0 0 16px;padding:0;font-size:12px;color:var(--danger-text, #c33);\"></ul>")
   buf.write_string("</div></div>")
   buf.write_string("<div class=\"image-attach-area\" id=\"submit-image-area\">")
-  buf.write_string("<label>Attach images (Paste, max 5)</label>")
+  buf.write_string("<label id=\"submit-image-label\">Attach images (Paste, 0/10)</label>")
   buf.write_string("<div class=\"image-preview-list\" id=\"submit-image-preview\"></div>")
   buf.write_string("</div>")
   buf.write_string("<div class=\"modal-actions modal-actions-decision\">")
@@ -426,9 +449,14 @@ fn build_script_footer(
 }
 
 ///| Build complete HTML page for CSV viewer (cli.cjs compatible selectors)
-pub fn build_csv_html(data : CsvData, filename : String, port : Int) -> String {
+pub fn build_csv_html(
+  data : CsvData,
+  filename : String,
+  port : Int,
+  tab_title~ : String = ""
+) -> String {
   let buf = StringBuilder::new()
-  build_page_start(buf, filename)
+  build_page_start(buf, filename, tab_title~)
   // Filter menu (cli.cjs L4989-4996)
   buf.write_string(
     "<div class=\"filter-menu\" id=\"filter-menu\"><label class=\"menu-check\"><input type=\"checkbox\" id=\"freeze-col-check\" /> Freeze up to this column</label><button data-action=\"not-empty\">Rows where not empty</button><button data-action=\"empty\">Rows where empty</button><button data-action=\"contains\">Contains...</button><button data-action=\"not-contains\">Does not contain...</button><button data-action=\"reset\">Clear filter</button></div>",
@@ -478,9 +506,14 @@ pub fn build_csv_html(data : CsvData, filename : String, port : Int) -> String {
 }
 
 ///| Build HTML page for diff viewer
-pub fn build_diff_html(data : DiffData, filename : String, port : Int) -> String {
+pub fn build_diff_html(
+  data : DiffData,
+  filename : String,
+  port : Int,
+  tab_title~ : String = ""
+) -> String {
   let buf = StringBuilder::new()
-  build_page_start(buf, filename)
+  build_page_start(buf, filename, tab_title~)
   buf.write_string("<div class=\"diff-view\">")
   for file in data.files {
     let display_path = if file.new_path.length() > 0 {
@@ -570,10 +603,11 @@ pub fn build_diff_html(data : DiffData, filename : String, port : Int) -> String
 pub fn build_text_html(
   lines : Array[String],
   filename : String,
-  port : Int
+  port : Int,
+  tab_title~ : String = ""
 ) -> String {
   let buf = StringBuilder::new()
-  build_page_start(buf, filename)
+  build_page_start(buf, filename, tab_title~)
   buf.write_string("<div class=\"text-view\">")
   for i, line in lines {
     let line_num = i + 1

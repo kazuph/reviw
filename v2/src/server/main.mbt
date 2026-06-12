@@ -420,27 +420,59 @@ fn detect_mode(file_path : String) -> @core.FileMode {
   @core.FileMode::from_extension(ext_lower)
 }
 
+///| Browser tab title: "<project>/<filename>" so parallel reviews are distinguishable.
+///  The project is the nearest ancestor directory containing .git; falls back to
+///  the file's parent directory name.
+fn compute_tab_title(file_path : String, filename : String) -> String {
+  if file_path.length() == 0 || file_path == "<stdin>" {
+    return filename
+  }
+  let mut dir = path_dirname(file_path)
+  let mut depth = 0
+  while depth < 16 {
+    if exists_sync(path_join(dir, ".git")) {
+      return path_basename(dir) + "/" + filename
+    }
+    let parent = path_dirname(dir)
+    if parent == dir {
+      break
+    }
+    dir = parent
+    depth = depth + 1
+  }
+  let parent_name = path_basename(path_dirname(file_path))
+  if parent_name.length() > 0 && parent_name != "/" {
+    parent_name + "/" + filename
+  } else {
+    filename
+  }
+}
+
 ///|
 fn load_and_build_html(ctx : ServerContext) -> String {
   let content = decode_file(ctx.file_path, encoding_override.val)
+  let tab_title = compute_tab_title(ctx.file_path, ctx.filename)
   match ctx.mode {
     @core.FileMode::Csv | @core.FileMode::Tsv => {
       let delimiter = if ctx.mode == @core.FileMode::Tsv { '\t' } else { ',' }
       let flat = @core.parse_csv(content, delimiter)
       let data = @core.csv_data_from_flat(flat)
-      @core.build_csv_html(data, ctx.filename, ctx.port)
+      @core.build_csv_html(data, ctx.filename, ctx.port, tab_title~)
     }
     @core.FileMode::Diff => {
       let data = @core.parse_diff(content)
-      @core.build_diff_html(data, ctx.filename, ctx.port)
+      @core.build_diff_html(data, ctx.filename, ctx.port, tab_title~)
     }
     @core.FileMode::Markdown => {
       let md = @core.parse_markdown(content)
-      @core.build_markdown_html(md, ctx.filename, ctx.port, file_path=ctx.file_path)
+      @core.build_markdown_html(
+        md, ctx.filename, ctx.port,
+        file_path=ctx.file_path, tab_title~,
+      )
     }
     @core.FileMode::Text => {
       let lines = @core.split_to_lines(content)
-      @core.build_text_html(lines, ctx.filename, ctx.port)
+      @core.build_text_html(lines, ctx.filename, ctx.port, tab_title~)
     }
   }
 }
