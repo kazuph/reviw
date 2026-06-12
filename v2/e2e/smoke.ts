@@ -559,11 +559,58 @@ console.log("\n--- Submit Data Persistence ---");
     await sleep(1000);
     assert(sStdout.includes("line 1 comment"), "Submit: server output includes comment text");
     assert(sStdout.includes("e2e test review summary"), "Submit: server output includes summary");
+    assert(sStdout.includes("answer to question 1"), "Submit: answers object serialized as JSON, not coerced");
+    assert(!sStdout.includes("[object Object]"), "Submit: no '[object Object]' coercion in YAML output");
   } catch (err: unknown) {
     failed++;
     console.error(`  FAIL: Submit test: ${(err as Error).message}`);
   }
   try { submitProc.kill("SIGKILL"); } catch (_: unknown) {}
+}
+
+// Empty answers object {} must be omitted from YAML output (length<=2 gate in yaml.mbt)
+console.log("\n--- Submit with Empty Answers ---");
+{
+  const emptyProc = spawn("node", [SERVER_JS, "--no-open", "--port", String(BASE_PORT + 31), TEST_MD], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, YUNOMI_LOCK_DIR: LOCK_DIR },
+  });
+  let eStdout = "";
+  let eResolved = false;
+  const ePortDetected = new Promise<number>((resolve, reject) => {
+    emptyProc.stdout!.on("data", (d: Buffer) => {
+      eStdout += d;
+      if (eResolved) return;
+      const match = eStdout.match(/at http:\/\/127\.0\.0\.1:(\d+)/);
+      if (match) { eResolved = true; resolve(parseInt(match[1], 10)); }
+    });
+    emptyProc.stderr!.on("data", (d: Buffer) => (eStdout += d));
+    emptyProc.on("exit", () => { if (!eResolved) { eResolved = true; reject(new Error("Server exited")); } });
+    setTimeout(() => { if (!eResolved) { eResolved = true; reject(new Error("Timeout")); } }, 10000);
+  });
+  try {
+    const emptyPort = await ePortDetected;
+    await waitForServer(emptyPort, 5000);
+    const payload = JSON.stringify({
+      summary: "empty answers review",
+      comments: [{ row: 1, col: 0, text: "empty answers comment", image: "" }],
+      summaryImages: [],
+      yunomiAnswers: {},
+    });
+    try {
+      await httpPost(emptyPort, "/exit", payload);
+    } catch (_: unknown) {
+      // ECONNRESET after process.exit is fine
+    }
+    await sleep(1000);
+    assert(eStdout.includes("empty answers comment"), "Empty answers: submit processed");
+    assert(!eStdout.includes("answers:"), "Empty answers: 'answers:' line omitted from YAML");
+    assert(!eStdout.includes("[object Object]"), "Empty answers: no '[object Object]' coercion");
+  } catch (err: unknown) {
+    failed++;
+    console.error(`  FAIL: Empty answers test: ${(err as Error).message}`);
+  }
+  try { emptyProc.kill("SIGKILL"); } catch (_: unknown) {}
 }
 
 // ===== Test: stale close after reload must not terminate the server =====

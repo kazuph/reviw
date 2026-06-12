@@ -15,6 +15,10 @@
   <a href="./README.md">English</a>
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kazuph/yunomi/main/assets/demo.gif" alt="yunomiデモ: エージェントが報告書を差し出し、エビデンスを読み、コメントして承認するまで" width="960">
+</p>
+
 ---
 
 > **インストール手順はありません。** AIに *「`npx yunomi` を実行してね」* と言うだけ。あとはAIが分かってくれます。

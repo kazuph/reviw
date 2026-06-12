@@ -6,3 +6,4 @@ playwright-report/
 test-results/
 .artifacts/*
 dist/
+scripts/_rec/

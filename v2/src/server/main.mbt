@@ -1152,7 +1152,7 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
       })
     }
   }
-  let answers = json_parse_string("yunomiAnswers", body)
+  let answers = json_parse_json_field("yunomiAnswers", body)
   let raw_merr = json_parse_mermaid_errors(body)
   let mermaid_errors : Array[@core.MermaidError] = []
   for me in raw_merr {

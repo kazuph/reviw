@@ -15,6 +15,10 @@
   <a href="./README.ja.md">日本語</a>
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/kazuph/yunomi/main/assets/demo.gif" alt="yunomi demo: the agent serves its report, you scroll the evidence, leave a comment, and approve" width="960">
+</p>
+
 ---
 
 > **Installation: none.** Just tell your AI — *"run `npx yunomi`"* — and it will know what to do.
