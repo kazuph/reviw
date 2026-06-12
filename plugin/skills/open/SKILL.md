@@ -5,7 +5,7 @@ argument-hint: <file-or-url>
 allowed-tools: Bash, Read
 ---
 
-# /dozo-plugin:open
+# /douzo-plugin:open
 
 <command-name>open</command-name>
 
@@ -15,8 +15,8 @@ macOSの`open`コマンドでファイルやURLを開きます。
 
 ### 引数ありの場合
 ```
-/dozo-plugin:open /path/to/file.png
-/dozo-plugin:open https://localhost:3000
+/douzo-plugin:open /path/to/file.png
+/douzo-plugin:open https://localhost:3000
 ```
 
 ### 引数なしの場合

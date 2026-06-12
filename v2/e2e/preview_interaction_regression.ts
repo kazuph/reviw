@@ -12,7 +12,7 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = join(__dirname, "..", "..");
 const SERVER_JS = join(ROOT, "v2", "_build", "js", "release", "build", "server", "server.js");
 const FIXTURE_MD = join(ROOT, "examples", "preview-regression.md");
-const LOCK_DIR = join(tmpdir(), "dozo-preview-interaction-locks");
+const LOCK_DIR = join(tmpdir(), "douzo-preview-interaction-locks");
 
 mkdirSync(LOCK_DIR, { recursive: true });
 
@@ -101,7 +101,7 @@ function startServer(port: number): ChildProcess {
     {
       cwd: ROOT,
       stdio: ["ignore", "ignore", "inherit"],
-      env: { ...process.env, DOZO_LOCK_DIR: LOCK_DIR },
+      env: { ...process.env, DOUZO_LOCK_DIR: LOCK_DIR },
     },
   );
 }
@@ -171,7 +171,7 @@ async function createPage(browser: Browser, viewport = { width: 1440, height: 10
   // defaults to preview-only, so opt into the saved "both" panel state.
   await context.addInitScript(() => {
     try {
-      localStorage.setItem("dozo-panel-state", "both");
+      localStorage.setItem("douzo-panel-state", "both");
     } catch {}
   });
   const page = await context.newPage();
@@ -417,7 +417,7 @@ async function main(): Promise<void> {
 
         await page.evaluate(() => {
           localStorage.setItem(
-            "dozo:comments:preview-regression.md",
+            "douzo:comments:preview-regression.md",
             JSON.stringify({
               comments: {
                 "27:0": { row: 27, col: 0, text: "restored image note" },
@@ -549,7 +549,7 @@ async function main(): Promise<void> {
         const state = await page.evaluate(() => {
           const card = document.querySelector("#comment-card");
           const modal = document.querySelector("#submit-modal");
-          const key = "dozo:comments:preview-regression.md";
+          const key = "douzo:comments:preview-regression.md";
           return {
             cardVisible: !!card && getComputedStyle(card).display !== "none",
             submitVisible: !!modal && modal.classList.contains("visible"),

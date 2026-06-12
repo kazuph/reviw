@@ -1,15 +1,15 @@
 {
-  "name": "dozo-plugins",
+  "name": "douzo-plugins",
   "owner": {
     "name": "kazuph",
     "url": "https://github.com/kazuph"
   },
-  "description": "dozo - Browser-based file review tool with YAML output",
+  "description": "douzo - Browser-based file review tool with YAML output",
   "plugins": [
     {
-      "name": "dozo-plugin",
+      "name": "douzo-plugin",
       "source": "./plugin",
-      "description": "dozo CLI integration for Claude Code - task management, review workflow, and report generation"
+      "description": "douzo CLI integration for Claude Code - task management, review workflow, and report generation"
     }
   ]
 }

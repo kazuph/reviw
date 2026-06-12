@@ -1,9 +1,9 @@
 /**
  * Instant Skill E2E Test
  *
- * `dozo` with no arguments must teach an AI agent the whole approval
+ * `douzo` with no arguments must teach an AI agent the whole approval
  * protocol on the spot:
- *   - `dozo --skill` prints the skill document and exits 0
+ *   - `douzo --skill` prints the skill document and exits 0
  *   - no args + TTY stdin prints the same document (covered via --skill;
  *     the TTY branch is exercised with a pty when available)
  *   - empty piped stdin still prints usage and exits 1 (script safety)
@@ -54,28 +54,28 @@ function run(cmd: string, args: string[], stdin: "ignore" | "pipe"): Promise<Run
   });
 }
 
-// --- dozo --skill: skill document, exit 0 ---
+// --- douzo --skill: skill document, exit 0 ---
 const skill = await run("node", [SERVER_JS, "--skill"], "ignore");
 assert(skill.code === 0, "--skill は exit 0", skill.code);
-assert(skill.stdout.startsWith("# dozo"), "出力はスキル文書タイトルから始まる（前置きノイズなし）", skill.stdout.slice(0, 80));
+assert(skill.stdout.startsWith("# douzo"), "出力はスキル文書タイトルから始まる（前置きノイズなし）", skill.stdout.slice(0, 80));
 for (const section of [
   "## The approval loop",
   "## REPORT.md rules",
   "## Verdict schema",
   "## Install this skill permanently",
-  "npx dozo REPORT.md",
+  "npx douzo REPORT.md",
   "decision: approve | request_changes",
   "![alt](path)",
-  "~/.claude/skills/dozo/SKILL.md",
+  "~/.claude/skills/douzo/SKILL.md",
 ]) {
   assert(skill.stdout.includes(section), `スキル文書に「${section}」が含まれる`);
 }
-assert(!skill.stdout.includes("DOZO_LIVE"), "スキル文書にライブログ行が混ざらない");
+assert(!skill.stdout.includes("DOUZO_LIVE"), "スキル文書にライブログ行が混ざらない");
 
 // --- no args + TTY: same document (via script(1) pty on macOS/Linux) ---
 const tty = await run("script", ["-q", "/dev/null", "node", SERVER_JS], "ignore");
 if (tty.code === 0 || tty.stdout.length > 0) {
-  assert(tty.stdout.includes("# dozo"), "TTYで引数なし実行するとスキル文書が出る", tty.stdout.slice(0, 120));
+  assert(tty.stdout.includes("# douzo"), "TTYで引数なし実行するとスキル文書が出る", tty.stdout.slice(0, 120));
   assert(tty.stdout.includes("## Install this skill permanently"), "TTY出力にも永続インストール節がある");
 } else {
   console.log("  SKIP: script(1) が使えない環境のため TTY 分岐は --skill で代替検証済み");
@@ -84,7 +84,7 @@ if (tty.code === 0 || tty.stdout.length > 0) {
 // --- empty piped stdin: usage + exit 1 (keeps broken pipelines loud) ---
 const empty = await run("node", [SERVER_JS], "pipe");
 assert(empty.code === 1, "空のパイプ入力は exit 1", empty.code);
-assert(empty.stdout.includes("Usage: dozo"), "空パイプではUsageを表示", empty.stdout.slice(0, 120));
+assert(empty.stdout.includes("Usage: douzo"), "空パイプではUsageを表示", empty.stdout.slice(0, 120));
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exitCode = 1;

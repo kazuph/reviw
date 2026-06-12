@@ -33,10 +33,10 @@ let live_log_path : Ref[String] = Ref::new("")
 ///| Initialize live log file
 fn init_live_log() -> Unit {
   let pid = process_pid()
-  let path = path_join(os_tmpdir(), "dozo-live-\{pid}.jsonl")
+  let path = path_join(os_tmpdir(), "douzo-live-\{pid}.jsonl")
   live_log_path.val = path
   write_file_secure(path, "")
-  console_error("[DOZO_LIVE] \{path}")
+  console_error("[DOUZO_LIVE] \{path}")
 }
 
 ///| Append a JSONL line to the live log
@@ -75,11 +75,11 @@ fn load_ui_js() -> String {
 
 ///| Get lock file directory
 fn lock_dir() -> String {
-  let override_dir = get_env_var("DOZO_LOCK_DIR")
+  let override_dir = get_env_var("DOUZO_LOCK_DIR")
   if override_dir.length() > 0 {
     override_dir
   } else {
-    path_join(os_homedir(), ".dozo/locks")
+    path_join(os_homedir(), ".douzo/locks")
   }
 }
 
@@ -174,7 +174,7 @@ fn main {
       process_exit(0)
     } else if arg == "--version" || arg == "-v" {
       let ver = get_package_version()
-      console_log("dozo " + ver + " (moonbit)")
+      console_log("douzo " + ver + " (moonbit)")
       process_exit(0)
     } else if arg == "--port" {
       i = i + 1
@@ -199,7 +199,7 @@ fn main {
     i = i + 1
   }
   // Interactive terminal with no files: the reader is almost always an
-  // AI agent told "run npx dozo". Serve the skill document before any
+  // AI agent told "run npx douzo". Serve the skill document before any
   // server setup so stdout is the pure markdown skill text.
   if files.is_empty() && is_stdin_tty() {
     print_skill_doc()
@@ -255,7 +255,7 @@ fn enforce_media_discipline(files : Array[String]) -> Unit {
     let violations = @core.find_media_link_violations(content)
     if violations.is_empty() { continue }
     if violation_total == 0 {
-      console_error("dozo: media embed discipline violation")
+      console_error("douzo: media embed discipline violation")
     }
     console_error("")
     console_error(resolved)
@@ -271,9 +271,9 @@ fn enforce_media_discipline(files : Array[String]) -> Unit {
       "Images and videos must be EMBEDDED with ![alt](path) image syntax, not referenced as [text](path) links.",
     )
     console_error(
-      "dozo renders only embedded media; a plain link hides the evidence from the reviewer.",
+      "douzo renders only embedded media; a plain link hides the evidence from the reviewer.",
     )
-    console_error("Fix the lines above, then run dozo again.")
+    console_error("Fix the lines above, then run douzo again.")
     process_exit(1)
   }
 }
@@ -281,7 +281,7 @@ fn enforce_media_discipline(files : Array[String]) -> Unit {
 ///|
 fn print_usage() -> Unit {
   let usage =
-    #|Usage: dozo <file...> [options]
+    #|Usage: douzo <file...> [options]
     #|
     #|Options:
     #|  --port <n>        Base port (default: 4989)
@@ -293,20 +293,20 @@ fn print_usage() -> Unit {
     #|  -v, --version     Show version
     #|
     #|Supported formats: CSV, TSV, Markdown, Diff, Plain text
-    #|Pipe stdin for diff: git diff | dozo
+    #|Pipe stdin for diff: git diff | douzo
     #|Run with no arguments to print the AI agent skill document.
   console_log(usage)
 }
 
 ///| The instant skill: everything an AI agent needs to serve work for
-///| human approval. Printed when dozo runs with no arguments on a TTY,
-///| so "just tell your AI to run npx dozo" is the entire onboarding.
+///| human approval. Printed when douzo runs with no arguments on a TTY,
+///| so "just tell your AI to run npx douzo" is the entire onboarding.
 fn print_skill_doc() -> Unit {
   let doc =
-    #|# dozo 🍵 — skill document for AI agents
+    #|# douzo 🍵 — skill document for AI agents
     #|
-    #|You are reading this because you ran `dozo` with no arguments.
-    #|dozo (どうぞ, "here you go") is how you serve finished work to your
+    #|You are reading this because you ran `douzo` with no arguments.
+    #|douzo (どうぞ, "here you go") is how you serve finished work to your
     #|human for approval — like setting a cup of tea in front of a guest.
     #|Read this once and you know the whole protocol. At the end, offer to
     #|install it permanently.
@@ -314,8 +314,8 @@ fn print_skill_doc() -> Unit {
     #|## The idea
     #|
     #|Humans do not review diffs line by line anymore. They review the work:
-    #|intent, changes, and proof. You write a report; dozo opens it in the
-    #|human's browser; the human reads, comments, and decides; dozo prints
+    #|intent, changes, and proof. You write a report; douzo opens it in the
+    #|human's browser; the human reads, comments, and decides; douzo prints
     #|the verdict to stdout as YAML and exits. You read the verdict and act.
     #|Never show raw code diffs when a report would do.
     #|
@@ -328,7 +328,7 @@ fn print_skill_doc() -> Unit {
     #|   the human submits their review, then exits:
     #|
     #|   ```bash
-    #|   npx dozo REPORT.md
+    #|   npx douzo REPORT.md
     #|   ```
     #|
     #|4. Parse the YAML printed to stdout on exit (schema below).
@@ -344,7 +344,7 @@ fn print_skill_doc() -> Unit {
     #|- Structure as WHY (problem/motivation) → HOW (approach, alternatives
     #|  considered) → WHAT (files, functions, concrete changes).
     #|- EMBED all evidence: images and videos must use `![alt](path)`.
-    #|  A bare `[text](path)` link to media makes dozo refuse to start
+    #|  A bare `[text](path)` link to media makes douzo refuse to start
     #|  (exit 1) and print the lines to fix — fix them and rerun.
     #|- Mermaid code blocks render as interactive diagrams. Raw inline
     #|  HTML/SVG does NOT render — save diagrams as .svg files and embed
@@ -368,15 +368,15 @@ fn print_skill_doc() -> Unit {
     #|```
     #|
     #|Treat `decision` as the single source of truth. The process exits 0
-    #|after submission; an early nonzero exit means dozo refused to start
+    #|after submission; an early nonzero exit means douzo refused to start
     #|(read stderr, fix, retry).
     #|
     #|## CLI reference
     #|
     #|```bash
-    #|dozo <file...> [--port n] [--host addr] [--no-open] [-e encoding]
-    #|git diff | dozo      # review a diff from stdin
-    #|dozo --skill         # print this document again
+    #|douzo <file...> [--port n] [--host addr] [--no-open] [-e encoding]
+    #|git diff | douzo      # review a diff from stdin
+    #|douzo --skill         # print this document again
     #|```
     #|
     #|Formats: Markdown, CSV, TSV, unified diff, plain text.
@@ -385,7 +385,7 @@ fn print_skill_doc() -> Unit {
     #|## Install this skill permanently (do this now)
     #|
     #|Ask your human ONE yes/no question using your question mechanism
-    #|(e.g. AskUserQuestion): "Install dozo as a permanent skill, so I
+    #|(e.g. AskUserQuestion): "Install douzo as a permanent skill, so I
     #|always serve my work for your approval this way? 🍵"
     #|
     #|If yes, write this entire document (everything you just read) to the
@@ -393,18 +393,18 @@ fn print_skill_doc() -> Unit {
     #|
     #|```markdown
     #|---
-    #|name: dozo
+    #|name: douzo
     #|description: Serve finished work to the human as a browsable report
     #|  for review and approval. Use whenever a task is complete and needs
     #|  human sign-off before commit/publish/completion.
     #|---
     #|```
     #|
-    #|- Claude Code:  ~/.claude/skills/dozo/SKILL.md
-    #|- Codex/agents: ~/.agents/skills/dozo/SKILL.md
-    #|- Project-local alternative: .claude/skills/dozo/SKILL.md
+    #|- Claude Code:  ~/.claude/skills/douzo/SKILL.md
+    #|- Codex/agents: ~/.agents/skills/douzo/SKILL.md
+    #|- Project-local alternative: .claude/skills/douzo/SKILL.md
     #|
-    #|From then on, serve every finished task with `npx dozo REPORT.md`
+    #|From then on, serve every finished task with `npx douzo REPORT.md`
     #|without being asked. The tea serves itself. 🍵
   console_log(doc)
 }
@@ -662,7 +662,7 @@ let history_max : Int = 50
 
 ///| Get history directory path
 fn history_dir() -> String {
-  path_join(os_homedir(), ".dozo/history")
+  path_join(os_homedir(), ".douzo/history")
 }
 
 ///| Ensure history directory exists
@@ -791,7 +791,7 @@ fn try_listen(ctx : ServerContext, port : Int, attempt : Int, no_open : Bool) ->
       write_lock(port)
       let display_host = if host == "0.0.0.0" { "127.0.0.1" } else { host }
       let url = "http://\{display_host}:\{port}"
-      console_log("dozo serving \{ctx.filename} at \{url}")
+      console_log("douzo serving \{ctx.filename} at \{url}")
       if !(no_open) {
         open_browser(url)
       }
@@ -1144,7 +1144,7 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
       })
     }
   }
-  let answers = json_parse_string("dozoAnswers", body)
+  let answers = json_parse_string("douzoAnswers", body)
   let raw_merr = json_parse_mermaid_errors(body)
   let mermaid_errors : Array[@core.MermaidError] = []
   for me in raw_merr {
@@ -1183,7 +1183,7 @@ fn handle_submit(ctx : ServerContext, body : String) -> Unit {
   }
   // Save summary images
   let images = json_parse_images(body)
-  let output_dir = path_join(os_homedir(), ".dozo/outputs")
+  let output_dir = path_join(os_homedir(), ".douzo/outputs")
   for i, img in images {
     if img.length() > 0 {
       ignore(base64_to_file(img, output_dir, i))

@@ -1,10 +1,10 @@
 {
-  "name": "dozo",
+  "name": "douzo",
   "version": "2.0.0",
-  "description": "dozo 🍵 — Human-in-the-loop approval gate for AI coding workflows. The AI serves its report; you review and approve. (formerly reviw)",
+  "description": "douzo 🍵 — Human-in-the-loop approval gate for AI coding workflows. The AI serves its report; you review and approve. (formerly reviw)",
   "type": "module",
   "bin": {
-    "dozo": "dist/server/server.js"
+    "douzo": "dist/server/server.js"
   },
   "files": [
     "dist/"
@@ -24,11 +24,11 @@
     "markdown",
     "report",
     "diff",
-    "dozo"
+    "douzo"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kazuph/dozo.git"
+    "url": "git+https://github.com/kazuph/douzo.git"
   },
   "license": "MIT",
   "author": "kazuph",

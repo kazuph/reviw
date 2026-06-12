@@ -4,7 +4,7 @@ description: Force actual verification with webapp-testing - no assumptions allo
 allowed-tools: Bash, Read, Glob, Grep, Task
 ---
 
-# /dozo-plugin:check-yourself
+# /douzo-plugin:check-yourself
 
 <command-name>check-yourself</command-name>
 
@@ -79,7 +79,7 @@ echo "Project type: $PROJECT_TYPE"
 
 | Project Type | 実行するスキル |
 |-------------|---------------|
-| web / fullstack | `/dozo-plugin:webapp-testing` |
+| web / fullstack | `/douzo-plugin:webapp-testing` |
 | backend | `backend-testing` skill（テストフレームワーク実行） |
 | mobile | `mobile-testing` skill（Maestro MCP） |
 
