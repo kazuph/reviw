@@ -1227,6 +1227,10 @@ fn submit_review(_port : Int) -> Unit {
     fn(_response) {
       ls_remove(get_storage_key())
       window_close()
+      // Browsers refuse window.close() for tabs they consider
+      // user-opened; park the survivor on about:blank so it neither
+      // looks like a live review nor matches future tab reuse
+      ignore(set_timeout(fn() { location_replace("about:blank") }, 400))
     },
   )
 }
@@ -1335,10 +1339,23 @@ fn set_sse_status(state : String, label : String) -> Unit {
 ///| Track whether SSE was previously connected (to show "Reconnected")
 let sse_was_connected : Ref[Bool] = Ref::new(false)
 
+///| Server instance id from the first SSE hello; a different id on
+///| reconnect means a NEW server reused this port — reload so a lingering
+///| tab becomes the new session's tab instead of showing stale content
+let sse_server_instance : Ref[String] = Ref::new("")
+
 fn setup_sse(_port : Int) -> Unit {
   let url = location_origin() + "/sse"
   let es = new_event_source(url)
   sse_on(es, "reload", fn(_e) { location_reload() })
+  sse_on(es, "hello", fn(e) {
+    let id = sse_event_data(e)
+    if sse_server_instance.val == "" {
+      sse_server_instance.val = id
+    } else if sse_server_instance.val != id {
+      location_reload()
+    }
+  })
   // SSE connection status tracking
   sse_on_open(es, fn() {
     let label = if sse_was_connected.val { "Reconnected" } else { "Connected" }

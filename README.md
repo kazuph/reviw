@@ -1,9 +1,12 @@
+<h1 align="center">どうぞ 🍵</h1>
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kazuph/yunomi/main/assets/hero.png" alt="yunomi — a voxel robot serving tea while an engineer reads a report" width="720">
+  <img src="https://raw.githubusercontent.com/kazuph/yunomi/main/assets/hero.png" alt="a voxel robot quietly serving tea while an engineer reads a report" width="720">
 </p>
 
 <p align="center">
-  <strong>Human-in-the-loop approval gate for AI coding workflows</strong>
+  <strong>Reviews, served like tea.</strong><br>
+  <strong>yunomi</strong>（湯のみ）— a human-in-the-loop approval gate for AI coding workflows
 </p>
 
 <p align="center">
@@ -14,19 +17,17 @@
 
 ---
 
-# yunomi 🍵
-
 > **Installation: none.** Just tell your AI — *"run `npx yunomi`"* — and it will know what to do.
 
-**yunomi**（湯のみ）is the humble Japanese teacup — no handle, warm in both hands. When tea is served in one, it comes with a slight bow and a single word: *douzo* — "here you go."
+A **yunomi**（湯のみ）is the everyday Japanese teacup: no handle, no saucer, warm in both hands. Tea served in one always arrives the same way — set down gently in front of you, with a slight bow and a single word: *douzo* — "here you go."
 
 ## The story
 
-yunomi was not built for humans to demand *"show me what you did."*
+yunomi was not built so humans can demand *"show me what you did."*
 It is the opposite gesture.
 
-Every time an AI agent finishes a piece of work, it doesn't just say "done."
-It brews a report — what it changed, why, the evidence, the test results — pours it into a cup, and serves it to you:
+When an AI agent finishes a piece of work, it shouldn't just say "done."
+It should brew a report — what changed, why, the evidence, the test results — pour it into a cup, and set it down in front of you:
 
 ```bash
 npx yunomi REPORT.md
@@ -34,9 +35,9 @@ npx yunomi REPORT.md
 
 *Douzo.* 🍵
 
-Your browser opens. You read at your own pace. You leave comments, you approve — or you hand it back. The agent waits the way good service waits: quietly, until you decide. When you submit, yunomi exits and returns your decision to the agent as structured YAML, and the loop continues until you say it's good.
+Your browser opens. You read at your own pace. You leave comments; you approve — or you hand the cup back. The agent waits the way good service waits: quietly, until you decide. When you submit, yunomi exits and hands your verdict back to the agent as structured YAML, and the loop continues until you say it's good.
 
-In the vibe coding era, humans no longer read every diff. What we review is the work itself: **intent, changes, and proof**. yunomi is the moment of handoff between AI work and human judgment — served politely, every single time.
+In the vibe coding era, humans no longer read every diff. We review the work itself: **intent, changes, and proof**. yunomi is the moment of handoff between AI work and human judgment — served politely, every single time.
 
 ## Getting started (the only step)
 

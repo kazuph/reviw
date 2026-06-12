@@ -27,6 +27,9 @@ let all_results : Array[@core.ReviewResult] = []
 ///| Expected total number of files
 let expected_count : Ref[Int] = Ref::new(0)
 
+///| Per-process id announced over SSE so reused-port tabs can self-reload
+let server_instance_id : Ref[String] = Ref::new("")
+
 ///| Live log file path for real-time comment IPC
 let live_log_path : Ref[String] = Ref::new("")
 
@@ -205,6 +208,7 @@ fn main {
     print_skill_doc()
     process_exit(0)
   }
+  server_instance_id.val = gen_instance_id()
   // Initialize live log for real-time comment IPC
   init_live_log()
   // Cleanup locks and live log on SIGINT
@@ -828,6 +832,9 @@ fn handle_request(ctx : ServerContext, req : JsValue, res : JsValue) -> Unit {
   } else if http_method == "GET" && url == "/sse" {
     setup_sse(res)
     ctx.sse_clients.push(res)
+    // Announce this server's identity: a tab reconnecting after a
+    // restart sees a different id and reloads itself
+    sse_send(res, "hello", server_instance_id.val)
     on_close(
       req,
       fn() {

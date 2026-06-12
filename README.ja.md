@@ -1,9 +1,12 @@
+<h1 align="center">どうぞ 🍵</h1>
+
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kazuph/yunomi/main/assets/hero.png" alt="yunomi — お茶を差し出すボクセルロボットと報告書を読むエンジニア" width="720">
+  <img src="https://raw.githubusercontent.com/kazuph/yunomi/main/assets/hero.png" alt="お茶をそっと差し出すボクセルロボットと、報告書を読むエンジニア" width="720">
 </p>
 
 <p align="center">
-  <strong>AIコーディングワークフローのためのHuman-in-the-loop承認ゲート</strong>
+  <strong>レビューを、お茶のように差し出す。</strong><br>
+  <strong>yunomi</strong>（湯のみ）— AIコーディングワークフローのためのHuman-in-the-loop承認ゲート
 </p>
 
 <p align="center">
@@ -14,19 +17,17 @@
 
 ---
 
-# yunomi 🍵
-
 > **インストール手順はありません。** AIに *「`npx yunomi` を実行してね」* と言うだけ。あとはAIが分かってくれます。
 
-**yunomi**（湯のみ）は、お茶を差し出すときのあの器。取っ手はなく、両手で包むと温かい。湯のみでお茶が出てくるとき、そこには小さな会釈とひとことが添えられます——「どうぞ」。
+**yunomi**（湯のみ）は、日本の暮らしのなかのあの器。取っ手も受け皿もなく、両手で包むと温かい。湯のみのお茶はいつも同じ出され方をします——そっと目の前に置かれて、小さな会釈と、ひとこと——「どうぞ」。
 
 ## ストーリー
 
 yunomiは、人間が「やったものを見せろ」と要求するためのツールではありません。
 その**逆の所作**のためのツールです。
 
-AIエージェントは仕事を終えるたび、ただ「できました」とは言いません。
-報告書を淹れます——何を変えたのか、なぜか、エビデンスとテスト結果——それを湯のみに注いで、あなたに差し出します:
+AIエージェントは仕事を終えたとき、ただ「できました」と言うべきではありません。
+報告書を淹れるべきです——何を変えたのか、なぜか、エビデンスとテスト結果——それを湯のみに注いで、あなたの前にそっと置く:
 
 ```bash
 npx yunomi REPORT.md

@@ -189,7 +189,14 @@ fn render_markdown_lines(lines : Array[String]) -> String {
       } else {
         // Generic HTML block: pass through as-is
         let html_buf = StringBuilder::new()
-        let mut depth = 1
+        // Void tags and one-liners that already close on the start line
+        // must not swallow the following markdown
+        let mut depth = if is_void_tag(tag_name) ||
+          line.contains("</" + tag_name + ">") {
+          0
+        } else {
+          1
+        }
         html_buf.write_string(line)
         html_buf.write_string("\n")
         i = i + 1
@@ -670,7 +677,22 @@ fn is_html_block_start(line : String) -> Bool {
   let t = trim(line)
   t.has_prefix("<details") || t.has_prefix("<div") || t.has_prefix("<section") ||
   t.has_prefix("<article") || t.has_prefix("<aside") || t.has_prefix("<nav") ||
-  t.has_prefix("<header") || t.has_prefix("<footer")
+  t.has_prefix("<header") || t.has_prefix("<footer") || t.has_prefix("<p") ||
+  t.has_prefix("<table") || t.has_prefix("<figure") || t.has_prefix("<center") ||
+  t.has_prefix("<blockquote") || t.has_prefix("<img") || t.has_prefix("<video") ||
+  t.has_prefix("<h1") || t.has_prefix("<h2") || t.has_prefix("<h3") ||
+  t.has_prefix("<h4") || t.has_prefix("<h5") || t.has_prefix("<h6") ||
+  t.has_prefix("<hr") || t.has_prefix("<ul") || t.has_prefix("<ol") ||
+  t.has_prefix("<dl") || t.has_prefix("<span") || t.has_prefix("<a ")
+}
+
+///| Void tags never get a closing tag, so an HTML block starting with one
+///| ends on the same line
+fn is_void_tag(tag : String) -> Bool {
+  match tag {
+    "img" | "br" | "hr" | "source" => true
+    _ => false
+  }
 }
 
 ///| Extract tag name from HTML opening tag
@@ -711,7 +733,8 @@ fn is_allowed_tag(tag : String) -> Bool {
     "thead" | "tbody" | "del" | "sup" | "sub" | "h1" | "h2" | "h3" |
     "h4" | "h5" | "h6" | "blockquote" | "pre" | "hr" | "details" |
     "summary" | "section" | "article" | "aside" | "nav" | "header" |
-    "footer" | "video" | "source" => true
+    "footer" | "video" | "source" | "figure" | "figcaption" | "center" |
+    "picture" => true
     _ => false
   }
 }
@@ -729,7 +752,7 @@ fn is_allowed_attr(name : String) -> Bool {
   match name {
     "class" | "id" | "style" | "href" | "src" | "alt" | "title" |
     "width" | "height" | "colspan" | "rowspan" | "target" | "rel" |
-    "controls" | "preload" | "open" => true
+    "controls" | "preload" | "open" | "align" | "valign" | "loading" => true
     _ => false
   }
 }

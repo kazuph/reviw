@@ -81,6 +81,11 @@ fn read_stdin_sync() -> String {
 extern "js" fn is_stdin_tty() -> Bool =
   #|() => process.stdin.isTTY || false
 
+///| Unique-enough id for this server process, sent as SSE "hello" so
+///| lingering tabs can detect a new server on a reused port and reload
+extern "js" fn gen_instance_id() -> String =
+  #|() => Date.now().toString(36) + "-" + process.pid + "-" + Math.random().toString(36).slice(2, 8)
+
 ///| Node.js http module - import createServer via #module
 #module("node:http")
 extern "js" fn http_create_server_raw(handler : (JsValue, JsValue) -> Unit) -> JsValue = "createServer"

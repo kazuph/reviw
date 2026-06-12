@@ -214,3 +214,71 @@ test "parse markdown table wrapped in table-container" {
     #|true
   ))
 }
+
+test "html block: p with align renders as html" {
+  let md = parse_markdown(
+    "<p align=\"center\">\n  <img src=\"hero.png\" alt=\"hero\" width=\"720\">\n</p>\n\nAfter text",
+  )
+  inspect(md.html.contains("<p align=\"center\">"), content=(
+    #|true
+  ))
+  inspect(md.html.contains("<img src=\"hero.png\""), content=(
+    #|true
+  ))
+  inspect(md.html.contains("&lt;p"), content=(
+    #|false
+  ))
+  inspect(md.html.contains("After text"), content=(
+    #|true
+  ))
+}
+
+test "html block: single-line p does not swallow following markdown" {
+  let md = parse_markdown("<p align=\"center\">hello</p>\n\n# Heading After")
+  inspect(md.html.contains("hello"), content=(
+    #|true
+  ))
+  inspect(md.html.contains("Heading After"), content=(
+    #|true
+  ))
+  inspect(md.html.contains("<h1"), content=(
+    #|true
+  ))
+}
+
+test "html block: script inside is stripped" {
+  let md = parse_markdown("<p align=\"center\"><script>alert(1)</script>safe</p>")
+  inspect(md.html.contains("<script"), content=(
+    #|false
+  ))
+  inspect(md.html.contains("safe"), content=(
+    #|true
+  ))
+}
+
+test "html block: anchor with badge img keeps href and src" {
+  let md = parse_markdown(
+    "<p align=\"center\">\n  <a href=\"https://www.npmjs.com/package/yunomi\"><img src=\"https://img.shields.io/npm/v/yunomi.svg\" alt=\"npm version\"></a>\n</p>",
+  )
+  inspect(md.html.contains("<a href=\"https://www.npmjs.com/package/yunomi\""), content=(
+    #|true
+  ))
+  inspect(md.html.contains("img.shields.io"), content=(
+    #|true
+  ))
+}
+
+test "html block: h1 align center (actual README header) renders as html" {
+  let md = parse_markdown(
+    "<h1 align=\"center\">どうぞ 🍵</h1>\n\n<p align=\"center\">\n  <img src=\"hero.png\" alt=\"hero\" width=\"720\">\n</p>\n\nBody text",
+  )
+  inspect(md.html.contains("<h1 align=\"center\">どうぞ 🍵</h1>"), content=(
+    #|true
+  ))
+  inspect(md.html.contains("&lt;h1"), content=(
+    #|false
+  ))
+  inspect(md.html.contains("Body text"), content=(
+    #|true
+  ))
+}

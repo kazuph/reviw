@@ -154,6 +154,14 @@ extern "js" fn sse_on(
 ) -> Unit =
   #|(es, event, handler) => es.addEventListener(event, handler)
 
+///| Read the data payload from an SSE message event
+extern "js" fn sse_event_data(e : Event) -> String =
+  #|(e) => String((e && e.data) || "")
+
+///| Replace current location without adding a history entry
+extern "js" fn location_replace(url : String) -> Unit =
+  #|(url) => location.replace(url)
+
 ///| Fetch POST
 extern "js" fn fetch_post(url : String, body : String, callback : (String) -> Unit) -> Unit =
   #|(url, body, cb) => {

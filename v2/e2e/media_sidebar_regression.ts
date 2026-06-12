@@ -450,10 +450,18 @@ try {
     "サムネクリックで該当サムネが active になる",
     afterClick,
   );
+  // Lazy media can still shift layout after the first settle; the nav
+  // re-aims persistently, so poll visibility instead of trusting a
+  // single post-settle measurement.
+  let visState = afterClick;
+  for (let retry = 0; retry < 15 && (visState.visibleRatio === null || visState.visibleRatio < 0.5); retry++) {
+    await new Promise((r) => setTimeout(r, 200));
+    visState = await measureNavState(page, lastIdx);
+  }
   assert(
-    afterClick.visibleRatio !== null && afterClick.visibleRatio >= 0.5,
+    visState.visibleRatio !== null && visState.visibleRatio >= 0.5,
     "サムネクリックでメインプレビューが該当メディアまでスクロールする",
-    afterClick,
+    visState,
   );
   assert(
     afterClick.highlightCount === 1 && afterClick.highlightedIndex === lastIdx,
